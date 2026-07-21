@@ -1,0 +1,19 @@
+{
+  "name": "St. Elisabeth Leipzig",
+  "hint": "Aktuell freigeschaltet: Pflegedienst · OP-Bereich · Preset Anästhesie. Andere Bereiche folgen — dafür „Unterstützung anfragen“ nutzen.",
+  "groups": [
+    {
+      "id": "pflege",
+      "label": "Pflegedienst",
+      "areas": [
+        {
+          "id": "op-bereich",
+          "label": "OP-Bereich",
+          "mapping": "mappings/pflege/op.json",
+          "supported": true,
+          "defaultPreset": "Anästhesie"
+        }
+      ]
+    }
+  ]
+}

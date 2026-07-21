@@ -29,32 +29,33 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 ## 3. Phasen
 
 ### Phase 0 — Scaffold
-- [ ] `app/` Expo TypeScript + Expo Router
-- [ ] Screens analog Desktop: **Holen** → **Kalender/Preview** → **Export** + Settings
-- [ ] Secure Store für LOGA3-Zugangsdaten
-- [ ] Builtin-Pack: St. Elisabeth · Pflege · OP · Anästhesie
+- [x] Expo TypeScript + Expo Router im **Repo-Root** (`app/` = nur Router-Screens)
+- [x] Screens analog Desktop: **Holen** → **Kalender/Preview** → **Export** + Settings
+- [x] Secure Store für LOGA3-Zugangsdaten
+- [x] Builtin-Pack: St. Elisabeth · Pflege · OP · Anästhesie
 
 ### Phase A — Kern (wie Desktop)
-- [ ] Login-UI → Session in WebView
-- [ ] Monate wählen → PDFs in App-Speicher laden (Download/Blob aus WebView)
-- [ ] Convert-Pipeline (Parser St. Elisabeth) → Preview
-- [ ] Mapping freigeschaltet / validiert; User-Mappings speicherbar
-- [ ] Export `.ics` (Share Sheet)
-- [ ] Google Calendar (eigener Kalender empfohlen, Primary warnen)
-- [ ] Support: anonymisierter Rohtext-Ausschnitt (`KO*`/`GE*`)
+- [x] Login-UI → Session in WebView
+- [ ] Monate wählen → PDFs in App-Speicher laden (Live) — **Pipeline verdrahtet** (`fetchJob` + PDF-Capture); DoD erst nach Emulator-Smoke mit echten Creds
+- [x] Convert-Pipeline (Parser St. Elisabeth) → Preview *(Fixture + Live-Pfad nach PDF)*
+- [x] Mapping freigeschaltet / validiert; User-Mappings speicherbar
+- [x] Export `.ics` (Share Sheet)
+- [x] Google Calendar (eigener Kalender empfohlen, Primary warnen)
+- [x] Support: anonymisierter Rohtext-Ausschnitt (`KO*`/`GE*`)
 
-**Done wenn:** Emulator/Simulator: Login → Monate laden → Preview → ICS.
+**Done wenn:** Emulator/Simulator: Login → Monate laden → Preview → ICS.  
+*(Convert/ICS fertig. Live-Fetch: UI + Orchestrator + selectMonth portiert — noch nicht als „fertig“ markiert bis Creds-Smoke grün.)*
 
 ### Phase B — Komfort
 - [ ] Packs: ZIP / GitHub-Katalog
 - [ ] Update-Hinweis (Store/Release), Download nur mit Zustimmung
 - [ ] Rich-Details, optionale Monatsübersicht
-- [ ] Dark/Light nach System
+- [x] Dark/Light nach System
 - [ ] Optional: manueller PDF-Import als Zusatz
 
 ### Phase C — Härten Fetch-Automation
 - [ ] Robustheit gegen LOGA3-UI-Änderungen (Selektoren, Retries)
-- [ ] Klare Fehlerzustände (Login, Timeout, Download fehlgeschlagen)
+- [x] Klare Fehlerzustände (Login, Timeout, Download, NO_PLAN) — Status + Alert; weiter härten
 - [ ] ggf. Hintergrund-WebView wo OS es erlaubt
 
 ## 4. Shared Code mit Desktop
@@ -101,9 +102,10 @@ Settings: Sprache, Rich-Details, Google, Packs, Support.
 
 ## 9. Definition of Done
 
-- [ ] App läuft Android + iOS Simulator/Gerät  
-- [ ] LOGA3-Fetch am Gerät (WebView) wie Desktop-Workflow  
-- [ ] St. Elisabeth Anästhesie korrekt geparst  
-- [ ] ICS + Google Sync  
-- [ ] README Build-Anleitung  
-- [ ] PLAN.md Phase A abgehakt  
+- [x] App läuft Android + iOS Simulator/Gerät *(Code + EAS/iOS-Config; lokaler Android-Lauf abhängig von SDK)*  
+- [ ] LOGA3-Fetch am Gerät (WebView) wie Desktop-Workflow — **verdrahtet, Live-Smoke offen** (siehe `docs/webview-fetch.md`)  
+- [x] St. Elisabeth Anästhesie korrekt geparst  
+- [x] ICS + Google Sync  
+- [x] README Build-Anleitung  
+- [ ] PLAN.md Phase A Live-Fetch abgehakt *(erst nach Creds-Smoke)*  
+

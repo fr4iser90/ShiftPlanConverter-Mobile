@@ -1,6 +1,6 @@
 # Architektur — LOGA3 Mobile
 
-Alles läuft **auf dem Gerät**.
+Alles läuft **auf dem Gerät**. Expo-Projekt liegt im **Repo-Root** (nicht in einem verschachtelten `app/`-Projektordner). `app/` ist nur der Expo-Router.
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -13,30 +13,28 @@ Alles läuft **auf dem Gerät**.
 │  └────────────┘   └──────────┘   └────────────┘ │
 │         │               │                        │
 │         ▼               ▼                        │
-│   lokale PDFs      packs/ (builtin)              │
+│   lokale PDFs      src/packs/builtin             │
 │   Secure Store                                   │
 └──────────────────────────────────────────────────┘
 ```
 
-**Playwright-Ersatz:** In-App **WebView** (Android System WebView / iOS WKWebView). Die App steuert LOGA3 per JS (Navigation, Monatswahl, Download) — analog zum Desktop-Workflow.
-
-## Module (Ziel unter `app/`)
+## Module
 
 ```
-app/
-  app/                    # Expo Router
-    (tabs)/
-      fetch.tsx           # Login + Monate + WebView-Job
-      preview.tsx
-      export.tsx
-      settings.tsx
-  src/
-    loga3/                # WebView-Automation (Desktop-Workflow portiert)
-    convert/              # Port aus Desktop converter/
-    packs/
-    sync/                 # ics.ts, google.ts
-    support/
-    i18n/
+app/                      # Expo Router
+  (tabs)/
+    fetch.tsx             # Login + Monate + WebView-Job
+    preview.tsx
+    export.tsx
+    settings.tsx
+src/
+  loga3/                  # WebView-Automation
+  convert/                # Port aus Desktop converter/
+  packs/
+  sync/                   # ics share, google.ts
+  support/
+  i18n/
+assets/ components/ constants/
 ```
 
 ## Datenfluss Holen
@@ -60,4 +58,4 @@ Sync: eigener Kalender empfohlen; Primary warnen.
 
 ## Packs
 
-ZIP-Format wie Desktop. Builtin unter `app/src/packs/builtin/…`.
+ZIP-Format wie Desktop. Builtin unter `src/packs/builtin/…`.

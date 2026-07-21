@@ -47,7 +47,7 @@ TECH STACK
 - EAS Build für Android + iOS
 - i18n DE/EN
 
-App-Code unter app/ (create-expo-app falls noch nicht vorhanden).
+App-Code im **Repo-Root** (Expo Router-Ordner heißt `app/` — kein verschachteltes Expo-Projekt).
 
 ════════════════════════════════════════
 IMPLEMENTIERUNG (Reihenfolge)
@@ -119,7 +119,7 @@ DOKUMENTATION
 ════════════════════════════════════════
 DEFINITION OF DONE (Singleshot)
 ════════════════════════════════════════
-- [ ] App-Code unter app/ committed-ready
+- [ ] App-Code im Repo-Root committed-ready (`app/` = Expo Router)
 - [ ] Unit-Tests grün (npm test)
 - [ ] typecheck grün
 - [ ] Android Emulator: App startet + Convert-Smoke

@@ -1,31 +1,53 @@
-# Dependencies
+# dependencies
 node_modules/
+
+# Expo
 .expo/
 dist/
-npm-debug.*
-yarn-error.log
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-*.orig.*
-web-build/
-ios/
-android/
+/ios
+/android
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+coverage/
 
 # macOS
 .DS_Store
+*.pem
 
 # Env / secrets
 .env
 .env.*
 !.env.example
 
-# EAS
-eas.json.bak
+# Nix / Android local state
+.android-nix/
+local.properties
+result
+result-*
+
+# typescript
+*.tsbuildinfo
 
 # IDE
 .idea/
 .vscode/
 *.swp
+
+.screenshots/
