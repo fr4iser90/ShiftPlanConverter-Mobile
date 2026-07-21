@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.expo/
+dist/
+npm-debug.*
+yarn-error.log
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+ios/
+android/
+
+# macOS
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# EAS
+eas.json.bak
+
+# IDE
+.idea/
+.vscode/
+*.swp

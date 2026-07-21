@@ -1,0 +1,11 @@
+# Sample Zeitprotokoll-Snippet (anonym, für Parser-Tests)
+
+Abrechnungsmonat 09/2026
+Zeitabrechnung
+Tag von bis Dauer Pause PEP
+Übertrag aus Vormonat 26,14
+11 Mo KO* 11:35 GE* 19:50 0,30 7,45 4,24 15,27 11,03 24,05
+14 Di KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 27,26
+15 Mi KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 30,47
+16 Do KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 34,08
+17 Fr KO* 08:30 GE* 16:45 0,30 7,45 4,24 7,45 3,21 37,29
