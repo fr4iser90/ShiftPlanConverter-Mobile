@@ -11,18 +11,13 @@ Du arbeitest im Repo **LOGA3-Automation-Mobile**.
 Lies zuerst:
 - `PLAN.md`
 - `docs/architecture.md`
-- Desktop-Referenz: https://github.com/fr4iser90/LOGA3-Automation (`converter/`, `loga3-workflow` / GUI-Flow als Verhaltens-Vorbild)
+- Desktop-Referenz: https://github.com/fr4iser90/LOGA3-Automation (`converter/`, Fetch-/GUI-Flow als Verhaltens-Vorbild)
 
-### Produktziel (nicht verhandeln)
+### Produktziel
 
-Die Mobile-App soll **wie die Desktop-App** funktionieren — **vollständig auf dem Gerät**:
+Die Mobile-App funktioniert **wie die Desktop-App** — **vollständig auf dem Gerät**:
 
-- LOGA3 Login → Monate wählen → PDFs holen → parsen → Preview → ICS / Google  
-
-**Verboten als Architektur:**
-- Server / PC / Remote-Playwright als Voraussetzung  
-- „Nur PDF importieren“ als MVP/Produktziel  
-- LOGA3-API reverse-engineern als Hauptweg  
+LOGA3 Login → Monate wählen → PDFs holen → parsen → Preview → ICS / Google  
 
 **Playwright-Ersatz:** In-App **WebView** + JS-Steuerung von LOGA3.
 
@@ -32,13 +27,13 @@ Die Mobile-App soll **wie die Desktop-App** funktionieren — **vollständig auf
 2. Screens: Holen (WebView-Fetch) → Preview → Export + Settings.
 3. Port Converter aus Desktop-`converter/`.
 4. Builtin-Mapping: Pflege · OP · Anästhesie (`isValidated`).
-5. Desktop-Fetch-Logik als WebView-Automation neu implementieren (nicht Playwright kopieren).
+5. Desktop-Fetch-Logik als WebView-Automation umsetzen.
 
 ### Constraints
 
 - Android **und** iOS, eine Codebase.
 - TypeScript.
-- Keine Secrets committen.
+- Secrets nicht committen.
 - `PLAN.md` Checkboxes aktuell halten.
 
 ### Erste Deliverables

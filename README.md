@@ -1,6 +1,6 @@
 # LOGA3 Automation Mobile
 
-Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, läuft **nur auf dem Gerät**.
+Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, auf dem Gerät.
 
 **Desktop-Referenz:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation) (Verhalten, Converter, Packs).
 
@@ -11,7 +11,7 @@ Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, läuft 
 3. Schichten parsen → Preview  
 4. `.ics` / Google Calendar  
 
-**Kein Server. Kein PC.** Playwright-Ersatz: **WebView in der App** + JS-Steuerung von LOGA3.
+Playwright-Ersatz: **WebView in der App** + JS-Steuerung von LOGA3.
 
 ## Stack
 
@@ -23,7 +23,7 @@ Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, läuft 
 
 | Datei | Inhalt |
 |--------|--------|
-| [PLAN.md](./PLAN.md) | Phasen, DoD, Nicht-Ziele |
+| [PLAN.md](./PLAN.md) | Phasen, DoD |
 | [docs/architecture.md](./docs/architecture.md) | Architektur |
 | [docs/handoff-prompt.md](./docs/handoff-prompt.md) | Prompt für LLM/Entwickler |
 
@@ -40,11 +40,10 @@ App-Ordner: Phase 0 (`create-expo-app` + ggf. Dev Client für WebView-Downloads)
 
 | Feature | Desktop | Mobile |
 |---------|---------|--------|
-| LOGA3 PDFs holen | Playwright + Chromium | **WebView + JS** (auf dem Gerät) |
+| LOGA3 PDFs holen | Playwright + Chromium | **WebView + JS** |
 | PDF → Schichten | ja | ja |
 | ICS / Google Sync | ja | ja |
 | Arbeitgeber-Packs | ja | ja |
-| Braucht Server/PC | nein | **nein** |
 
 ## Lizenz
 

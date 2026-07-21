@@ -1,6 +1,6 @@
 # Architektur — LOGA3 Mobile
 
-Alles läuft **auf dem Gerät**. Kein Server, kein PC, kein Remote-Fetch.
+Alles läuft **auf dem Gerät**.
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -18,7 +18,7 @@ Alles läuft **auf dem Gerät**. Kein Server, kein PC, kein Remote-Fetch.
 └──────────────────────────────────────────────────┘
 ```
 
-**Playwright-Ersatz:** In-App **WebView** (Android System WebView / iOS WKWebView). Die App steuert LOGA3 per JS (Navigation, Monatswahl, Download) — analog zum Desktop-Workflow, ohne externes Chromium/Playwright.
+**Playwright-Ersatz:** In-App **WebView** (Android System WebView / iOS WKWebView). Die App steuert LOGA3 per JS (Navigation, Monatswahl, Download) — analog zum Desktop-Workflow.
 
 ## Module (Ziel unter `app/`)
 
@@ -42,7 +42,7 @@ app/
 ## Datenfluss Holen
 
 1. Credentials aus Secure Store → WebView-Session  
-2. LOGA3 UI steuern (wie Desktop `loga3-workflow`, aber WebView-API)  
+2. LOGA3 UI steuern (WebView-API, analog Desktop-Workflow)  
 3. PDF-Bytes in App-Dateisystem schreiben  
 4. Convert-Pipeline → Preview / Export  
 
@@ -55,15 +55,9 @@ app/
 
 ## Google OAuth
 
-Eigene Android/iOS OAuth-Clients (nicht Desktop `127.0.0.1:3847`).  
+Eigene Android/iOS OAuth-Clients.  
 Sync: eigener Kalender empfohlen; Primary warnen.
 
 ## Packs
 
 ZIP-Format wie Desktop. Builtin unter `app/src/packs/builtin/…`.
-
-## Explizit nicht
-
-- Backend / Desktop-Pairing als Architektur  
-- LOGA3-REST-API reverse-engineern als Hauptweg  
-- Playwright-Binary in der APK  

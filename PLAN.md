@@ -12,9 +12,7 @@ Mobile App (Android **und** iOS) mit **demselben Funktionsumfang wie die Desktop
 3. Schichten parsen → Preview  
 4. Export `.ics` / Google Calendar  
 
-**Kein Server. Kein PC. Kein Remote-Playwright. Kein „nur PDF importieren“ als Produktziel.**
-
-Playwright-Ersatz auf dem Gerät: **eingebettete Browser-Engine (WebView / Chromium-ähnlich) + JS-Steuerung von LOGA3**.
+Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LOGA3**.
 
 ## 2. Stack
 
@@ -28,10 +26,6 @@ Playwright-Ersatz auf dem Gerät: **eingebettete Browser-Engine (WebView / Chrom
 | Kalender | `.ics` Share + Google Calendar REST (Mobile OAuth) |
 | i18n | DE/EN analog Desktop |
 
-**Nicht:** Flutter (außer explizit umentschieden).  
-**Nicht:** LOGA3-HTTP-API reverse-engineern als Hauptweg.  
-**Nicht:** Desktop/Backend-Pairing als Voraussetzung.
-
 ## 3. Phasen
 
 ### Phase 0 — Scaffold
@@ -40,45 +34,43 @@ Playwright-Ersatz auf dem Gerät: **eingebettete Browser-Engine (WebView / Chrom
 - [ ] Secure Store für LOGA3-Zugangsdaten
 - [ ] Builtin-Pack: St. Elisabeth · Pflege · OP · Anästhesie
 
-### Phase A — Vollständiger Kern (wie Desktop)
+### Phase A — Kern (wie Desktop)
 - [ ] Login-UI → Session in WebView
 - [ ] Monate wählen → PDFs in App-Speicher laden (Download/Blob aus WebView)
 - [ ] Convert-Pipeline (Parser St. Elisabeth) → Preview
-- [ ] Mapping nur freigeschaltet / validiert; User-Mappings speicherbar
+- [ ] Mapping freigeschaltet / validiert; User-Mappings speicherbar
 - [ ] Export `.ics` (Share Sheet)
 - [ ] Google Calendar (eigener Kalender empfohlen, Primary warnen)
 - [ ] Support: anonymisierter Rohtext-Ausschnitt (`KO*`/`GE*`)
 
-**Done wenn:** Emulator/Simulator: Login → Monate laden → Preview → ICS **ohne** externes Backend/PC.
+**Done wenn:** Emulator/Simulator: Login → Monate laden → Preview → ICS.
 
 ### Phase B — Komfort
 - [ ] Packs: ZIP / GitHub-Katalog
 - [ ] Update-Hinweis (Store/Release), Download nur mit Zustimmung
 - [ ] Rich-Details, optionale Monatsübersicht
 - [ ] Dark/Light nach System
-- [ ] Optional: manueller PDF-Import als **Zusatz**, nicht als Ersatz für Fetch
+- [ ] Optional: manueller PDF-Import als Zusatz
 
 ### Phase C — Härten Fetch-Automation
 - [ ] Robustheit gegen LOGA3-UI-Änderungen (Selektoren, Retries)
 - [ ] Klare Fehlerzustände (Login, Timeout, Download fehlgeschlagen)
-- [ ] ggf. Headless/Hintergrund-WebView wo OS es erlaubt
+- [ ] ggf. Hintergrund-WebView wo OS es erlaubt
 
 ## 4. Shared Code mit Desktop
 
 ### Portieren
 - `converter/` (Parse, Mapping, ICS, Anonymize, Event-Description)
-- UX-Flow / Job-Ideen aus `loga3-workflow.js` — **als WebView-Automation neu**, nicht Playwright 1:1
+- UX-Flow / Job-Ideen aus `loga3-workflow.js` → als WebView-Automation
 - Pack-ZIP-Format
 
-### Nicht übernehmen
-- Playwright-Paket / Desktop-Chromium-Bundle
-- `loga3-gui-server.js`, `scripts/build-desktop.js`
-- Desktop-HTML/CSS 1:1
+### Desktop-only (bleibt im Desktop-Repo)
+- Playwright / Chromium-Bundle, `loga3-gui-server.js`, `scripts/build-desktop.js`
 
 ## 5. UX-Flow (wie Desktop)
 
 1. **Holen** — Login, Monate, Download  
-2. **Arbeitgeber / Bereich** — nur freigeschaltete Optionen  
+2. **Arbeitgeber / Bereich** — freigeschaltete Optionen  
 3. **Preview** — Schichten, Missing Codes  
 4. **Export** — ICS / Google Sync  
 
@@ -86,20 +78,12 @@ Settings: Sprache, Rich-Details, Google, Packs, Support.
 
 ## 6. Sicherheit / Datenschutz
 
-- Zugangsdaten nur lokal (Secure Store)  
-- Keine Roh-PDFs an Support ohne Anonymisierung  
+- Zugangsdaten lokal (Secure Store)  
+- Support nur mit Anonymisierung  
 - Google OAuth: Mobile Client IDs / Redirects  
-- Kein stilles Auto-Update  
+- Updates nur mit Zustimmung  
 
-## 7. Nicht-Ziele
-
-- Kein Pflicht-Server / kein PC-Companion für den Normalbetrieb  
-- Kein LOGA3-API-Reverse-Engineering als Primärarchitektur  
-- Kein reines Desktop-Repo-Clone  
-- Keine freigeschalteten Stationen ohne validierte Mappings  
-- Kein Windows/Linux-Desktop-Build in diesem Repo  
-
-## 8. Releases
+## 7. Releases
 
 | Artefakt | Tool |
 |----------|------|
@@ -107,7 +91,7 @@ Settings: Sprache, Rich-Details, Google, Packs, Support.
 | iOS | EAS + Apple Developer Account |
 | Version | SemVer, CHANGELOG.md |
 
-## 9. Reihenfolge
+## 8. Reihenfolge
 
 1. Scaffold + Holen/Kalender-Screens  
 2. WebView-Login + Monats-Download speichern  
@@ -115,11 +99,11 @@ Settings: Sprache, Rich-Details, Google, Packs, Support.
 4. ICS + Google  
 5. Automation härten (Phase C) + Packs (Phase B)  
 
-## 10. Definition of Done (Produkt)
+## 9. Definition of Done
 
-- [ ] App läuft Android + iOS Simulator/Gerät **standalone**  
-- [ ] LOGA3-Fetch am Gerät (WebView) funktioniert für den Desktop-Workflow  
-- [ ] St. Elisabeth Anästhesie wird korrekt geparst  
+- [ ] App läuft Android + iOS Simulator/Gerät  
+- [ ] LOGA3-Fetch am Gerät (WebView) wie Desktop-Workflow  
+- [ ] St. Elisabeth Anästhesie korrekt geparst  
 - [ ] ICS + Google Sync  
 - [ ] README Build-Anleitung  
 - [ ] PLAN.md Phase A abgehakt  
