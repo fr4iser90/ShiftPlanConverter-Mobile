@@ -1,16 +1,23 @@
 # LOGA3 Automation Mobile
 
-Android- & iOS-App für Dienstplan → Kalender (ICS / Google).
+Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, läuft **nur auf dem Gerät**.
 
-**Desktop-Companion:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation) (LOGA3-Fetch mit Playwright, Packs, Releases).
+**Desktop-Referenz:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation) (Verhalten, Converter, Packs).
 
-Dieses Repo ist **nicht** eine Kopie der Desktop-App. Kein Playwright in der App (MVP).
+## Was die App kann
 
-## Stack (festgelegt)
+1. In LOGA3 einloggen  
+2. Monate wählen und Zeitprotokoll-PDFs holen  
+3. Schichten parsen → Preview  
+4. `.ics` / Google Calendar  
+
+**Kein Server. Kein PC.** Playwright-Ersatz: **WebView in der App** + JS-Steuerung von LOGA3.
+
+## Stack
 
 - **Expo (React Native)** + TypeScript  
-- Warum: Converter-Kern ist JS — Sharing/Port leichter als Flutter  
-- Ein Codebase → Android APK/AAB + iOS IPA  
+- Ein Codebase → Android + iOS  
+- Converter-Port aus dem Desktop-Repo  
 
 ## Dokumente
 
@@ -27,17 +34,17 @@ cd app
 npx expo start
 ```
 
-App-Ordner wird in Phase 0 angelegt (`npx create-expo-app@latest app -t expo-template-blank-typescript`).
+App-Ordner: Phase 0 (`create-expo-app` + ggf. Dev Client für WebView-Downloads).
 
 ## Beziehung zum Desktop
 
-| Feature | Desktop | Mobile MVP |
-|---------|---------|------------|
-| LOGA3 PDFs holen (Browser) | ja | nein → Phase C via Backend |
-| PDF → Schichten parsen | ja | ja |
+| Feature | Desktop | Mobile |
+|---------|---------|--------|
+| LOGA3 PDFs holen | Playwright + Chromium | **WebView + JS** (auf dem Gerät) |
+| PDF → Schichten | ja | ja |
 | ICS / Google Sync | ja | ja |
-| Arbeitgeber-Packs | ja | ja (Builtin + Katalog) |
-| Update-Check | ja | ja (Hinweis + Store/Release-Link) |
+| Arbeitgeber-Packs | ja | ja |
+| Braucht Server/PC | nein | **nein** |
 
 ## Lizenz
 

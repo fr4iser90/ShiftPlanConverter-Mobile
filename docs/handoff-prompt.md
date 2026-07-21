@@ -11,40 +11,48 @@ Du arbeitest im Repo **LOGA3-Automation-Mobile**.
 Lies zuerst:
 - `PLAN.md`
 - `docs/architecture.md`
-- Desktop-Referenz: https://github.com/fr4iser90/LOGA3-Automation (Branch `main`, besonders `converter/` und `gui/` nur als UX-Vorbild)
+- Desktop-Referenz: https://github.com/fr4iser90/LOGA3-Automation (`converter/`, `loga3-workflow` / GUI-Flow als Verhaltens-Vorbild)
 
-### Auftrag Phase 0 + A
+### Produktziel (nicht verhandeln)
 
-1. Initialisiere Expo TypeScript App unter `app/` (`create-expo-app`, Expo Router).
-2. Implementiere Flow: PDF importieren → parsen (St. Elisabeth) → Preview → ICS Share.
-3. Portiere benötigte Converter-Logik aus dem Desktop-`converter/` (nicht Playwright, nicht GUI-Server).
-4. Builtin-Mapping nur: Pflege · OP · Anästhesie (`isValidated`).
-5. Kein eingebetteter Browser-Fetch. Kein Desktop-Code 1:1 klonen.
+Die Mobile-App soll **wie die Desktop-App** funktionieren — **vollständig auf dem Gerät**:
+
+- LOGA3 Login → Monate wählen → PDFs holen → parsen → Preview → ICS / Google  
+
+**Verboten als Architektur:**
+- Server / PC / Remote-Playwright als Voraussetzung  
+- „Nur PDF importieren“ als MVP/Produktziel  
+- LOGA3-API reverse-engineern als Hauptweg  
+
+**Playwright-Ersatz:** In-App **WebView** + JS-Steuerung von LOGA3.
+
+### Auftrag
+
+1. Expo TypeScript App unter `app/` (Expo Router).
+2. Screens: Holen (WebView-Fetch) → Preview → Export + Settings.
+3. Port Converter aus Desktop-`converter/`.
+4. Builtin-Mapping: Pflege · OP · Anästhesie (`isValidated`).
+5. Desktop-Fetch-Logik als WebView-Automation neu implementieren (nicht Playwright kopieren).
 
 ### Constraints
 
-- Android **und** iOS (eine Codebase).
+- Android **und** iOS, eine Codebase.
 - TypeScript.
-- Keine Secrets committen; Google Client IDs über Env/EAS Secrets.
-- Halte `PLAN.md` Checkboxes aktuell, wenn etwas fertig ist.
+- Keine Secrets committen.
+- `PLAN.md` Checkboxes aktuell halten.
 
 ### Erste Deliverables
 
-- `npx expo start` läuft
-- Fixture-PDF oder synthetischer Text → mindestens eine erkannte Schicht in Preview
-- ICS kann geteilt werden
-
-Starte mit Phase 0 Scaffold, dann Parser-Port, dann UI.
+- App startet (`expo start` / Dev Client falls nötig)
+- WebView kann LOGA3 öffnen / Login halten
+- Danach: PDF speichern → Preview → ICS Share
 
 ---
 
-## Nach dem Prompt
-
-Referenz-Checkout Desktop (read-only):
+## Referenz Desktop
 
 ```bash
-# parallel
 git clone https://github.com/fr4iser90/LOGA3-Automation.git ../LOGA3-Automation
 ```
 
-Fixture: anonymisierte Beispielzeilen stehen in `fixtures/sample-zeitprotokoll-snippet.txt`.
+Fixture-Text (Parser-Smoke): `fixtures/sample-zeitprotokoll-snippet.txt`.

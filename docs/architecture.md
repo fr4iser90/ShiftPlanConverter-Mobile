@@ -1,64 +1,69 @@
 # Architektur — LOGA3 Mobile
 
+Alles läuft **auf dem Gerät**. Kein Server, kein PC, kein Remote-Fetch.
+
 ```
-┌─────────────────────────────────────────┐
-│  LOGA3-Automation-Mobile (Expo)         │
-│  ┌─────────┐  ┌──────────┐  ┌────────┐ │
-│  │ Import  │→ │ Convert  │→ │ Export │ │
-│  │ PDF     │  │ Preview  │  │ ICS/GCal│ │
-│  └─────────┘  └──────────┘  └────────┘ │
-│         │             │                 │
-│         ▼             ▼                 │
-│   expo-file-system   packs/ (builtin)   │
-└─────────────────────────────────────────┘
-                    │ Phase C (später)
-                    ▼
-┌─────────────────────────────────────────┐
-│  LOGA3-Automation (Desktop / optional   │
-│  headless API) — Playwright Fetch       │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  LOGA3-Automation-Mobile (Expo / RN)             │
+│                                                  │
+│  ┌────────────┐   ┌──────────┐   ┌────────────┐ │
+│  │ Holen      │→  │ Convert  │→  │ Export     │ │
+│  │ WebView    │   │ Preview  │   │ ICS/GCal   │ │
+│  │ + LOGA3 JS │   │          │   │            │ │
+│  └────────────┘   └──────────┘   └────────────┘ │
+│         │               │                        │
+│         ▼               ▼                        │
+│   lokale PDFs      packs/ (builtin)              │
+│   Secure Store                                   │
+└──────────────────────────────────────────────────┘
 ```
 
-## Module (Zielstruktur unter `app/`)
+**Playwright-Ersatz:** In-App **WebView** (Android System WebView / iOS WKWebView). Die App steuert LOGA3 per JS (Navigation, Monatswahl, Download) — analog zum Desktop-Workflow, ohne externes Chromium/Playwright.
+
+## Module (Ziel unter `app/`)
 
 ```
 app/
-  app/                 # Expo Router screens
-    (tabs)/ or stack:
-      index.tsx        # Import
+  app/                    # Expo Router
+    (tabs)/
+      fetch.tsx           # Login + Monate + WebView-Job
       preview.tsx
       export.tsx
       settings.tsx
   src/
-    convert/           # Port aus Desktop converter/
-    packs/             # Builtin JSON + loader
-    sync/              # ics.ts, google.ts
-    support/           # anonymize + mailto/share
+    loga3/                # WebView-Automation (Desktop-Workflow portiert)
+    convert/              # Port aus Desktop converter/
+    packs/
+    sync/                 # ics.ts, google.ts
+    support/
     i18n/
-  assets/
 ```
+
+## Datenfluss Holen
+
+1. Credentials aus Secure Store → WebView-Session  
+2. LOGA3 UI steuern (wie Desktop `loga3-workflow`, aber WebView-API)  
+3. PDF-Bytes in App-Dateisystem schreiben  
+4. Convert-Pipeline → Preview / Export  
 
 ## Datenfluss Convert
 
 1. PDF → ArrayBuffer  
-2. `extractTextFromPdfBuffer` (pdf.js)  
-3. `parseStElisabeth(text)` → Roh-Einträge  
-4. `parseTimeSheet(..., mapping, parser)` → kalenderfertige Entries  
-5. Preview / ICS / Google  
+2. Text extrahieren (pdf.js)  
+3. Parser + Mapping → Entries  
+4. Preview / ICS / Google  
 
-Mapping-Pfad wie Desktop: nur `supported`-Areas; Presets mit `isValidated: true`.
+## Google OAuth
 
-## Google OAuth (Mobile)
-
-- Eigener OAuth-Client Typ „Android“ / „iOS“ in Google Cloud (nicht derselbe Web-Client wie Desktop `127.0.0.1:3847`)  
-- Redirect: Expo Auth Session / App Scheme  
-- Sync-Strategie: wie Desktop — eigener Kalender empfohlen, Wipe im Datumsbereich dokumentieren  
+Eigene Android/iOS OAuth-Clients (nicht Desktop `127.0.0.1:3847`).  
+Sync: eigener Kalender empfohlen; Primary warnen.
 
 ## Packs
 
-ZIP-Format identisch zu Desktop (`packs/README.md` im Desktop-Repo).  
-Builtin: Dateien unter `app/src/packs/builtin/st-elisabeth-leipzig/`.
+ZIP-Format wie Desktop. Builtin unter `app/src/packs/builtin/…`.
 
-## Warum kein Playwright hier
+## Explizit nicht
 
-Playwright braucht eine volle Browser-Runtime. Auf iOS/Android als Store-App: Größe, RAM, Policy, Wartung. Fetch bleibt Desktop oder Phase-C-Backend.
+- Backend / Desktop-Pairing als Architektur  
+- LOGA3-REST-API reverse-engineern als Hauptweg  
+- Playwright-Binary in der APK  
