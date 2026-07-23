@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { hydrateStore, subscribe } from '@/src/state/store';
 import { t } from '@/src/i18n';
 
@@ -25,7 +24,16 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: useClientOnlyValue(false, true),
+        tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
+        tabBarStyle: {
+          backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#FFFFFF',
+          borderTopColor: colorScheme === 'dark' ? '#1E293B' : '#E2E8F0',
+          height: 58,
+          paddingBottom: 6,
+          paddingTop: 4,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"

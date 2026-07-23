@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.1 — 2026-07-22
+
+### Fixed
+- Live-Fetch Emulator-Smoke: Juli 2026 → PDF + 14 Schichten (Viewport ≥1280 nötig; Tiny-AVD bricht GWT-Dialog)
+- Android PDF-Capture: Viewer-Scrape + nur `%PDF`-Blobs; Hermes-taugliche Text-Extraktion (`fflate` / Tj) statt pdfjs-Worker
+
+### Changed
+- PLAN / `docs/webview-fetch.md`: Live-Fetch DoD erfüllt
+- README: Viewport-Hinweis (≥1280 / `wm size 1280x800`) für Live-Fetch
+- Multi-Month-Smoke 06+07/2026 → 28 Schichten / 2 PDFs
+- Google Sync wie Desktop: Builtin-Client-ID (keine `EXPO_PUBLIC_GOOGLE_*`), Wipe im Datumsbereich; optional `GOOGLE_CLIENT_ID` in `.env`
+- Kalender-Tab näher an Desktop: Tabelle Datum/Code/Start/Ende, Blau-Highlight heute/Woche/Monat, AZK-Monatsübersicht, Auto-Scroll zum Fokus
+- Früher gehen: Ist-Zeiten mit gleichem Start → bekannter Dienstcode (nicht mehr „fehlende Zeiten“); Mapping-UI nur für wirklich unbekannte Starts
+- Sicherheit: Login nur Secure Store; Tenant-URL nur Settings/AsyncStorage — nichts davon im APK-Build; Arbeitgeber per Pack-Auswahl (Setup)
+- Fetch-Automation: `waitForCondition` statt Sleep/Retry-Orgie — precondition → eine Aktion → postcondition; max. ein Recovery
+- Eigenes **Setup-Modal**: URL → Login → Pack; Holen nur Monate/Fetch wenn Setup komplett
+- Shell-Ready-Gate: wartet auf Ende LOGA3-Splash bevor Zeiten geklickt wird (`assertShellReady`)
+
 ## 0.1.0 — 2026-07-21
 
 ### Added
@@ -16,7 +34,8 @@
 ### Changed
 - Expo-Projekt ins Repo-Root gelegt (`app/` nur noch Expo Router, keine doppelte Projekt-/LICENSE-Struktur)
 - Holen: Live-Pfad „Ausgewählte laden“ (`fetchJob` + echtes `selectMonth` + PDF-Capture); Fixture klar als Offline-Debug
+- Desktop Pre-Download-Gates: Content-Gate, Dialog-Monat, PDF-Abrechnungsmonat-Validate; LOGA3-URL in Settings
 
 ### Added (Dev)
 - `shell.nix`: Node 22 + JDK 17 + Android SDK/Emulator; Hilfen `loga3-emu` / `loga3-android` / `loga3-help`
-- `src/loga3/fetchJob.ts`, `bridge.ts`, `pdfStore.ts`; Docs `webview-fetch.md` aktualisiert
+- `src/loga3/fetchJob.ts`, `bridge.ts`, `pdfStore.ts`, `contentGate.ts`; Docs `webview-fetch.md` aktualisiert

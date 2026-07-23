@@ -1,81 +1,94 @@
 # LOGA3 Automation Mobile
 
-Android- & iOS-App — **derselbe Funktionsumfang wie die Desktop-App**, auf dem Gerät.
+Android & iOS app — **the same feature set as the desktop app**, running on-device.
 
-**Desktop-Referenz:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)
+**Desktop reference:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)
 
 ## Features
 
-1. LOGA3 Login (Credentials in Secure Store)  
-2. Monate wählen → Zeitprotokoll (WebView)  
-3. PDF/Text parsen → Preview  
-4. Export `.ics` (Share) + Google Calendar Sync  
+1. LOGA3 login (credentials in Secure Store)
+2. Pick months → fetch time sheets (in-app WebView)
+3. Parse PDF/text → preview
+4. Export `.ics` (share sheet) + Google Calendar sync
 
-Playwright-Ersatz: **In-App WebView** + JS-Steuerung — siehe [docs/webview-fetch.md](./docs/webview-fetch.md).
+Playwright replacement: **in-app WebView** + injected JS — see [docs/webview-fetch.md](./docs/webview-fetch.md).
 
-## Voraussetzungen
+## Requirements
 
-- Node.js 20+ / npm  
-- Für Gerät/Emulator: Android Studio (SDK + Emulator) bzw. **macOS + Xcode** für lokalen iOS-Build  
-- Optional: Expo-Account (`eas login`) für Cloud-Builds  
-- Optional: Google OAuth Mobile Client IDs  
-- Optional: echte LOGA3-Zugangsdaten für Live-Fetch  
+- Node.js 20+ / npm
+- Device/emulator: Android Studio (SDK + emulator), or **macOS + Xcode** for local iOS builds
+- Optional: Expo account (`eas login`) for cloud builds
+- Optional: Google OAuth client IDs
+- Optional: real LOGA3 credentials for live fetch
 
-**iOS:** Auf Linux lokal nicht baubar — Config (`app.json` / `eas.json`) ist vorbereitet. Build auf Mac oder per EAS Cloud:
+**iOS:** Not buildable locally on Linux — config (`app.json` / `eas.json`) is ready. Build on a Mac or via EAS:
 
 ```bash
 eas build --platform ios --profile preview
 ```
 
-## Installation
+## Install
 
 ```bash
 npm install
-cp .env.example .env   # optional: Google Client IDs / LOGA3 URL
+cp .env.example .env   # optional: Google client IDs / notes
 ```
 
-## Nix-Shell (Android Emulator inklusive)
+## Nix shell (Android emulator included)
 
-Voraussetzung: Nix, KVM (`/dev/kvm`) für brauchbare Emulator-Performance.  
-Erster Einstieg lädt **~2.5 GiB** SDK + Emulator + System-Image (Nix-Cache).
+Requires: Nix, KVM (`/dev/kvm`) for usable emulator performance.  
+First enter downloads **~2.5 GiB** SDK + emulator + system image (Nix cache).
 
 ```bash
-nix-shell                 # oder: NIXPKGS_ALLOW_UNFREE=1 nix-shell
-loga3-help                # Übersicht
-loga3-emu                 # Emulator starten (Hintergrund)
+nix-shell                 # or: NIXPKGS_ALLOW_UNFREE=1 nix-shell
+loga3-help                # overview
+loga3-emu                 # start emulator (background)
 loga3-android             # npm install + expo run:android
 ```
 
-Smoke offline: Holen → **Offline-Fixture (Debug)** → Preview → Export → ICS.  
-Live: Creds + `EXPO_PUBLIC_LOGA3_URL` in `.env` (Tenant-URL) → Monate → **Ausgewählte laden** (siehe [docs/webview-fetch.md](./docs/webview-fetch.md)).
+Offline smoke: Fetch tab → **Offline fixture (debug)** → Preview → Export → ICS.  
+Live: After install, run **Setup** (tenant URL, login, employer pack), then months → **Fetch selected**. See [docs/webview-fetch.md](./docs/webview-fetch.md).
+
+**Viewport (live fetch):** LOGA3/GWT needs a wide surface. Use an emulator **≥1280×720** (e.g. `pixel_6` via `loga3-emu`) or:
+
+```bash
+adb shell wm size 1280x800
+adb shell wm density 160
+```
+
+Tiny AVDs (e.g. 320×640) do not open the time-sheet dialog reliably.
 
 Details: [`shell.nix`](./shell.nix)
 
-## Entwicklung
+## Development
 
 ```bash
-npx expo start          # Metro + QR / Dev Tools
-npm run android         # = npx expo run:android
-npm run ios             # = npx expo run:ios (nur macOS)
-npm test                # Jest Converter-Tests
+npm start               # Metro only :8091
+npm run start:emu       # emulator (if needed) + Metro + open app
+npm stop                # stop Metro/Expo
+npm run android         # npx expo run:android
+npm run ios             # npx expo run:ios (macOS only)
+npm test                # Jest converter tests
 npm run typecheck       # tsc --noEmit
 ```
 
-### Smoke ohne Emulator
+`start:emu` needs `adb` (preferably inside `nix-shell`). If an emulator is already running → Metro + deep link only.
 
-1. `npm test` und `npm run typecheck`  
-2. `npx expo start`  
-3. Holen-Tab → **Offline-Fixture (Debug)** → Preview → Export → ICS teilen  
-4. Live-Fetch nur mit echten Creds + Tenant-URL (**Ausgewählte laden**)
+### Smoke without an emulator
 
-Für volles WebView + Secure Store: Development Build (`eas build --profile development` oder `expo run:android`).
+1. `npm test` and `npm run typecheck`
+2. `npx expo start`
+3. Fetch tab → **Offline fixture (debug)** → Preview → Export → share ICS
+4. Live fetch only with real credentials + tenant URL (**Fetch selected**) and viewport ≥1280
+
+For full WebView + Secure Store: a development build (`eas build --profile development` or `expo run:android`).
 
 ## EAS Build
 
 ```bash
-npm install -g eas-cli   # einmalig
+npm install -g eas-cli   # once
 eas login
-eas build:configure      # projectId setzen falls noch nicht
+eas build:configure      # set projectId if needed
 
 eas build --platform android --profile development
 eas build --platform android --profile preview
@@ -83,41 +96,50 @@ eas build --platform ios --profile preview
 eas build --platform android --profile production
 ```
 
-Profile: siehe `eas.json` (`development` Dev Client, `preview` internal APK/Simulator, `production` AAB).
+Profiles: see `eas.json` (`development` Dev Client, `preview` internal APK/simulator, `production` AAB).
 
 ## Google OAuth
 
-1. Google Cloud Console → OAuth Clients (Android + iOS, ggf. Web)  
-2. `.env` im Repo-Root (nicht committen):
+**Android:** Native Google Sign-In (Play Services). Custom-scheme redirects (`loga3mobile://`) on a **Web** OAuth client are **rejected** by Google Cloud Console.
+
+Guide: [docs/google-oauth-android.md](docs/google-oauth-android.md)
+
+Short version:
+
+1. GCP: create an **Android** OAuth client — package `com.fr4iser.loga3mobile`, SHA-1 via `./scripts/google-sha1.sh`
+2. Keep the existing **Web** client (built-in desktop ID)
+3. Enable Calendar API · add test users
+4. Rebuild the APK (native module)
+
+Optional `.env`:
 
 ```bash
-EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=….apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=….apps.googleusercontent.com
-EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=….apps.googleusercontent.com
+GOOGLE_CLIENT_ID=….apps.googleusercontent.com   # Web client override
+GOOGLE_IOS_CLIENT_ID=….apps.googleusercontent.com
 ```
 
-3. Redirect-Scheme: `loga3mobile://` (in `app.json`)  
-4. Sync: eigenen Kalender wählen; Primary wird gewarnt  
+Sync matches desktop: wipe the date range, then rewrite. Prefer a dedicated calendar; primary is warned.
 
-## Projektstruktur
+## Project layout
 
 ```
-app/                 # Expo Router Screens (Holen, Preview, Export, Settings)
-src/                 # Converter, LOGA3-WebView, Sync, i18n, Packs
-assets/ components/  # UI-Assets
-fixtures/            # Parser-Fixtures
-docs/                # Architektur & Handoff
+app/                 # Expo Router screens (Fetch, Preview, Export, Settings)
+src/                 # Converter, LOGA3 WebView, sync, i18n, packs
+assets/ components/  # UI assets
+fixtures/            # Parser fixtures
+docs/                # Architecture & handoff
 ```
 
-## Dokumente
+## Documents
 
-| Datei | Inhalt |
-|--------|--------|
-| [PLAN.md](./PLAN.md) | Phasen / DoD |
-| [docs/architecture.md](./docs/architecture.md) | Architektur |
-| [docs/webview-fetch.md](./docs/webview-fetch.md) | WebView vs Desktop |
-| [CHANGELOG.md](./CHANGELOG.md) | Versionen |
+| File | Content |
+|------|---------|
+| [PLAN.md](./PLAN.md) | Phases / definition of done |
+| [docs/architecture.md](./docs/architecture.md) | Architecture |
+| [docs/webview-fetch.md](./docs/webview-fetch.md) | WebView vs desktop |
+| [docs/google-oauth-android.md](./docs/google-oauth-android.md) | Android Google Sign-In |
+| [CHANGELOG.md](./CHANGELOG.md) | Versions |
 
-## Lizenz
+## License
 
-Siehe [LICENSE](./LICENSE).
+See [LICENSE](./LICENSE).

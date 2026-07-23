@@ -21,7 +21,7 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 | Framework | **Expo (React Native) + TypeScript** (native Module ok, wo WebView/Downloads es brauchen) |
 | Navigation | Expo Router |
 | LOGA3-Fetch | **In-App WebView** (Android System WebView / WKWebView); Automation analog Desktop-Workflow |
-| PDF-Text | `pdfjs-dist` o.ä. (wie Desktop) |
+| PDF-Text | FlateDecode/`Tj` via `fflate` (Hermes); Fixture/Converter wie Desktop |
 | Storage | `expo-secure-store` (Login/Tokens), App-Storage (Prefs, Packs, PDFs) |
 | Kalender | `.ics` Share + Google Calendar REST (Mobile OAuth) |
 | i18n | DE/EN analog Desktop |
@@ -36,15 +36,15 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 
 ### Phase A — Kern (wie Desktop)
 - [x] Login-UI → Session in WebView
-- [ ] Monate wählen → PDFs in App-Speicher laden (Live) — **Pipeline verdrahtet** (`fetchJob` + PDF-Capture); DoD erst nach Emulator-Smoke mit echten Creds
-- [x] Convert-Pipeline (Parser St. Elisabeth) → Preview *(Fixture + Live-Pfad nach PDF)*
+- [x] Monate wählen → PDFs laden (Live) — Emulator-Smoke 2026-07-22: Juli 2026 → 14 Schichten / 1 PDF (Viewport ≥1280)
+- [x] Convert-Pipeline (Parser St. Elisabeth) → Preview *(Fixture + Live)*
 - [x] Mapping freigeschaltet / validiert; User-Mappings speicherbar
 - [x] Export `.ics` (Share Sheet)
 - [x] Google Calendar (eigener Kalender empfohlen, Primary warnen)
 - [x] Support: anonymisierter Rohtext-Ausschnitt (`KO*`/`GE*`)
 
-**Done wenn:** Emulator/Simulator: Login → Monate laden → Preview → ICS.  
-*(Convert/ICS fertig. Live-Fetch: UI + Orchestrator + selectMonth portiert — noch nicht als „fertig“ markiert bis Creds-Smoke grün.)*
+**Done wenn:** Emulator: Login → Monate laden → Preview → ICS.  
+*(Live-Fetch Emulator-Smoke grün 2026-07-22; Tiny-AVD 320×640 ungeeignet — siehe `docs/webview-fetch.md`.)*
 
 ### Phase B — Komfort
 - [ ] Packs: ZIP / GitHub-Katalog
@@ -52,10 +52,13 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 - [ ] Rich-Details, optionale Monatsübersicht
 - [x] Dark/Light nach System
 - [ ] Optional: manueller PDF-Import als Zusatz
+- [x] LOGA3-URL in Settings (Override für `.env`)
 
 ### Phase C — Härten Fetch-Automation
-- [ ] Robustheit gegen LOGA3-UI-Änderungen (Selektoren, Retries)
-- [x] Klare Fehlerzustände (Login, Timeout, Download, NO_PLAN) — Status + Alert; weiter härten
+- [x] Content-Gate / Dialog-Monat / PDF-Period-Validate (Desktop-Port)
+- [ ] Robustheit gegen LOGA3-UI-Änderungen (Retries weiter härten)
+- [x] Klare Fehlerzustände (Login, NO_PLAN, Content-Gate, PDF mismatch)
+- [x] PDF-Capture Android/iOS stabil genug für Live-Smoke (Blob/XHR + Viewer-Scrape + `%PDF`-Gate; DownloadManager-Poll Fallback)
 - [ ] ggf. Hintergrund-WebView wo OS es erlaubt
 
 ## 4. Shared Code mit Desktop
@@ -70,9 +73,9 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 
 ## 5. UX-Flow (wie Desktop)
 
-1. **Holen** — Login, Monate, Download  
-2. **Arbeitgeber / Bereich** — freigeschaltete Optionen  
-3. **Preview** — Schichten, Missing Codes  
+1. **Setup** — Tenant-URL, Login, Arbeitgeber/Pack (einmalig)  
+2. **Holen** — Monate, Download  
+3. **Preview / Kalender** — Schichten  
 4. **Export** — ICS / Google Sync  
 
 Settings: Sprache, Rich-Details, Google, Packs, Support.

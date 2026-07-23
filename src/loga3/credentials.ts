@@ -8,15 +8,19 @@ export type Loga3Credentials = {
   password: string;
 };
 
+/**
+ * LOGA3 login — only from Secure Store (Holen → speichern).
+ * Never from compiled app config / .env (that would leak into APKs).
+ */
 export async function loadCredentials(): Promise<Loga3Credentials | null> {
   try {
     const username = await SecureStore.getItemAsync(USER_KEY);
     const password = await SecureStore.getItemAsync(PASS_KEY);
-    if (!username || !password) return null;
-    return { username, password };
+    if (username && password) return { username, password };
   } catch {
-    return null;
+    // ignore
   }
+  return null;
 }
 
 export async function saveCredentials(creds: Loga3Credentials): Promise<void> {

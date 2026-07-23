@@ -2,36 +2,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Button,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import {
-  clearCredentials,
-  loadCredentials,
-  saveCredentials,
-} from '@/src/loga3/credentials';
+import { loadCredentials } from '@/src/loga3/credentials';
 import { Loga3WebView } from '@/src/loga3/Loga3WebView';
 import type { AutomationCommand, AutomationMessage } from '@/src/loga3/automation';
-import { LOGA3_LOGIN_URL } from '@/src/loga3/automation';
 import { AutomationBridge } from '@/src/loga3/bridge';
 import { runFetchJob } from '@/src/loga3/fetchJob';
 import { convertPdfText } from '@/src/convert/pipeline';
-import {
-  BUILTIN_AREA_ID,
-  BUILTIN_GROUP_ID,
-  BUILTIN_HOSPITAL_ID,
-  BUILTIN_PRESET,
-  getBuiltinPackConfig,
-  listBuiltinPresets,
-} from '@/src/packs';
-import { getSnapshot, setEntries, setPreset, subscribe } from '@/src/state/store';
+import { getMappingForScope } from '@/src/packs';
+import { getSnapshot, setEntries, subscribe } from '@/src/state/store';
+import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
+import { loadQuickPrefs, type QuickUpdatePrefs } from '@/src/state/quickPrefs';
+import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
+import { runQuickUpdate } from '@/src/sync/quickUpdate';
+import { AppButton } from '@/src/ui/AppButton';
+import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { theme } from '@/src/ui/theme';
 
+const SETUP_HREF = '/setup' as Href;
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const FIXTURE_TEXT = [
@@ -48,14 +45,16 @@ const FIXTURE_TEXT = [
 
 export default function FetchScreen() {
   const [, setTick] = useState(0);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
+  const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
   const [showWeb, setShowWeb] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [status, setStatus] = useState(t('statusReady'));
   const [busy, setBusy] = useState(false);
   const [webReady, setWebReady] = useState(false);
   const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
   const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void }>(null);
   const bridgeRef = useRef(new AutomationBridge());
   const readyRef = useRef(false);
@@ -63,38 +62,58 @@ export default function FetchScreen() {
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
   useEffect(() => {
-    loadCredentials().then((c) => {
-      if (c) {
-        setUsername(c.username);
-        setPassword(c.password);
-      }
-    });
-  }, []);
-  useEffect(() => {
     readyRef.current = webReady;
   }, [webReady]);
 
-  const pack = useMemo(() => getBuiltinPackConfig(), []);
-  const presets = useMemo(() => listBuiltinPresets(), []);
+  const refreshSetup = useCallback(async () => {
+    const st = await getSetupStatus();
+    setSetup(st);
+    setQuickPrefs(await loadQuickPrefs());
+    if (st.complete) {
+      const c = await loadCredentials();
+      setCreds(c);
+    } else {
+      setCreds(null);
+      router.push(SETUP_HREF);
+    }
+  }, []);
 
-  const onSaveCreds = async () => {
-    await saveCredentials({ username: username.trim(), password });
-    Alert.alert('OK', 'Zugangsdaten im Secure Store gespeichert.');
-  };
+  useFocusEffect(
+    useCallback(() => {
+      void refreshSetup();
+    }, [refreshSetup])
+  );
+
+  const packMapping = useMemo(() => {
+    if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
+    return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
+  }, [snap.hospitalId, snap.groupId, snap.areaId]);
+
+  const quickWindowLabel = useMemo(() => {
+    const p = quickPrefs || { prevMonths: 0, nextMonths: 2, syncGoogle: true };
+    return formatMonthWindow(buildMonthWindow(p.prevMonths, p.nextMonths));
+  }, [quickPrefs]);
 
   const onConvertFixture = async () => {
+    if (!setup?.complete || !packMapping || !snap.preset) {
+      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+      return;
+    }
     try {
       const result = convertPdfText(FIXTURE_TEXT, {
-        preset: snap.preset || BUILTIN_PRESET,
+        preset: snap.preset,
+        mapping: packMapping,
         userMappings: snap.userMappings,
       });
-      await setEntries(result.entries, { rawText: FIXTURE_TEXT, summary: result.summary });
-      setStatus(
-        `Offline-Fixture 09/2026: ${result.entries.length} Schichten (kein Live-Download)`
-      );
-      Alert.alert('Fixture (Offline)', `${result.entries.length} Einträge aus Sample 09/2026.`);
+      await setEntries(result.entries, {
+        rawText: FIXTURE_TEXT,
+        summary: result.summary,
+        summaries: result.summaries,
+      });
+      setStatus(`Offline-Fixture: ${result.entries.length} Schichten`);
+      Alert.alert('Fixture', t('fixtureLoaded', { count: result.entries.length }));
     } catch (e) {
-      Alert.alert('Fehler', String(e));
+      Alert.alert(t('alertError'), String(e));
     }
   };
 
@@ -103,16 +122,16 @@ export default function FetchScreen() {
     if (msg.type === 'pdfBlob') {
       setStatus(
         msg.ok
-          ? `PDF erfasst (${msg.size || '?'} B)`
-          : `PDF-Capture fehlgeschlagen: ${msg.error || '?'}`
+          ? t('pdfCaptured', {
+              size: msg.size || '?',
+              note: msg.note ? `, ${msg.note}` : '',
+            })
+          : t('pdfCaptureFailed', { error: msg.error || '?' })
       );
       return;
     }
-    if (msg.error) {
-      setStatus(`${msg.type || '?'}: ${msg.error}${msg.code ? ` [${msg.code}]` : ''}`);
-    } else if (msg.type && msg.type !== 'pdfBlob') {
-      setStatus(`${msg.type}: ok`);
-    }
+    const detail = [msg.error, msg.code, msg.note].filter(Boolean).join(' · ');
+    if (msg.type) setStatus(`${msg.type}${detail ? `: ${detail}` : ''}`);
   }, []);
 
   const toggleMonth = (m: number) => {
@@ -134,37 +153,73 @@ export default function FetchScreen() {
           resolve();
         } else if (Date.now() - started > 25000) {
           clearInterval(id);
-          reject(new Error('WebView nicht bereit (Timeout). Bitte WebView öffnen / URL prüfen.'));
+          reject(new Error(t('webViewNotReady')));
         }
       }, 200);
     });
 
+  const onQuickUpdate = async () => {
+    if (!setup?.complete || !creds) {
+      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+      router.push(SETUP_HREF);
+      return;
+    }
+    setBusy(true);
+    setShowWeb(true);
+    setStatus(t('quickUpdateRunning'));
+    try {
+      await waitUntilReady();
+      const prefs = quickPrefs || (await loadQuickPrefs());
+      const result = await runQuickUpdate({
+        username: creds.username,
+        password: creds.password,
+        bridge: bridgeRef.current,
+        inject: (cmd) => webRef.current?.run(cmd),
+        onStatus: setStatus,
+        prefs,
+      });
+      const parts = [
+        result.windowLabel,
+        `${result.fetch.entries.length} Schichten`,
+        result.fetch.savedPdfs.length ? `${result.fetch.savedPdfs.length} PDF(s)` : null,
+        result.fetch.skippedNoPlan.length
+          ? `NO_PLAN: ${result.fetch.skippedNoPlan.join(', ')}`
+          : null,
+        result.fetch.errors.length ? `Fehler: ${result.fetch.errors.length}` : null,
+        result.google.skipped
+          ? `Google: ${result.google.reason || '—'}`
+          : `Google: +${result.google.created || 0}/−${result.google.deleted || 0}`,
+      ].filter(Boolean);
+      setStatus(parts.join(' · '));
+      Alert.alert(t('quickUpdateDone'), parts.join('\n'));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(`Fehler: ${msg}`);
+      Alert.alert(t('quickUpdate'), msg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onFetchSelected = async () => {
-    if (!username.trim() || !password) {
-      Alert.alert(
-        'Keine Zugangsdaten',
-        'Bitte Benutzername und Passwort speichern. Ohne Creds wird kein Fixture still geladen.'
-      );
-      setStatus('Abbruch: keine Zugangsdaten');
+    if (!setup?.complete || !creds) {
+      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+      router.push(SETUP_HREF);
       return;
     }
     if (!selectedMonths.length) {
-      Alert.alert('Monate', 'Mindestens einen Monat anhaken.');
+      Alert.alert(t('selectMonths'), t('setupPickMonth'));
       return;
     }
 
     setBusy(true);
-    if (!showWeb) {
-      readyRef.current = false;
-      setWebReady(false);
-    }
     setShowWeb(true);
-    setStatus('WebView starten…');
+    setStatus(t('webViewStarting'));
     try {
       await waitUntilReady();
       const result = await runFetchJob({
-        username: username.trim(),
-        password,
+        username: creds.username,
+        password: creds.password,
         months: selectedMonths,
         year,
         bridge: bridgeRef.current,
@@ -179,151 +234,129 @@ export default function FetchScreen() {
         result.errors.length ? `Fehler: ${result.errors.length}` : null,
       ].filter(Boolean);
       setStatus(parts.join(' · '));
-      Alert.alert('Fertig', parts.join('\n'));
+      Alert.alert(t('alertDone'), parts.join('\n'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(`Fehler: ${msg}`);
-      Alert.alert('Fetch fehlgeschlagen', msg);
+      Alert.alert(t('alertFetchFailed'), msg);
     } finally {
       setBusy(false);
     }
   };
 
+  if (!setup) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={theme.color.primary} />
+      </View>
+    );
+  }
+
+  if (!setup.complete) {
+    return (
+      <View style={styles.center}>
+        <ScreenTitle>{t('setupRequired')}</ScreenTitle>
+        <Meta>{t('setupRequiredHint')}</Meta>
+        <AppButton title={t('openSetup')} onPress={() => router.push(SETUP_HREF)} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.h1}>{t('loginTitle')}</Text>
-      <Text style={styles.hint}>
-        {t('webviewHint')}
-        {'\n'}
-        URL: {LOGA3_LOGIN_URL || '(EXPO_PUBLIC_LOGA3_URL fehlt — .env setzen)'}
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder={t('username')}
-        autoCapitalize="none"
-        value={username}
-        onChangeText={setUsername}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder={t('password')}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-      <View style={styles.row}>
-        <Button title={t('saveCredentials')} onPress={onSaveCreds} disabled={busy} />
-        <Button
-          title={t('clearCreds')}
-          color="#b91c1c"
-          disabled={busy}
-          onPress={async () => {
-            await clearCredentials();
-            setUsername('');
-            setPassword('');
-          }}
-        />
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.h2}>{t('hospital')}</Text>
-        <Text>
-          {pack.name} · {BUILTIN_HOSPITAL_ID}
-        </Text>
-        <Text>
-          {t('area')}: {BUILTIN_GROUP_ID} / {BUILTIN_AREA_ID}
-        </Text>
-        <Text>
-          {t('preset')}: {snap.preset}
-        </Text>
-        <View style={styles.rowWrap}>
-          {presets.map((p) => (
-            <Button
-              key={p}
-              title={p}
-              disabled={busy}
-              onPress={() => setPreset(p)}
-              color={snap.preset === p ? '#0f766e' : undefined}
-            />
-          ))}
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled">
+      <View style={styles.headerRow}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <ScreenTitle>{t('tabFetch')}</ScreenTitle>
+          <Text style={styles.summary} numberOfLines={2}>
+            {setup.summary || t('setupWorkplace')}
+          </Text>
         </View>
+        <AppButton
+          title={t('editSetup')}
+          variant="secondary"
+          compact
+          onPress={() => router.push(SETUP_HREF)}
+        />
       </View>
 
-      <Text style={styles.h2}>{t('selectMonths')}</Text>
-      <View style={styles.rowWrap}>
-        {MONTHS.map((m) => (
-          <Button
-            key={m}
-            title={String(m).padStart(2, '0')}
-            disabled={busy}
-            onPress={() => toggleMonth(m)}
-            color={selectedMonths.includes(m) ? '#0f766e' : '#64748b'}
-          />
-        ))}
-      </View>
-      <TextInput
-        style={styles.input}
-        keyboardType="number-pad"
-        editable={!busy}
-        value={String(year)}
-        onChangeText={(v) => setYear(Number(v) || year)}
-      />
+      <AppCard accent>
+        <SectionTitle>{t('quickUpdate')}</SectionTitle>
+        <Meta>{t('quickUpdateHint')}</Meta>
+        <Text style={styles.windowLine}>
+          {t('quickUpdateWindow')}: {quickWindowLabel}
+          {' · '}
+          {quickPrefs?.syncGoogle ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
+        </Text>
+        <AppButton
+          title={busy ? t('quickUpdateRunning') : t('quickUpdateGo')}
+          onPress={() => void onQuickUpdate()}
+          disabled={busy}
+          busy={busy}
+        />
+      </AppCard>
 
-      <View style={styles.gap}>
-        <Button
+      <AppCard>
+        <SectionTitle>{t('selectMonths')}</SectionTitle>
+        <Meta>{t('fetchHint')}</Meta>
+        <View style={styles.monthGrid}>
+          {MONTHS.map((m) => {
+            const on = selectedMonths.includes(m);
+            return (
+              <Pressable
+                key={m}
+                disabled={busy}
+                onPress={() => toggleMonth(m)}
+                style={[styles.monthChip, on && styles.monthChipOn]}>
+                <Text style={[styles.monthChipText, on && styles.monthChipTextOn]}>
+                  {String(m).padStart(2, '0')}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <TextInput
+          style={styles.input}
+          keyboardType="number-pad"
+          editable={!busy}
+          value={String(year)}
+          onChangeText={(v) => setYear(Number(v) || year)}
+        />
+        <AppButton
           title={busy ? t('fetchRunning') : t('fetchSelected')}
-          onPress={onFetchSelected}
-          disabled={busy}
-          color="#0f766e"
-        />
-        {busy && (
-          <View style={styles.busyRow}>
-            <ActivityIndicator />
-            <Text style={styles.meta}>{t('fetchRunning')}</Text>
-          </View>
-        )}
-        <Button
-          title={showWeb ? 'WebView ausblenden' : t('openWebView')}
-          onPress={() => setShowWeb((v) => !v)}
+          variant="secondary"
+          onPress={() => void onFetchSelected()}
           disabled={busy}
         />
-        <Button
-          title={t('convertFixture')}
-          onPress={onConvertFixture}
-          disabled={busy}
-          color="#64748b"
-        />
-        <Button
-          title={t('automationStub')}
-          disabled={busy}
-          onPress={() => {
-            setShowWeb(true);
-            setTimeout(() => {
-              webRef.current?.run({ type: 'stubStatus' });
-              if (username && password) {
-                webRef.current?.run({
-                  type: 'fillLogin',
-                  username: username.trim(),
-                  password,
-                });
-              }
-              if (selectedMonths[0]) {
-                webRef.current?.run({
-                  type: 'selectMonth',
-                  month: selectedMonths[0],
-                  year,
-                });
-              }
-              webRef.current?.run({ type: 'probeReady' });
-            }, 800);
-          }}
-        />
-      </View>
+        <Text style={styles.status}>Status: {status}</Text>
+      </AppCard>
 
-      {/* Keep WebView mounted during jobs even if "hidden" — zero height still mounts */}
+      <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.advancedToggle}>
+        <Text style={styles.advancedToggleText}>
+          {showAdvanced ? `▾ ${t('advanced')}` : `▸ ${t('advanced')}`}
+        </Text>
+      </Pressable>
+      {showAdvanced && (
+        <AppCard>
+          <AppButton
+            title={showWeb ? t('hideWebView') : t('openWebView')}
+            variant="secondary"
+            onPress={() => setShowWeb((v) => !v)}
+            disabled={busy}
+          />
+          <AppButton
+            title={t('convertFixture')}
+            variant="ghost"
+            onPress={() => void onConvertFixture()}
+            disabled={busy}
+          />
+        </AppCard>
+      )}
+
       {(showWeb || busy) && (
-        <View style={{ height: showWeb ? 360 : 1, marginTop: 12, opacity: showWeb ? 1 : 0 }}>
+        <View style={styles.webWrap}>
           <Loga3WebView
             ref={webRef}
             onMessage={onAutomationMessage}
@@ -335,11 +368,10 @@ export default function FetchScreen() {
         </View>
       )}
 
-      <Text style={styles.status}>Status: {status}</Text>
-      <Text style={styles.meta}>
-        Einträge im Store: {snap.entries.length}
+      <Text style={styles.footerMeta}>
+        {snap.entries.length} {t('entriesCount')}
         {selectedMonths.length
-          ? ` · Auswahl: ${selectedMonths.map((m) => String(m).padStart(2, '0')).join(',')}/${year}`
+          ? ` · ${selectedMonths.map((m) => String(m).padStart(2, '0')).join(',')}/${year}`
           : ''}
       </Text>
     </ScrollView>
@@ -347,30 +379,85 @@ export default function FetchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 8, paddingBottom: 40 },
-  h1: { fontSize: 22, fontWeight: '700', marginBottom: 4 },
-  h2: { fontSize: 16, fontWeight: '600', marginTop: 12 },
-  hint: { color: '#64748b', marginBottom: 8 },
+  scroll: { flex: 1, backgroundColor: theme.color.canvas },
+  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 48 },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.space.xl,
+    gap: theme.space.md,
+    backgroundColor: theme.color.canvas,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.space.sm,
+  },
+  summary: {
+    ...theme.type.meta,
+    color: theme.color.inkSecondary,
+    fontWeight: '600',
+  },
+  windowLine: {
+    ...theme.type.caption,
+    color: theme.color.primary,
+    fontWeight: '600',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  monthChip: {
+    width: 48,
+    height: 40,
+    borderRadius: theme.radius.sm,
+    backgroundColor: theme.color.surfaceMuted,
+    borderWidth: 1,
+    borderColor: theme.color.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthChipOn: {
+    backgroundColor: theme.color.primary,
+    borderColor: theme.color.primary,
+  },
+  monthChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.color.inkSecondary,
+  },
+  monthChipTextOn: { color: '#fff' },
   input: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
+    borderColor: theme.color.borderStrong,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.space.md,
+    paddingVertical: 12,
+    backgroundColor: theme.color.surfaceMuted,
+    color: theme.color.ink,
+    fontSize: 15,
   },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginVertical: 8 },
-  rowWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 },
-  card: {
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    backgroundColor: '#f8fafc',
+  status: {
+    ...theme.type.caption,
+    color: theme.color.inkMuted,
+    marginTop: 4,
+  },
+  advancedToggle: { paddingVertical: 4 },
+  advancedToggleText: {
+    ...theme.type.caption,
+    color: theme.color.inkMuted,
+  },
+  webWrap: {
+    height: 360,
+    borderRadius: theme.radius.md,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme.color.border,
   },
-  gap: { gap: 8, marginTop: 12 },
-  busyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  status: { marginTop: 12, fontSize: 12, color: '#334155' },
-  meta: { fontSize: 12, color: '#64748b' },
+  footerMeta: {
+    ...theme.type.caption,
+    color: theme.color.inkFaint,
+  },
 });

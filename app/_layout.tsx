@@ -1,11 +1,16 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import * as Linking from 'expo-linking';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { t } from '@/src/i18n';
 import { hydrateStore } from '@/src/state/store';
+import { hydrateLoga3Env } from '@/src/loga3/env';
+import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
+import { restoreGoogleSession } from '@/src/sync/google';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -19,25 +24,50 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   useEffect(() => {
-    // Font failure must not block the app (emulator/asset URL quirks).
     if (error) {
       console.warn('Font load failed, continuing with system fonts:', error);
     }
   }, [error]);
 
   useEffect(() => {
-    hydrateStore();
+    let sub: { remove: () => void } | undefined;
+    (async () => {
+      await hydrateStore();
+      await hydrateLoga3Env();
+      try {
+        await restoreGoogleSession();
+      } catch (e) {
+        console.warn('google session restore failed', e);
+      }
+      try {
+        const initial = await Linking.getInitialURL();
+        if (isSmokeSetupUrl(initial)) {
+          await applySmokeSetupFromUrl(initial!);
+        }
+      } catch (e) {
+        console.warn('smoke-setup initial failed', e);
+      }
+      setBootstrapped(true);
+      sub = Linking.addEventListener('url', (e) => {
+        if (!isSmokeSetupUrl(e.url)) return;
+        void applySmokeSetupFromUrl(e.url)
+          .then(() => router.replace('/(tabs)'))
+          .catch((err) => console.warn('smoke-setup url failed', err));
+      });
+    })();
+    return () => sub?.remove();
   }, []);
 
   useEffect(() => {
-    if (loaded || error) {
+    if ((loaded || error) && bootstrapped) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [loaded, error, bootstrapped]);
 
-  if (!loaded && !error) {
+  if ((!loaded && !error) || !bootstrapped) {
     return null;
   }
 
@@ -51,6 +81,15 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="setup"
+          options={{
+            presentation: 'modal',
+            title: t('setupTitle'),
+            headerShown: true,
+            headerTintColor: '#0F766E',
+          }}
+        />
       </Stack>
     </ThemeProvider>
   );

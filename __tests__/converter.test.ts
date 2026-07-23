@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parseStElisabeth } from '../src/convert/parser-st-elisabeth';
 import { convertPdfText } from '../src/convert/pipeline';
+import { resolveShiftMapping } from '../src/convert/shiftMapping';
+import { getBuiltinMapping } from '../src/packs';
 import { generateIcs } from '../src/convert/ics';
 import { anonymizeDienstplanText, buildSupportParserSample } from '../src/convert/anonymize';
 
@@ -33,6 +35,18 @@ describe('St. Elisabeth parser', () => {
     expect(m3?.isValidated).toBe(true);
     const f = result.entries.find((e) => e.start === '07:35' && e.end === '15:50');
     expect(f?.type).toBe('F');
+  });
+
+  it('infers F when leaving early with same start (not “missing mapping”)', () => {
+    const mapping = getBuiltinMapping().presets!.Anästhesie;
+    const early = resolveShiftMapping('07:35', '14:00', mapping);
+    expect(early.code).toBe('F');
+    expect(early.inferred).toBe(true);
+    expect(early.isValidated).toBe(false);
+    const exact = resolveShiftMapping('07:35', '15:50', mapping);
+    expect(exact.code).toBe('F');
+    expect(exact.inferred).toBe(false);
+    expect(exact.isValidated).toBe(true);
   });
 });
 

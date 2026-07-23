@@ -1,5 +1,6 @@
 import { parseTimeSheet } from './convert';
 import { parseStElisabeth } from './parser-st-elisabeth';
+import { resolveShiftMapping } from './shiftMapping';
 import type { ConvertResult, HospitalMapping, ShiftEntry } from './types';
 import { getBuiltinMapping } from '../packs';
 
@@ -27,6 +28,31 @@ export function applyUserMappings(
     }
     return e;
   });
+}
+
+/**
+ * Re-resolve already stored entries that still show ⚠️ times
+ * (e.g. early leave → same-start code like F).
+ */
+export function resolveStoredEntries(
+  entries: ShiftEntry[],
+  options: ConvertOptions = {}
+): ShiftEntry[] {
+  const preset = options.preset || 'Anästhesie';
+  const hospitalMapping = options.mapping || getBuiltinMapping();
+  const mapping =
+    (hospitalMapping.presets && hospitalMapping.presets[preset]) || {};
+
+  const resolved = entries.map((e) => {
+    if (e.allDay || !e.start || !e.end) return e;
+    if (!(typeof e.type === 'string' && e.type.startsWith('⚠️'))) return e;
+    const hit = resolveShiftMapping(e.start, e.end, mapping);
+    if (!hit.code) return e;
+    return { ...e, type: hit.code, isValidated: false };
+  });
+  return options.userMappings
+    ? applyUserMappings(resolved, options.userMappings)
+    : resolved;
 }
 
 export function convertPdfText(pdfText: string, options: ConvertOptions = {}): ConvertResult {

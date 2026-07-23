@@ -16,6 +16,11 @@ export class AutomationBridge {
   handleMessage(msg: AutomationMessage) {
     if (msg.type === 'pdfBlob') {
       if (msg.ok && msg.base64) {
+        // %PDF magic in base64 is "JVBERi" — reject HTML/viewer false positives
+        if (!msg.base64.startsWith('JVBERi')) {
+          this.handlers.slice().forEach((h) => h(msg));
+          return;
+        }
         const waiters = this.pdfWaiters.splice(0);
         waiters.forEach((w) => {
           clearTimeout(w.timer);
@@ -26,13 +31,8 @@ export class AutomationBridge {
             filename: msg.filename,
           });
         });
-      } else {
-        const waiters = this.pdfWaiters.splice(0);
-        waiters.forEach((w) => {
-          clearTimeout(w.timer);
-          w.reject(new Error(msg.error || 'pdfBlob failed'));
-        });
       }
+      // Ignore failed pdfBlob while waiting — Android probes / non-PDF blobs must not abort
     }
     this.handlers.slice().forEach((h) => h(msg));
   }
@@ -68,15 +68,24 @@ export class AutomationBridge {
     cmd: AutomationCommand,
     timeoutMs = 45000
   ): Promise<AutomationMessage> {
-    const pending = this.waitFor((m) => m.type === cmd.type, timeoutMs, cmd.type);
-    inject(cmd);
-    const msg = await pending;
+    const msg = await this.probe(inject, cmd, timeoutMs);
     if (msg.ok === false) {
       const err = new Error(msg.error || `${cmd.type} failed`);
       (err as Error & { code?: string }).code = msg.code || msg.error;
       throw err;
     }
     return msg;
+  }
+
+  /** Like run(), but returns ok:false messages instead of throwing (for wait probes). */
+  async probe(
+    inject: (cmd: AutomationCommand) => void,
+    cmd: AutomationCommand,
+    timeoutMs = 45000
+  ): Promise<AutomationMessage> {
+    const pending = this.waitFor((m) => m.type === cmd.type, timeoutMs, cmd.type);
+    inject(cmd);
+    return pending;
   }
 
   waitForPdf(timeoutMs = 120000): Promise<{

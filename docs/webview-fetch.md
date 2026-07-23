@@ -1,62 +1,58 @@
-# WebView-Fetch — Desktop-Workflow → Mobile
+# WebView fetch — desktop workflow → mobile
 
-Desktop nutzt Playwright + Chromium (`loga3-workflow.js` → `runDownloadPipeline`).  
-Mobile ersetzt das durch **In-App WebView** + injiziertes JS + Job-Orchestrator.
+Desktop uses Playwright (`loga3-workflow.js` → `runDownloadPipeline`).  
+Mobile: WebView + injected JS + `fetchJob.ts`.
 
-## Status (ehrlich)
+## Status
 
-| Stufe | Stand |
+| Layer | Status |
 |-------|--------|
-| Converter / Fixture / ICS | fertig |
-| Holen-UI „Ausgewählte laden“ + `fetchJob` | verdrahtet |
-| `selectMonth` (ZeitdatenMonthPicker + Popup/Chrome-Pfeile) | portiert |
-| PDF-Capture (blob Hook + Android `onFileDownload`) | verdrahtet, **gerätabhängig fragil** |
-| Live End-to-End mit Tenant-Creds | **noch nicht als DoD abgehakt** — Emulator-Smoke nötig |
+| Converter / fixture / ICS | done |
+| Pre-download gates (desktop port) | wired |
+| PDF capture (code) | hardened — see below |
+| Live end-to-end with credentials | **green** (Jul 2026 → 14 shifts / 1 PDF; multi-month 06+07 → 28 shifts / 2 PDFs) |
 
-## Abbildung der Schritte
+## PDF capture — root cause & fix (2026-07-22)
 
-| Desktop (Playwright) | Mobile |
-|----------------------|--------|
-| Browser starten, LOGA3 öffnen | `Loga3WebView` → `EXPO_PUBLIC_LOGA3_URL` (Pflicht in `.env`, kein Code-Default) |
-| Login | `fillLogin` + `submitLogin` |
-| Öffnen / Aktualisieren | `clickOeffnen`, `armCalendarReload` |
-| Monat wählen + verifizieren | `selectMonth` (Popup + Fallback Chrome-Pfeile) |
-| Plan-Gate | `assertHasPlan` → `NO_PLAN` skip |
-| SmartEdin → Export → Zeitprotokoll | `clickSmartEdin`, `clickExport`, `openZeitprotokoll` |
-| Download abfangen | `clickDownload` + PDF blob/`onFileDownload` → `pdfStore` |
-| Dialog schließen | `closeDialog` |
-| Convert | `extractTextFromPdfBuffer` → `convertPdfText` → Store/Preview |
+**Historical hang:** after successful `clickDownload` → `waitForPdf` 120s timeout.
 
-Orchestrator: `src/loga3/fetchJob.ts` (Bridge: `src/loga3/bridge.ts`).
+**Android cause:** `react-native-webview` does **not** emit `onFileDownload` (`setHasOnFileDownload` is a no-op). Content-Disposition often lands in system `DownloadManager` or Chromium PDF.js viewer, not the app. Blob URLs are not `fetch`-able from RN.
 
-## Dateien
+**Fix in code:**
+1. Capture inject in **all frames** (`ForMainFrameOnly={false}` + iframe walk + `ReactNativeWebView` climb)
+2. Before download: `__loga3ArmPdfCapture` — magic bytes `%PDF`, XHR/fetch, `createObjectURL`, `location`/`iframe.src`/`window.open` → `postMessage` as `pdfBlob`
+3. Bridge: only Base64 with `JVBERi` (`%PDF`); failed / non-PDF probes **do not** abort the waiter
+4. Fallback: poll public `Download/` + periodic `scrapePdfViewer` (PDF.js)
+5. iOS: keep using `onFileDownload`; do not rely on it on Android
+6. Text extract: **no** pdfjs worker on Hermes — FlateDecode/`Tj` via `fflate` (`src/convert/pdfText.ts`)
 
-- `src/loga3/automation.ts` — Commands + injiziertes JS
-- `src/loga3/fetchJob.ts` — Multi-Month-Pipeline
-- `src/loga3/Loga3WebView.tsx` — WebView + PDF-Capture-Inject
-- `src/loga3/pdfStore.ts` — `MM-YYYY.pdf` unter App-Documents
-- Holen-Tab: **Ausgewählte laden** (Live) · **Offline-Fixture (Debug)** · Debug-Probe
+## Gates
 
-## Konfiguration
+Orchestration in `fetchJob.ts` via `waitForCondition` (`src/loga3/wait.ts`):
 
-```bash
-cp .env.example .env
-# EXPO_PUBLIC_LOGA3_URL=https://YOUR-TENANT.example/loga3/#
-```
+1. Login form → submit → shell (`assertLoggedIn`)
+2. One `clickZeiten` → wait `#ZeitdatenMonthPicker` (max 1 recovery)
+3. `selectMonth` once → wait calendar header
+4. Content gate (verify; optional grid reload)
+5. Time-sheet dialog (billing month; max 1 re-open)
+6. Download → PDF bytes (`waitForPdf` / Download folder); post-PDF `validatePdfPeriod`
 
-Zugangsdaten nur in der App (Secure Store), nicht in `.env`.
+No sleep/retry spam (no 20–30 blind attempts).
 
-## Emulator-Smoke (Live)
+## Emulator smoke (2026-07-22)
 
-1. `nix-shell` → `loga3-emu` → `loga3-android` (oder `npm run android`)
-2. Holen → Creds speichern → Monate anhaken → **Ausgewählte laden**
-3. Status-Zeile: Login → Monat → Download → Parse; Preview zeigt Schichten der gewählten Monate (nicht Fixture 09/2026)
-4. Ohne Creds: Alert, kein stilles Fixture
-5. Fixture-Button nur bewusst drücken (Offline)
+- Parallel desktop check: `loga3 fetch --months 2026-07` → `juli_2026.pdf` ok
+- Mobile: viewport override **`wm size 1280x800`** (physical 320×640 breaks GWT/SmartThings — dialog never appears)
+- WebView: desktop UA + viewport `width=1280`
+- Flow: Fetch → select 07/2026 → Fetch selected → login → Zeiten → Export → Zeitprotokoll → download → PDF bytes → convert
+- Result: **Done — 14 shifts · 1 PDF(s)**; multi-month 06+07/2026 → **28 shifts · 2 PDFs**
 
-## Bekannte Fragilität (Phase C)
+### Resolution note
 
-- LOGA3-GWT-Selektoren ändern sich; Popup-Jahr/Monat-Navigation busy-waitet kurz im Inject
-- PDF-Capture: Blob-Hook vs. nativer Download je OS/WebView-Version
-- Login-Shell / „Öffnen“-Landing variiert; Timeouts müssen ggf. angepasst werden
-- Kein Desktop-äquivalentes Content-Gate im Dialog („Monat bestätigt“) — vorerst `assertHasPlan` + Picker-State
+Tiny AVD (320×640) is unsuitable for LOGA3/GWT. Aim for ~1280×720 (real `pixel_6` AVD or `adb shell wm size 1280x800`). Do not wipe credentials with `pm clear` unless intentional.
+
+## Configuration (per device)
+
+**Setup modal** (`/setup`): tenant URL → login (Secure Store) → employer/pack → Google optional → done.  
+**Fetch** only after that: months + Fetch selected / one-tap update.  
+Fetch is generic; the pack drives parser/mapping.

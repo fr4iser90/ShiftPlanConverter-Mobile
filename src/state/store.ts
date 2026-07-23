@@ -1,11 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
-import {
-  BUILTIN_AREA_ID,
-  BUILTIN_GROUP_ID,
-  BUILTIN_HOSPITAL_ID,
-  BUILTIN_PRESET,
-} from '../packs';
 
 const KEYS = {
   entries: 'loga3.entries',
@@ -14,8 +8,12 @@ const KEYS = {
   locale: 'loga3.locale',
   richDetails: 'loga3.richDetails',
   preset: 'loga3.preset',
+  hospitalId: 'loga3.hospitalId',
+  groupId: 'loga3.groupId',
+  areaId: 'loga3.areaId',
   googleCalendarId: 'loga3.googleCalendarId',
   summary: 'loga3.summary',
+  summaries: 'loga3.summaries',
 } as const;
 
 export type AppLocale = 'de' | 'en';
@@ -26,11 +24,13 @@ export type AppStateSnapshot = {
   userMappings: Record<string, string>;
   locale: AppLocale;
   richDetails: boolean;
+  /** Empty until user picks an employer pack on this device */
   preset: string;
   hospitalId: string;
   groupId: string;
   areaId: string;
   summary: MonthSummary | null;
+  summaries: MonthSummary[];
 };
 
 const listeners = new Set<() => void>();
@@ -40,11 +40,12 @@ let cache: AppStateSnapshot = {
   userMappings: {},
   locale: 'de',
   richDetails: false,
-  preset: BUILTIN_PRESET,
-  hospitalId: BUILTIN_HOSPITAL_ID,
-  groupId: BUILTIN_GROUP_ID,
-  areaId: BUILTIN_AREA_ID,
+  preset: '',
+  hospitalId: '',
+  groupId: '',
+  areaId: '',
   summary: null,
+  summaries: [],
 };
 let hydrated = false;
 
@@ -61,6 +62,10 @@ export function getSnapshot(): AppStateSnapshot {
   return cache;
 }
 
+export function isWorkplaceConfigured(snap: AppStateSnapshot = cache): boolean {
+  return !!(snap.hospitalId && snap.groupId && snap.areaId && snap.preset);
+}
+
 export async function hydrateStore(): Promise<AppStateSnapshot> {
   if (hydrated) return cache;
   try {
@@ -71,7 +76,11 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       locale,
       rich,
       preset,
+      hospitalId,
+      groupId,
+      areaId,
       summaryRaw,
+      summariesRaw,
     ] = await Promise.all([
       AsyncStorage.getItem(KEYS.entries),
       AsyncStorage.getItem(KEYS.rawText),
@@ -79,7 +88,11 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.locale),
       AsyncStorage.getItem(KEYS.richDetails),
       AsyncStorage.getItem(KEYS.preset),
+      AsyncStorage.getItem(KEYS.hospitalId),
+      AsyncStorage.getItem(KEYS.groupId),
+      AsyncStorage.getItem(KEYS.areaId),
       AsyncStorage.getItem(KEYS.summary),
+      AsyncStorage.getItem(KEYS.summaries),
     ]);
     cache = {
       ...cache,
@@ -88,8 +101,12 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       userMappings: mappingsRaw ? JSON.parse(mappingsRaw) : {},
       locale: locale === 'en' ? 'en' : 'de',
       richDetails: rich === '1',
-      preset: preset || BUILTIN_PRESET,
+      preset: preset || '',
+      hospitalId: hospitalId || '',
+      groupId: groupId || '',
+      areaId: areaId || '',
       summary: summaryRaw ? JSON.parse(summaryRaw) : null,
+      summaries: summariesRaw ? JSON.parse(summariesRaw) : [],
     };
   } catch {
     // keep defaults
@@ -101,18 +118,39 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
 
 export async function setEntries(
   entries: ShiftEntry[],
-  opts: { rawText?: string; summary?: MonthSummary | null } = {}
+  opts: {
+    rawText?: string;
+    summary?: MonthSummary | null;
+    summaries?: MonthSummary[];
+  } = {}
 ): Promise<void> {
+  const summaries =
+    opts.summaries !== undefined
+      ? opts.summaries
+      : opts.summary !== undefined && opts.summary
+        ? [opts.summary]
+        : opts.summary === null
+          ? []
+          : cache.summaries;
+  const summary =
+    opts.summary !== undefined
+      ? opts.summary
+      : summaries.length
+        ? summaries[summaries.length - 1]
+        : cache.summary;
+
   cache = {
     ...cache,
     entries,
     rawText: opts.rawText ?? cache.rawText,
-    summary: opts.summary !== undefined ? opts.summary : cache.summary,
+    summary,
+    summaries,
   };
   await AsyncStorage.setItem(KEYS.entries, JSON.stringify(entries));
   if (opts.rawText != null) await AsyncStorage.setItem(KEYS.rawText, opts.rawText);
-  if (opts.summary !== undefined) {
-    await AsyncStorage.setItem(KEYS.summary, JSON.stringify(opts.summary));
+  if (opts.summary !== undefined || opts.summaries !== undefined) {
+    await AsyncStorage.setItem(KEYS.summary, JSON.stringify(summary));
+    await AsyncStorage.setItem(KEYS.summaries, JSON.stringify(summaries));
   }
   notify();
 }
@@ -138,6 +176,28 @@ export async function setRichDetails(enabled: boolean): Promise<void> {
 export async function setPreset(preset: string): Promise<void> {
   cache = { ...cache, preset };
   await AsyncStorage.setItem(KEYS.preset, preset);
+  notify();
+}
+
+export async function setWorkplace(scope: {
+  hospitalId: string;
+  groupId: string;
+  areaId: string;
+  preset: string;
+}): Promise<void> {
+  cache = {
+    ...cache,
+    hospitalId: scope.hospitalId,
+    groupId: scope.groupId,
+    areaId: scope.areaId,
+    preset: scope.preset,
+  };
+  await Promise.all([
+    AsyncStorage.setItem(KEYS.hospitalId, scope.hospitalId),
+    AsyncStorage.setItem(KEYS.groupId, scope.groupId),
+    AsyncStorage.setItem(KEYS.areaId, scope.areaId),
+    AsyncStorage.setItem(KEYS.preset, scope.preset),
+  ]);
   notify();
 }
 

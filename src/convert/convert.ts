@@ -1,10 +1,10 @@
 import type {
   ConvertResult,
   HospitalMapping,
-  MappingValue,
   ParseResult,
   ShiftEntry,
 } from './types';
+import { mappingCode, resolveShiftMapping } from './shiftMapping';
 
 type ParserFn = (text: string) => ParseResult;
 
@@ -31,17 +31,6 @@ function pickBereitschaftDetails(chainParts: ShiftEntry[]): Partial<ShiftEntry> 
   if (withMeta.bereitPercent != null) details.bereitPercent = withMeta.bereitPercent;
   if (withMeta.bewertet != null) details.bewertet = withMeta.bewertet;
   return details;
-}
-
-function mappingCode(value: MappingValue | undefined): {
-  code: string | null;
-  isValidated: boolean;
-} {
-  if (!value) return { code: null, isValidated: false };
-  if (typeof value === 'object') {
-    return { code: value.code, isValidated: !!value.isValidated };
-  }
-  return { code: value, isValidated: false };
 }
 
 export function parseTimeSheet(
@@ -122,14 +111,14 @@ export function parseTimeSheet(
     }
 
     if (chain.length > 1) {
-      const timeKey = `${mainEntry.start}-${chain[chain.length - 1].end}`;
-      const { code, isValidated } = mappingCode(mapping[timeKey]);
+      const end = chain[chain.length - 1].end!;
+      const resolved = resolveShiftMapping(mainEntry.start!, end, mapping);
       finalEntries.push({
-        type: code || 'MO',
+        type: resolved.code || 'MO',
         date: mainEntry.date,
         start: mainEntry.start,
-        end: chain[chain.length - 1].end,
-        isValidated: code ? isValidated : true,
+        end,
+        isValidated: resolved.code ? resolved.isValidated : true,
         ...pickDayDetails(mainEntry),
         ...pickBereitschaftDetails(chain.slice(1)),
       });
@@ -148,23 +137,15 @@ export function parseTimeSheet(
     }
 
     const timeKey = `${entry.start}-${entry.end}`;
-    const mappingValue = mapping[timeKey];
-    let shiftType = `⚠️ ${timeKey}`;
-    let isValidated = false;
-
-    if (typeof mappingValue === 'object') {
-      shiftType = mappingValue.code;
-      isValidated = !!mappingValue.isValidated;
-    } else if (typeof mappingValue === 'string') {
-      shiftType = mappingValue;
-    }
+    const resolved = resolveShiftMapping(entry.start!, entry.end!, mapping);
+    const shiftType = resolved.code || `⚠️ ${timeKey}`;
 
     finalEntries.push({
       type: shiftType,
       date: entry.date,
       start: entry.start,
       end: entry.end,
-      isValidated,
+      isValidated: resolved.isValidated,
       ...pickDayDetails(entry),
     });
   }
@@ -173,6 +154,7 @@ export function parseTimeSheet(
     if (handledBereitschaftIndices.has(i)) continue;
     const item = rawBereitschaft[i];
     const timeKey = `${item.start}-${item.end}`;
+    // Exact only — do not infer work codes onto leftover on-call slices
     const { code, isValidated } = mappingCode(mapping[timeKey]);
 
     finalEntries.push({

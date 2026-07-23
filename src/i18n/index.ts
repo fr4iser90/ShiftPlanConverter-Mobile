@@ -6,12 +6,21 @@ export type Messages = Record<keyof typeof de, string>;
 
 const catalogs: Record<AppLocale, Messages> = { de: { ...de }, en };
 
-export function t(key: keyof typeof de): string {
+export function t(
+  key: keyof typeof de,
+  vars?: Record<string, string | number>
+): string {
   const locale = getSnapshot().locale;
-  return catalogs[locale][key] || catalogs.de[key] || String(key);
+  let s = catalogs[locale][key] || catalogs.de[key] || String(key);
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      s = s.replaceAll(`{${k}}`, String(v));
+    }
+  }
+  return s;
 }
 
-export function useT(): (key: keyof typeof de) => string {
+export function useT(): typeof t {
   return t;
 }
 

@@ -1,61 +1,66 @@
-# Architektur — LOGA3 Mobile
+# Architecture — LOGA3 Mobile
 
-Alles läuft **auf dem Gerät**. Expo-Projekt liegt im **Repo-Root** (nicht in einem verschachtelten `app/`-Projektordner). `app/` ist nur der Expo-Router.
+Everything runs **on-device**. The Expo project lives at the **repo root** (not a nested Expo project folder). `app/` is only the Expo Router tree.
 
 ```
 ┌──────────────────────────────────────────────────┐
 │  LOGA3-Automation-Mobile (Expo / RN)             │
 │                                                  │
 │  ┌────────────┐   ┌──────────┐   ┌────────────┐ │
-│  │ Holen      │→  │ Convert  │→  │ Export     │ │
+│  │ Fetch      │→  │ Convert  │→  │ Export     │ │
 │  │ WebView    │   │ Preview  │   │ ICS/GCal   │ │
 │  │ + LOGA3 JS │   │          │   │            │ │
 │  └────────────┘   └──────────┘   └────────────┘ │
 │         │               │                        │
 │         ▼               ▼                        │
-│   lokale PDFs      src/packs/builtin             │
+│   local PDFs       src/packs/builtin             │
 │   Secure Store                                   │
 └──────────────────────────────────────────────────┘
 ```
 
-## Module
+## Modules
 
 ```
 app/                      # Expo Router
   (tabs)/
-    fetch.tsx             # Login + Monate + WebView-Job
+    index.tsx             # Fetch + months + WebView job
     preview.tsx
     export.tsx
     settings.tsx
 src/
-  loga3/                  # WebView-Automation
-  convert/                # Port aus Desktop converter/
+  loga3/                  # WebView automation
+  convert/                # Port of desktop converter/
   packs/
-  sync/                   # ics share, google.ts
+  sync/                   # ICS share, google.ts
   support/
-  i18n/
+  i18n/                   # de + en UI strings
 assets/ components/ constants/
 ```
 
-## Datenfluss Holen
+## Fetch data flow
 
-1. Credentials aus Secure Store → WebView-Session  
-2. LOGA3 UI steuern (WebView-API, analog Desktop-Workflow)  
-3. PDF-Bytes in App-Dateisystem schreiben  
-4. Convert-Pipeline → Preview / Export  
+1. Credentials from Secure Store → WebView session
+2. Drive LOGA3 UI (WebView API, same workflow as desktop)
+3. Write PDF bytes into app storage
+4. Convert pipeline → Preview / Export
 
-## Datenfluss Convert
+## Convert data flow
 
-1. PDF → ArrayBuffer  
-2. Text extrahieren (pdf.js)  
-3. Parser + Mapping → Entries  
-4. Preview / ICS / Google  
+1. PDF → ArrayBuffer
+2. Extract text (pdf.js / Hermes-safe path)
+3. Parser + mapping → entries
+4. Preview / ICS / Google
 
 ## Google OAuth
 
-Eigene Android/iOS OAuth-Clients.  
-Sync: eigener Kalender empfohlen; Primary warnen.
+Android: native Google Sign-In (Play Services) — see [google-oauth-android.md](./google-oauth-android.md).  
+Sync: prefer a dedicated calendar; warn on primary.
 
 ## Packs
 
-ZIP-Format wie Desktop. Builtin unter `src/packs/builtin/…`.
+ZIP layout matches desktop. Builtin packs under `src/packs/builtin/…`.
+
+## Localization
+
+- **Docs / README:** English
+- **In-app UI:** `src/i18n/de.ts` + `en.ts`, switched in Settings (locale in AsyncStorage)

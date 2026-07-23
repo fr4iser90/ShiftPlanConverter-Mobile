@@ -2,8 +2,8 @@
   "expo": {
     "name": "LOGA3 Mobile",
     "slug": "loga3-automation-mobile",
-    "version": "0.1.0",
-    "orientation": "portrait",
+    "version": "0.1.1",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "loga3mobile",
     "userInterfaceStyle": "automatic",

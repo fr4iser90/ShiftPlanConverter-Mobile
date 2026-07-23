@@ -27,6 +27,14 @@ export async function savePdfBase64(
   return path;
 }
 
+export async function deletePdfFile(path: string): Promise<void> {
+  try {
+    await FileSystem.deleteAsync(path, { idempotent: true });
+  } catch {
+    // ignore
+  }
+}
+
 export async function readPdfBase64(path: string): Promise<string> {
   return FileSystem.readAsStringAsync(path, {
     encoding: FileSystem.EncodingType.Base64,
@@ -36,16 +44,10 @@ export async function readPdfBase64(path: string): Promise<string> {
 /** Decode base64 → ArrayBuffer for pdf.js */
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const clean = base64.replace(/^data:[^;]+;base64,/, '');
-  const atobFn =
-    typeof globalThis.atob === 'function'
-      ? globalThis.atob.bind(globalThis)
-      : (s: string) => {
-          // minimal fallback
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { Buffer } = require('buffer');
-          return Buffer.from(s, 'base64').toString('binary');
-        };
-  const binary = atobFn(clean);
+  if (typeof globalThis.atob !== 'function') {
+    throw new Error('atob unavailable — cannot decode PDF base64');
+  }
+  const binary = globalThis.atob(clean);
   const len = binary.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);

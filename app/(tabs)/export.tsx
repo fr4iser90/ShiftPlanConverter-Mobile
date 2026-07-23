@@ -1,25 +1,22 @@
 import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Button,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '@/src/i18n';
 import { getSnapshot, subscribe } from '@/src/state/store';
+import { resolveStoredEntries } from '@/src/convert/pipeline';
+import { getMappingForScope } from '@/src/packs';
 import { shareIcsFile } from '@/src/sync/shareIcs';
 import {
   connectGoogle,
-  hasGoogleClientConfig,
   isPrimaryCalendar,
   listCalendars,
   preferredCalendarId,
   syncEntriesToGoogle,
   type GoogleCalendar,
 } from '@/src/sync/google';
+import { AppButton } from '@/src/ui/AppButton';
+import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { theme } from '@/src/ui/theme';
 
 export default function ExportScreen() {
   const [, setTick] = useState(0);
@@ -31,10 +28,22 @@ export default function ExportScreen() {
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
 
+  const resolvedEntries = () => {
+    const mapping =
+      snap.hospitalId && snap.groupId && snap.areaId
+        ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+        : undefined;
+    return resolveStoredEntries(snap.entries, {
+      preset: snap.preset || undefined,
+      mapping,
+      userMappings: snap.userMappings,
+    });
+  };
+
   const onShareIcs = async () => {
     try {
       setBusy(true);
-      await shareIcsFile(snap.entries, { richDetails: snap.richDetails });
+      await shareIcsFile(resolvedEntries(), { richDetails: snap.richDetails });
     } catch (e) {
       Alert.alert('ICS', String(e));
     } finally {
@@ -45,13 +54,6 @@ export default function ExportScreen() {
   const onGoogleConnect = async () => {
     try {
       setBusy(true);
-      if (!hasGoogleClientConfig()) {
-        Alert.alert(
-          'Google',
-          'Client IDs fehlen. Kopiere .env.example → .env und setze EXPO_PUBLIC_GOOGLE_*_CLIENT_ID.'
-        );
-        return;
-      }
       await connectGoogle();
       const list = await listCalendars();
       setCalendars(list);
@@ -59,7 +61,7 @@ export default function ExportScreen() {
       setCalendarId(preferred);
       const selected = list.find((c) => c.id === preferred);
       setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
-      Alert.alert('Google', `${list.length} Kalender geladen.`);
+      Alert.alert('Google', t('googleCalendarsLoaded', { count: list.length }));
     } catch (e) {
       Alert.alert('Google', String(e));
     } finally {
@@ -69,70 +71,99 @@ export default function ExportScreen() {
 
   const onSync = async () => {
     if (!calendarId) {
-      Alert.alert('Google', 'Bitte zuerst verbinden und Kalender wählen.');
+      Alert.alert('Google', t('googleConnectFirst'));
       return;
     }
     try {
       setBusy(true);
-      const n = await syncEntriesToGoogle(snap.entries, calendarId, {
+      const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
         richDetails: snap.richDetails,
       });
-      Alert.alert('Sync', `${n} Events geschrieben.`);
+      const body = deleted
+        ? `${t('syncDone', { created })}\n${t('syncDeleted', { deleted })}`
+        : t('syncDone', { created });
+      Alert.alert(t('syncTitle'), body);
     } catch (e) {
-      Alert.alert('Sync', String(e));
+      Alert.alert(t('syncTitle'), String(e));
     } finally {
       setBusy(false);
     }
   };
 
+  const hasEntries = snap.entries.length > 0;
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.h1}>{t('tabExport')}</Text>
-      <Text style={styles.meta}>{snap.entries.length} Einträge bereit</Text>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+      <ScreenTitle>{t('tabExport')}</ScreenTitle>
+      <Meta>
+        {hasEntries
+          ? t('exportReady', { count: snap.entries.length })
+          : t('exportEmpty')}
+      </Meta>
 
-      <View style={styles.gap}>
-        <Button title={t('exportIcs')} onPress={onShareIcs} disabled={busy || !snap.entries.length} />
-        <Button title={t('googleConnect')} onPress={onGoogleConnect} disabled={busy} />
-        <Button
-          title={t('googleSync')}
-          onPress={onSync}
-          disabled={busy || !snap.entries.length || !calendarId}
+      <AppCard>
+        <SectionTitle>{t('exportIcsSection')}</SectionTitle>
+        <Meta>{t('exportIcsHint')}</Meta>
+        <AppButton
+          title={t('exportIcs')}
+          variant="secondary"
+          onPress={() => void onShareIcs()}
+          disabled={busy || !hasEntries}
+          busy={busy}
         />
-      </View>
+      </AppCard>
 
-      {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
-
-      {calendars.length > 0 && (
-        <View style={styles.list}>
-          <Text style={styles.h2}>Kalender</Text>
-          {calendars.map((c) => (
-            <Button
-              key={c.id}
-              title={`${c.summary}${c.primary ? ' (primary)' : ''}${calendarId === c.id ? ' ✓' : ''}`}
-              onPress={() => {
-                setCalendarId(c.id);
-                setPrimaryWarn(isPrimaryCalendar(c));
-              }}
-            />
-          ))}
-        </View>
-      )}
+      <AppCard>
+        <SectionTitle>{t('exportGoogleSection')}</SectionTitle>
+        <Meta>{t('exportGoogleHint')}</Meta>
+        <AppButton
+          title={t('googleConnect')}
+          onPress={() => void onGoogleConnect()}
+          disabled={busy}
+          busy={busy}
+        />
+        <AppButton
+          title={t('googleSync')}
+          variant="soft"
+          onPress={() => void onSync()}
+          disabled={busy || !hasEntries || !calendarId}
+        />
+        {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
+        {calendars.length > 0 && (
+          <View style={styles.list}>
+            <Text style={styles.listTitle}>{t('pickCalendar')}</Text>
+            {calendars.map((c) => (
+              <AppButton
+                key={c.id}
+                compact
+                variant={calendarId === c.id ? 'soft' : 'secondary'}
+                title={`${c.summary}${c.primary ? ' (primary)' : ''}${
+                  calendarId === c.id ? ' ✓' : ''
+                }`}
+                onPress={() => {
+                  setCalendarId(c.id);
+                  setPrimaryWarn(isPrimaryCalendar(c));
+                }}
+              />
+            ))}
+          </View>
+        )}
+      </AppCard>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 10 },
-  h1: { fontSize: 22, fontWeight: '700' },
-  h2: { fontSize: 16, fontWeight: '600', marginTop: 8 },
-  meta: { color: '#64748b' },
-  gap: { gap: 10, marginTop: 12 },
+  scroll: { flex: 1, backgroundColor: theme.color.canvas },
+  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 40 },
   warn: {
-    marginTop: 10,
-    color: '#b45309',
-    backgroundColor: '#fffbeb',
+    marginTop: 4,
+    color: theme.color.warn,
+    backgroundColor: theme.color.warnSoft,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: theme.radius.sm,
+    fontSize: 12,
   },
-  list: { gap: 6, marginTop: 12 },
+  list: { gap: 6, marginTop: 8 },
+  listTitle: { ...theme.type.caption, color: theme.color.inkSecondary, fontWeight: '600' },
 });

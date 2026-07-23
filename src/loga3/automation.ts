@@ -2,15 +2,21 @@
  * WebView automation scripts — Desktop loga3-workflow.js port (in-page JS).
  */
 
-export const LOGA3_LOGIN_URL = String(process.env.EXPO_PUBLIC_LOGA3_URL || '').trim();
+import { getLoga3BaseUrl } from './env';
+
+/** @deprecated use getLoga3BaseUrl() — value changes after Settings hydrate */
+export function getLoga3LoginUrl(): string {
+  return getLoga3BaseUrl();
+}
 
 export function requireLoga3Url(): string {
-  if (!LOGA3_LOGIN_URL) {
+  const url = getLoga3BaseUrl();
+  if (!url) {
     throw new Error(
-      'EXPO_PUBLIC_LOGA3_URL fehlt. In .env setzen (Tenant-URL), siehe .env.example.'
+      'LOGA3-URL fehlt. In Settings (pro Installation) eintragen — nicht im App-Build.'
     );
   }
-  return LOGA3_LOGIN_URL;
+  return url;
 }
 
 export const MONTH_LABELS = [
@@ -31,17 +37,29 @@ export const MONTH_LABELS = [
 export type AutomationCommand =
   | { type: 'fillLogin'; username: string; password: string }
   | { type: 'submitLogin' }
+  | { type: 'assertLoggedIn' }
+  | { type: 'assertShellReady' }
   | { type: 'probeReady' }
   | { type: 'getPickerState' }
+  | { type: 'getContentSignature' }
+  | { type: 'verifyCalendarMonth'; month: number; year: number }
+  | { type: 'clickBerechnen' }
+  | { type: 'getDialogAbrechnungsmonat' }
+  | { type: 'isZeitprotokollDialogVisible' }
   | { type: 'clickOeffnen' }
+  | { type: 'clickZeiten' }
   | { type: 'armCalendarReload' }
   | { type: 'selectMonth'; month: number; year: number }
   | { type: 'assertHasPlan' }
   | { type: 'clickSmartEdin' }
   | { type: 'clickExport' }
   | { type: 'openZeitprotokoll' }
+  | { type: 'armPdfCapture'; ms?: number }
+  | { type: 'probeDialog' }
   | { type: 'clickDownload' }
+  | { type: 'scrapePdfViewer' }
   | { type: 'closeDialog' }
+  | { type: 'closePopups' }
   | { type: 'stubStatus' };
 
 export type AutomationMessage = {
@@ -54,6 +72,10 @@ export type AutomationMessage = {
   hasZeitprotokoll?: boolean;
   sample?: string;
   note?: string;
+  stillLogin?: boolean;
+  /** LOGA3 boot splash / loading tiles still visible */
+  splash?: boolean;
+  zeitenFound?: boolean;
   pickerFound?: boolean;
   target?: string;
   month?: string | null;
@@ -65,65 +87,395 @@ export type AutomationMessage = {
   mime?: string;
   size?: number;
   filename?: string;
+  /** Content signature / gate */
+  signature?: {
+    key?: string;
+    gridKey?: string;
+    bookingsLabel?: string | null;
+    firstWeekday?: string | null;
+    lastDay?: string | null;
+    dayCount?: number;
+    schichtfrei?: number;
+    ranges?: string[];
+    geKo?: string[];
+    sample?: string;
+  };
+  reason?: string;
+  dialogVisible?: boolean;
+  monthToken?: string | null;
+  dialogYear?: string | null;
+  dialogSource?: string;
 };
 
-/** Persistently inject to capture PDF blob downloads from LOGA3. */
+/**
+ * Persistently inject to capture PDF downloads from LOGA3.
+ *
+ * Android note: react-native-webview does NOT emit onFileDownload — Content-Disposition
+ * hits DownloadManager. We must capture in-page (all frames) via blob/XHR/fetch/URL hooks.
+ */
 export const PDF_CAPTURE_INJECT = `
 (function() {
-  if (window.__loga3PdfCapture) return true;
-  window.__loga3PdfCapture = true;
-  function post(msg) {
-    try {
-      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(msg));
-    } catch (e) {}
-  }
-  function emitBlob(blob, filename) {
-    if (!blob) return;
-    var type = blob.type || '';
-    if (type && type.indexOf('pdf') === -1 && type.indexOf('octet-stream') === -1 && type.indexOf('application/') === -1) {
-      return;
-    }
-    var reader = new FileReader();
-    reader.onloadend = function() {
-      var result = String(reader.result || '');
-      var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
-      post({
-        ok: true,
-        type: 'pdfBlob',
-        base64: base64,
-        mime: type || 'application/pdf',
-        size: blob.size || 0,
-        filename: filename || ''
-      });
+  function install(win) {
+    if (!win || win.__loga3PdfCapture) return;
+    win.__loga3PdfCapture = true;
+    var armedUntil = 0;
+    function armed() { return Date.now() < armedUntil; }
+    win.__loga3ArmPdfCapture = function(ms) {
+      armedUntil = Date.now() + (ms || 120000);
+      try { post({ ok: true, type: 'pdfCaptureArmed', note: String(ms || 120000) }); } catch (e) {}
     };
-    reader.onerror = function() {
-      post({ ok: false, type: 'pdfBlob', error: 'filereader_failed' });
-    };
-    reader.readAsDataURL(blob);
-  }
-  try {
-    var origCreate = URL.createObjectURL.bind(URL);
-    URL.createObjectURL = function(obj) {
+    function post(msg) {
       try {
-        if (obj && typeof Blob !== 'undefined' && obj instanceof Blob) {
-          emitBlob(obj, '');
+        var w = win;
+        for (var i = 0; i < 8; i++) {
+          if (w.ReactNativeWebView && w.ReactNativeWebView.postMessage) {
+            w.ReactNativeWebView.postMessage(JSON.stringify(msg));
+            return;
+          }
+          if (!w.parent || w.parent === w) break;
+          w = w.parent;
         }
       } catch (e) {}
-      return origCreate(obj);
-    };
-  } catch (e) {}
-  document.addEventListener('click', function(ev) {
+    }
+    function headerLooksPdf(ct, name) {
+      ct = (ct || '').toLowerCase();
+      name = name || '';
+      return ct.indexOf('pdf') >= 0
+        || ct.indexOf('octet-stream') >= 0
+        || /\\.pdf($|\\?)/i.test(name);
+    }
+    function bytesLookPdf(u8) {
+      try {
+        if (!u8 || u8.length < 4) return false;
+        return u8[0] === 0x25 && u8[1] === 0x50 && u8[2] === 0x44 && u8[3] === 0x46; // %PDF
+      } catch (e) { return false; }
+    }
+    function emitBlob(blob, filename, force) {
+      if (!blob) return;
+      var type = (blob.type || '').toLowerCase();
+      var name = filename || '';
+      var looksPdf = force
+        || headerLooksPdf(type, name)
+        || (!type && blob.size > 500)
+        || (armed() && blob.size > 500 && (type.indexOf('application/') === 0 || !type));
+      if (!looksPdf) return;
+      var finish = function(okBlob) {
+        var reader = new FileReader();
+        reader.onloadend = function() {
+          var result = String(reader.result || '');
+          var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+          if (!base64 || base64.length < 32) {
+            post({ ok: false, type: 'pdfBlob', error: 'empty_base64' });
+            return;
+          }
+          // Verify magic when possible (data URL decoded later on RN; check prefix of base64 of %PDF)
+          post({
+            ok: true,
+            type: 'pdfBlob',
+            base64: base64,
+            mime: type || 'application/pdf',
+            size: okBlob.size || 0,
+            filename: name,
+            note: 'frame-capture'
+          });
+        };
+        reader.onerror = function() {
+          post({ ok: false, type: 'pdfBlob', error: 'filereader_failed' });
+        };
+        reader.readAsDataURL(okBlob);
+      };
+      // Confirm %PDF magic for ambiguous types
+      if (!headerLooksPdf(type, name) || type.indexOf('octet-stream') >= 0) {
+        try {
+          var slice = blob.slice(0, 5);
+          var fr = new FileReader();
+          fr.onloadend = function() {
+            var buf = fr.result;
+            var u8 = buf ? new Uint8Array(buf) : null;
+            if (bytesLookPdf(u8) || headerLooksPdf(type, name) || force) finish(blob);
+          };
+          fr.readAsArrayBuffer(slice);
+          return;
+        } catch (e) {}
+      }
+      finish(blob);
+    }
+    function emitArrayBuffer(buf, filename, mime, force) {
+      try {
+        var u8 = new Uint8Array(buf);
+        if (!force && !bytesLookPdf(u8) && !headerLooksPdf(mime, filename)) return;
+        emitBlob(new Blob([buf], { type: mime || 'application/pdf' }), filename || '', true);
+      } catch (e) {
+        post({ ok: false, type: 'pdfBlob', error: String(e && e.message || e) });
+      }
+    }
+    function captureUrl(url, filename) {
+      if (!url) return;
+      post({ ok: true, type: 'pdfCaptureProbe', note: String(url).slice(0, 160) });
+      try {
+        win.fetch(url, { credentials: 'include', redirect: 'follow' })
+          .then(function(res) {
+            var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
+            return res.blob().then(function(b) { return { b: b, ct: ct }; });
+          })
+          .then(function(o) {
+            emitBlob(o.b, filename || url, headerLooksPdf(o.ct, filename || url) || armed());
+          })
+          .catch(function(e) {
+            post({ ok: false, type: 'pdfBlob', error: 'capture_url:' + String(e && e.message || e) });
+          });
+      } catch (e) {
+        post({ ok: false, type: 'pdfBlob', error: 'capture_url_throw:' + String(e && e.message || e) });
+      }
+    }
+    function shouldInterceptUrl(url) {
+      if (!url) return false;
+      var u = String(url);
+      if (u.indexOf('blob:') === 0 || u.indexOf('data:application/pdf') === 0) return true;
+      if (/\\.pdf($|\\?)/i.test(u)) return true;
+      // When armed: intercept export-ish HTTP URLs (Content-Disposition → Android DownloadManager otherwise)
+      if (armed() && /^https?:/i.test(u)
+        && /export|download|zeitprotokoll|report|pdf|stream|servlet|generat|attachment|print/i.test(u)) {
+        return true;
+      }
+      return false;
+    }
+    // createObjectURL
     try {
-      var a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
-      if (!a) return;
-      var href = a.getAttribute('href') || '';
-      if (href.indexOf('blob:') === 0) {
-        fetch(href).then(function(r) { return r.blob(); }).then(function(b) {
-          emitBlob(b, a.getAttribute('download') || '');
-        }).catch(function() {});
+      var origCreate = win.URL.createObjectURL.bind(win.URL);
+      win.URL.createObjectURL = function(obj) {
+        try {
+          if (obj && typeof win.Blob !== 'undefined' && obj instanceof win.Blob) {
+            emitBlob(obj, '', armed());
+          }
+        } catch (e) {}
+        return origCreate(obj);
+      };
+    } catch (e) {}
+    // XHR
+    try {
+      var OrigXHR = win.XMLHttpRequest;
+      function WrappedXHR() {
+        var xhr = new OrigXHR();
+        var _url = '';
+        var open = xhr.open;
+        xhr.open = function(method, url) {
+          _url = String(url || '');
+          return open.apply(xhr, arguments);
+        };
+        xhr.addEventListener('load', function() {
+          try {
+            var ct = (xhr.getResponseHeader('content-type') || '').toLowerCase();
+            var want = armed() || headerLooksPdf(ct, _url);
+            if (!want) return;
+            if (xhr.responseType === 'blob' && xhr.response) emitBlob(xhr.response, _url, true);
+            else if (xhr.responseType === 'arraybuffer' && xhr.response) emitArrayBuffer(xhr.response, _url, ct, true);
+            else if (!xhr.responseType || xhr.responseType === '' || xhr.responseType === 'text') {
+              var t = xhr.responseText || '';
+              if (t.indexOf('%PDF') === 0) {
+                var arr = new Uint8Array(t.length);
+                for (var i = 0; i < t.length; i++) arr[i] = t.charCodeAt(i) & 0xff;
+                emitArrayBuffer(arr.buffer, _url, ct || 'application/pdf', true);
+              }
+            }
+          } catch (e) {}
+        });
+        return xhr;
+      }
+      WrappedXHR.prototype = OrigXHR.prototype;
+      win.XMLHttpRequest = WrappedXHR;
+    } catch (e) {}
+    // fetch
+    try {
+      var origFetch = win.fetch.bind(win);
+      win.fetch = function(input, init) {
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        return origFetch(input, init).then(function(res) {
+          try {
+            var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
+            if (armed() || headerLooksPdf(ct, url)) {
+              res.clone().blob().then(function(b) {
+                emitBlob(b, url, true);
+              }).catch(function() {});
+            }
+          } catch (e) {}
+          return res;
+        });
+      };
+    } catch (e) {}
+    // window.open
+    try {
+      var origOpen = win.open;
+      win.open = function(url) {
+        if (shouldInterceptUrl(url)) {
+          captureUrl(url, '');
+          return null;
+        }
+        return origOpen.apply(win, arguments);
+      };
+    } catch (e) {}
+    // location.assign / replace — when armed, fetch first (Android DownloadManager otherwise)
+    try {
+      var loc = win.location;
+      var origAssign = loc.assign.bind(loc);
+      var origReplace = loc.replace.bind(loc);
+      function maybeCaptureNav(url, fallback) {
+        if (!armed() || !url || !/^https?:/i.test(String(url))) {
+          return fallback(url);
+        }
+        post({ ok: true, type: 'pdfCaptureProbe', note: 'nav:' + String(url).slice(0, 140) });
+        win.fetch(String(url), { credentials: 'include', redirect: 'follow' })
+          .then(function(res) {
+            return res.blob().then(function(b) {
+              var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
+              if (headerLooksPdf(ct, url) || (b && b.size > 500)) {
+                emitBlob(b, String(url), true);
+                return;
+              }
+              fallback(url);
+            });
+          })
+          .catch(function() { fallback(url); });
+      }
+      loc.assign = function(url) { maybeCaptureNav(url, origAssign); };
+      loc.replace = function(url) { maybeCaptureNav(url, origReplace); };
+    } catch (e) {}
+    // iframe.src setter
+    try {
+      var desc = Object.getOwnPropertyDescriptor(win.HTMLIFrameElement && win.HTMLIFrameElement.prototype, 'src');
+      if (desc && desc.set) {
+        Object.defineProperty(win.HTMLIFrameElement.prototype, 'src', {
+          configurable: true,
+          enumerable: true,
+          get: desc.get,
+          set: function(v) {
+            var self = this;
+            if (armed() && v && /^https?:/i.test(String(v))) {
+              post({ ok: true, type: 'pdfCaptureProbe', note: 'iframe:' + String(v).slice(0, 140) });
+              win.fetch(String(v), { credentials: 'include', redirect: 'follow' })
+                .then(function(res) {
+                  return res.blob().then(function(b) {
+                    var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
+                    if (headerLooksPdf(ct, v) || (b && b.size > 800)) {
+                      // verify magic
+                      try {
+                        var slice = b.slice(0, 5);
+                        var fr = new FileReader();
+                        fr.onloadend = function() {
+                          var u8 = fr.result ? new Uint8Array(fr.result) : null;
+                          if (bytesLookPdf(u8) || headerLooksPdf(ct, v)) {
+                            emitBlob(b, String(v), true);
+                          } else {
+                            desc.set.call(self, v);
+                          }
+                        };
+                        fr.readAsArrayBuffer(slice);
+                        return;
+                      } catch (e) {}
+                      emitBlob(b, String(v), true);
+                      return;
+                    }
+                    desc.set.call(self, v);
+                  });
+                })
+                .catch(function() { desc.set.call(self, v); });
+              return;
+            }
+            if (shouldInterceptUrl(v)) { captureUrl(String(v), ''); return; }
+            return desc.set.call(this, v);
+          }
+        });
       }
     } catch (e) {}
-  }, true);
+    // anchor / download clicks
+    try {
+      win.document.addEventListener('click', function(ev) {
+        try {
+          var t = ev.target;
+          var a = t && t.closest ? t.closest('a[href]') : null;
+          if (!a) return;
+          var href = a.getAttribute('href') || '';
+          if (shouldInterceptUrl(href) || a.hasAttribute('download')) {
+            if (armed() || shouldInterceptUrl(href)) {
+              ev.preventDefault();
+              ev.stopPropagation();
+              captureUrl(href, a.getAttribute('download') || href);
+            }
+          }
+        } catch (e) {}
+      }, true);
+    } catch (e) {}
+    // Android often opens Chromium PDF.js viewer instead of DownloadManager —
+    // scrape bytes from the viewer / embeds / recent network resources while armed.
+    function scrapeViewerOnce() {
+      try {
+        var app = win.PDFViewerApplication;
+        if (app && app.pdfDocument && typeof app.pdfDocument.getData === 'function') {
+          if (win.__loga3PdfViewerScraped) return;
+          win.__loga3PdfViewerScraped = true;
+          app.pdfDocument.getData().then(function(u8) {
+            try {
+              var buf = u8 && u8.buffer ? u8.buffer : u8;
+              emitArrayBuffer(buf, 'pdfjs-viewer.pdf', 'application/pdf', true);
+            } catch (e) {
+              win.__loga3PdfViewerScraped = false;
+            }
+          }).catch(function() { win.__loga3PdfViewerScraped = false; });
+          return;
+        }
+      } catch (e) {}
+      try {
+        var nodes = win.document ? win.document.querySelectorAll('embed, object, iframe') : [];
+        for (var i = 0; i < nodes.length; i++) {
+          var el = nodes[i];
+          var src = el.src || el.getAttribute('src') || el.getAttribute('data') || '';
+          if (!src) continue;
+          if (src.indexOf('blob:') === 0 || /pdf/i.test(src) || /\\.pdf($|\\?)/i.test(src)) {
+            captureUrl(src, 'embed.pdf');
+          }
+        }
+      } catch (e) {}
+      try {
+        if (!win.__loga3SeenRes) win.__loga3SeenRes = {};
+        var entries = win.performance && win.performance.getEntriesByType
+          ? win.performance.getEntriesByType('resource') : [];
+        for (var j = 0; j < entries.length; j++) {
+          var n = entries[j].name || '';
+          if (!/^https?:/i.test(n)) continue;
+          if (!/pdf|zeitprotokoll|export|download|servlet|stream|attachment|report/i.test(n)) continue;
+          if (win.__loga3SeenRes[n]) continue;
+          win.__loga3SeenRes[n] = 1;
+          captureUrl(n, n);
+        }
+      } catch (e) {}
+    }
+    win.__loga3ScrapePdfViewer = scrapeViewerOnce;
+    try {
+      if (!win.__loga3PdfViewerPoll) {
+        win.__loga3PdfViewerPoll = setInterval(function() {
+          if (!armed()) return;
+          scrapeViewerOnce();
+        }, 1200);
+      }
+    } catch (e) {}
+  }
+  function installTree(win) {
+    try { install(win); } catch (e) {}
+    try {
+      var frames = win.document && win.document.querySelectorAll('iframe');
+      if (!frames) return;
+      for (var i = 0; i < frames.length; i++) {
+        try {
+          if (frames[i].contentWindow) installTree(frames[i].contentWindow);
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+  installTree(window);
+  try {
+    var mo = new MutationObserver(function() { installTree(window); });
+    mo.observe(document.documentElement || document, { childList: true, subtree: true });
+  } catch (e) {}
   return true;
 })();
 true;
@@ -144,18 +496,53 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(msg));
     } catch (e) {}
   }
-  function q(sel) { return document.querySelector(sel); }
-  function qa(sel) { return Array.from(document.querySelectorAll(sel)); }
+  function q(sel, root) {
+    if (root) return root.querySelector(sel);
+    return qAll(sel);
+  }
+  function qa(sel, root) {
+    if (root) return Array.from(root.querySelectorAll(sel));
+    return qaAll(sel);
+  }
+  function allDocuments() {
+    var docs = [document];
+    try {
+      Array.from(document.querySelectorAll('iframe')).forEach(function(f) {
+        try {
+          if (f.contentDocument) docs.push(f.contentDocument);
+        } catch (e) {}
+      });
+    } catch (e) {}
+    return docs;
+  }
+  function qAll(sel) {
+    var found = null;
+    allDocuments().some(function(doc) {
+      var el = doc.querySelector(sel);
+      if (el) { found = el; return true; }
+      return false;
+    });
+    return found;
+  }
+  function qaAll(sel) {
+    var out = [];
+    allDocuments().forEach(function(doc) {
+      out = out.concat(Array.from(doc.querySelectorAll(sel)));
+    });
+    return out;
+  }
   function visible(el) {
     if (!el) return false;
-    if (el.offsetParent === null && el !== document.body) return false;
     var s = window.getComputedStyle(el);
-    return s.display !== 'none' && s.visibility !== 'hidden';
+    if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) return false;
+    // GWT DialogBox is often position:fixed → offsetParent === null even when on-screen
+    var r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    return true;
   }
   function textOf(el) { return ((el && el.textContent) || '').replace(/\\s+/g, ' ').trim(); }
-  function sleep(ms) {
-    var start = Date.now();
-    while (Date.now() - start < ms) { /* busy wait in sync inject — keep short */ }
+  function waitMs(ms) {
+    return new Promise(function(resolve) { setTimeout(resolve, ms); });
   }
   function getPickerState() {
     var picker = q('#ZeitdatenMonthPicker');
@@ -230,100 +617,183 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     var monthLabel = MONTH_LABELS[month - 1];
     var mm = String(month).padStart(2, '0');
     var yearStr = String(year);
+    var already = getPickerState();
+    if (already.found && already.month === mm && already.year === yearStr) {
+      return Promise.resolve({
+        ok: true, selected: true, month: already.month, year: already.year, label: already.label, note: 'already'
+      });
+    }
     var picker = q('#ZeitdatenMonthPicker');
-    if (!picker) return { ok: false, error: 'picker_not_found' };
+    if (!picker) return Promise.resolve({ ok: false, error: 'picker_not_found' });
     picker.click();
-    sleep(450);
-    var popup = null;
-    for (var t = 0; t < 20; t++) {
-      popup = markMonthPopup();
-      if (popup) break;
-      sleep(200);
-    }
-    if (!popup) return { ok: false, error: 'popup_not_found' };
 
-    var sel = readPopupSelector(popup);
-    if (sel && sel.active && /^\\d{4}$/.test(sel.active)) {
-      var first = popup.querySelector('.datePickerSelectorText .gwt-InlineLabel');
-      if (first) first.click();
-      sleep(350);
-    }
-
-    for (var attempt = 0; attempt < 36; attempt++) {
-      sel = readPopupSelector(popup);
-      if (sel && sel.active === monthLabel && sel.year === yearStr) break;
-      var shownYear = Number((sel && sel.year) || yearStr);
-      var shownMonth = MONTH_LABELS.indexOf((sel && sel.active) || '') + 1 || 7;
-      var shownNum = shownYear * 12 + shownMonth;
-      var targetNum = Number(yearStr) * 12 + month;
-
-      if (shownYear !== Number(yearStr)) {
-        var yearDir = shownYear > Number(yearStr) ? 'Vorjahr' : 'Nächstes Jahr';
-        var yearBtn = popup.querySelector('[aria-label="' + yearDir + '"]');
-        if (yearBtn && visible(yearBtn)) { yearBtn.click(); sleep(350); continue; }
+    function until(deadline, stepMs, probe) {
+      function tick() {
+        var v = probe();
+        if (v) return Promise.resolve(v);
+        if (Date.now() >= deadline) return Promise.resolve(null);
+        return waitMs(stepMs).then(tick);
       }
-      var monthDir = shownNum > targetNum ? 'Vorheriger Monat' : 'Nächster Monat';
-      var monthBtn = popup.querySelector('[aria-label="' + monthDir + '"]');
-      if (monthBtn && visible(monthBtn)) { monthBtn.click(); sleep(350); }
-      else break;
+      return tick();
     }
 
-    sel = readPopupSelector(popup);
-    if (!(sel && sel.active === monthLabel && sel.year === yearStr)) {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      return { ok: false, error: 'could_not_reach_month', note: (sel && sel.active) + ' ' + (sel && sel.year) };
-    }
-
-    var cells = Array.from(popup.querySelectorAll('table.datePickerMonthPicker td')).filter(function(td) {
-      return textOf(td) === monthLabel;
+    var popupDeadline = Date.now() + 5000;
+    return waitMs(200).then(function() {
+      return until(popupDeadline, 150, function() { return markMonthPopup(); });
+    }).then(function(popup) {
+      if (!popup) return { ok: false, error: 'popup_not_found' };
+      var sel = readPopupSelector(popup);
+      var chain = Promise.resolve();
+      if (sel && sel.active && /^\\d{4}$/.test(sel.active)) {
+        var first = popup.querySelector('.datePickerSelectorText .gwt-InlineLabel');
+        if (first) {
+          first.click();
+          chain = waitMs(200);
+        }
+      }
+      var navDeadline = Date.now() + 12000;
+      function navigate() {
+        return chain.then(function() {
+          sel = readPopupSelector(popup);
+          if (sel && sel.active === monthLabel && sel.year === yearStr) return;
+          if (Date.now() >= navDeadline) return;
+          var shownYear = Number((sel && sel.year) || yearStr);
+          var shownMonth = MONTH_LABELS.indexOf((sel && sel.active) || '') + 1 || 7;
+          var shownNum = shownYear * 12 + shownMonth;
+          var targetNum = Number(yearStr) * 12 + month;
+          if (shownYear !== Number(yearStr)) {
+            var yearDir = shownYear > Number(yearStr) ? 'Vorjahr' : 'Nächstes Jahr';
+            var yearBtn = popup.querySelector('[aria-label="' + yearDir + '"]');
+            if (yearBtn && visible(yearBtn)) {
+              yearBtn.click();
+              chain = waitMs(200);
+              return navigate();
+            }
+          }
+          var monthDir = shownNum > targetNum ? 'Vorheriger Monat' : 'Nächster Monat';
+          var monthBtn = popup.querySelector('[aria-label="' + monthDir + '"]');
+          if (monthBtn && visible(monthBtn)) {
+            monthBtn.click();
+            chain = waitMs(200);
+            return navigate();
+          }
+        });
+      }
+      return navigate().then(function() {
+        sel = readPopupSelector(popup);
+        if (!(sel && sel.active === monthLabel && sel.year === yearStr)) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          return { ok: false, error: 'could_not_reach_month', note: (sel && sel.active) + ' ' + (sel && sel.year) };
+        }
+        var cells = Array.from(popup.querySelectorAll('table.datePickerMonthPicker td')).filter(function(td) {
+          return textOf(td) === monthLabel;
+        });
+        if (!cells.length) return { ok: false, error: 'month_cell_missing' };
+        cells[0].click();
+        return waitMs(400).then(function() {
+          var state = getPickerState();
+          if (state.month === mm && state.year === yearStr) {
+            return { ok: true, selected: true, month: state.month, year: state.year, label: state.label };
+          }
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          return waitMs(150).then(function() {
+            var targetNum2 = Number(yearStr) * 12 + month;
+            var chromeDeadline = Date.now() + 10000;
+            function chromeStep() {
+              state = getPickerState();
+              if (state.month === mm && state.year === yearStr) {
+                return Promise.resolve({
+                  ok: true, selected: true, month: state.month, year: state.year, label: state.label, note: 'chrome_arrows'
+                });
+              }
+              if (Date.now() >= chromeDeadline || !state.month || !state.year) {
+                return Promise.resolve({
+                  ok: false,
+                  selected: false,
+                  month: state.month,
+                  year: state.year,
+                  label: state.label,
+                  error: 'select_month_failed'
+                });
+              }
+              var curNum = Number(state.year) * 12 + Number(state.month);
+              var dir = curNum > targetNum2 ? 'back' : 'forward';
+              if (!clickArrowNearPicker(dir)) {
+                return Promise.resolve({
+                  ok: false, selected: false, month: state.month, year: state.year, label: state.label, error: 'select_month_failed'
+                });
+              }
+              return waitMs(300).then(chromeStep);
+            }
+            return chromeStep();
+          });
+        });
+      });
     });
-    if (!cells.length) {
-      return { ok: false, error: 'month_cell_missing' };
+  }
+  function getContentSignature() {
+    var mask = q('[data-uin="mask-LZWZEITD"]') || q('.BewerberMaskLayout') || document.body;
+    var text = ((mask && mask.innerText) || (document.body && document.body.innerText) || '').replace(/\\s+/g, ' ').trim();
+    var bookings = text.match(/Buchungen für\\s+([A-Za-zÄÖÜäöüß]+)\\s+(\\d{4})/i);
+    var dayRe = /\\b([0-3]\\d)\\s*(MO|DI|MI|DO|FR|SA|SO)\\b/g;
+    var days = [];
+    var dm;
+    while ((dm = dayRe.exec(text))) days.push(dm);
+    var first = null;
+    for (var di = 0; di < days.length; di++) {
+      if (days[di][1] === '01') { first = days[di]; break; }
     }
-    cells[0].click();
-    sleep(700);
-    var state = getPickerState();
-    if (state.month === mm && state.year === yearStr) {
-      return { ok: true, selected: true, month: state.month, year: state.year, label: state.label };
-    }
-    // Fallback: chrome arrows
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    sleep(200);
-    var targetNum2 = Number(yearStr) * 12 + month;
-    for (var step = 0; step < 24; step++) {
-      state = getPickerState();
-      if (state.month === mm && state.year === yearStr) {
-        return { ok: true, selected: true, month: state.month, year: state.year, label: state.label, note: 'chrome_arrows' };
-      }
-      if (!state.month || !state.year) break;
-      var curNum = Number(state.year) * 12 + Number(state.month);
-      var dir = curNum > targetNum2 ? 'back' : 'forward';
-      if (!clickArrowNearPicker(dir)) break;
-      sleep(500);
-    }
-    state = getPickerState();
+    var last = days.length ? days[days.length - 1] : null;
+    var ranges = [];
+    var rm;
+    var rangeRe = /(\\d{1,2}:\\d{2})\\s*-\\s*(\\d{1,2}:\\d{2})/g;
+    while ((rm = rangeRe.exec(text))) ranges.push(rm[1] + '-' + rm[2]);
+    var geKo = [];
+    var gm;
+    var geRe = /(?:KO\\*|GE\\*)\\s*(\\d{1,2}:\\d{2})/g;
+    while ((gm = geRe.exec(text))) geKo.push(gm[1]);
+    var schichtfrei = (text.match(/SCHICHTFREI/g) || []).length;
+    var bookingsLabel = bookings ? (bookings[1] + ' ' + bookings[2]) : null;
+    var firstWeekday = first ? first[2] : null;
+    var lastDay = last ? last[1] : null;
+    var key = [
+      bookingsLabel || 'no-bookings',
+      firstWeekday ? ('01' + firstWeekday) : 'no01',
+      lastDay ? ('L' + lastDay) : 'noL',
+      'sf' + schichtfrei,
+      'r' + ranges.slice(0, 15).join(','),
+      'g' + geKo.slice(0, 15).join(',')
+    ].join('|');
+    var gridKey = [
+      firstWeekday ? ('01' + firstWeekday) : 'no01',
+      lastDay ? ('L' + lastDay) : 'noL',
+      'sf' + schichtfrei,
+      'r' + ranges.slice(0, 15).join(','),
+      'g' + geKo.slice(0, 15).join(',')
+    ].join('|');
     return {
-      ok: state.month === mm && state.year === yearStr,
-      selected: state.month === mm && state.year === yearStr,
-      month: state.month,
-      year: state.year,
-      label: state.label,
-      error: state.month === mm && state.year === yearStr ? undefined : 'select_month_failed'
+      key: key,
+      gridKey: gridKey,
+      bookingsLabel: bookingsLabel,
+      firstWeekday: firstWeekday,
+      lastDay: lastDay,
+      dayCount: days.length,
+      schichtfrei: schichtfrei,
+      ranges: ranges.slice(0, 20),
+      geKo: geKo.slice(0, 20),
+      sample: text.slice(0, 280)
     };
   }
   function hasSchedulePlan() {
-    var roots = [
-      q('[data-uin="mask-LZWZEITD"]'),
-      q('.BewerberMaskLayout'),
-      q('[class*="MaskLayout"]'),
-      q('.LG-MainContent'),
-      document.body
-    ].filter(Boolean);
-    var text = textOf(roots[0] || document.body);
-    if (/Zeitprotokoll|KO\\*|GE\\*|Dienstplan|Soll/i.test(text) && text.length > 80) return true;
-    // day cells with times
-    if ((text.match(/\\b\\d{2}:\\d{2}\\b/g) || []).length >= 2) return true;
-    return false;
+    var sig = getContentSignature();
+    return (sig.ranges && sig.ranges.length > 0) || (sig.geKo && sig.geKo.length > 0) || (sig.schichtfrei > 0);
+  }
+  function expectedFirstWeekdayCode(month, year) {
+    var codes = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
+    return codes[new Date(Number(year), Number(month) - 1, 1).getDay()];
+  }
+  function expectedLastDay(month, year) {
+    return String(new Date(Number(year), Number(month), 0).getDate());
   }
 
   try {
@@ -333,43 +803,211 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     }
 
     if (cmd.type === 'fillLogin') {
-      var user =
-        q('input[type="text"]') ||
-        q('input[name*="user" i]') ||
-        q('input[id*="user" i]') ||
-        q('input[autocomplete="username"]');
-      var pass =
-        q('input[type="password"]') ||
-        q('input[autocomplete="current-password"]');
-      if (!user || !pass) {
-        post({ ok: false, type: 'fillLogin', error: 'login_fields_not_found' });
-        return true;
-      }
-      var setVal = function(el, val) {
+      function setNative(el, val) {
         el.focus();
-        el.value = val;
+        el.click();
+        var proto = window.HTMLInputElement.prototype;
+        var desc = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (desc && desc.set) desc.set.call(el, val);
+        else el.value = val;
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      setVal(user, cmd.username);
-      setVal(pass, cmd.password);
-      post({ ok: true, type: 'fillLogin' });
+        el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      }
+      var userSelectors = [
+        'input[name="Kennung"]',
+        'input[name="username"]',
+        'input[placeholder*="Kennung"]',
+        'input[id*="Kennung"]',
+        'input[type="text"]',
+        'input[autocomplete="username"]'
+      ];
+      var passSelectors = [
+        'input[name="Kennwort"]',
+        'input[name="password"]',
+        'input[placeholder*="Kennwort"]',
+        'input[type="password"]',
+        'input[autocomplete="current-password"]'
+      ];
+      var user = null, pass = null, ui, pi;
+      // NO busy-wait here — it blocks GWT/SPA render in WebView
+      for (ui = 0; ui < userSelectors.length; ui++) {
+        user = q(userSelectors[ui]);
+        if (user) break;
+        user = null;
+      }
+      for (pi = 0; pi < passSelectors.length; pi++) {
+        pass = q(passSelectors[pi]);
+        if (pass) break;
+        pass = null;
+      }
+      if (!user || !pass) {
+        post({
+          ok: false,
+          type: 'fillLogin',
+          error: 'login_fields_not_found',
+          sample: (document.body && document.body.innerText || '').slice(0, 160),
+          href: location.href,
+          note: 'inputs=' + qa('input').length
+        });
+        return true;
+      }
+      setNative(user, cmd.username);
+      setNative(pass, cmd.password);
+      post({ ok: true, type: 'fillLogin', note: (user.getAttribute('name') || '') + '/' + (pass.getAttribute('name') || '') });
       return true;
     }
 
     if (cmd.type === 'submitLogin') {
-      var btn =
-        q('button[type="submit"]') ||
-        qa('button').find(function(b){ return /anmelden|login|einloggen/i.test(b.textContent || ''); }) ||
-        q('input[type="submit"]');
-      if (btn) { btn.click(); post({ ok: true, type: 'submitLogin' }); }
-      else post({ ok: false, type: 'submitLogin', error: 'submit_not_found' });
+      function clickHard(el) {
+        if (!el) return;
+        try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+        el.focus && el.focus();
+        ['pointerdown','mousedown','mouseup','pointerup','click'].forEach(function(type) {
+          try {
+            el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+          } catch (e) {}
+        });
+        try { el.click(); } catch (e) {}
+      }
+      var passEl = q('input[name="Kennwort"]') || q('input[type="password"]');
+      if (passEl) {
+        try {
+          passEl.focus();
+          passEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+          passEl.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+          passEl.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+        } catch (e) {}
+      }
+      var btn = qa('button, input, a, [role="button"], div, span').find(function(b) {
+        var t = textOf(b) + ' ' + (b.value || '') + ' ' + (b.getAttribute('aria-label') || '');
+        return /^\\s*anmelden\\s*$/i.test(textOf(b) || (b.value || '')) && visible(b);
+      });
+      if (!btn) {
+        btn = qa('button, input, a, [role="button"], div, span').find(function(b) {
+          var t = textOf(b) + ' ' + (b.value || '');
+          return /anmelden|login|einloggen/i.test(t) && visible(b) && textOf(b).length < 40;
+        });
+      }
+      if (btn) {
+        clickHard(btn);
+        post({ ok: true, type: 'submitLogin', note: 'clicked:' + textOf(btn).slice(0, 40) });
+      } else if (passEl) {
+        post({ ok: true, type: 'submitLogin', note: 'enter_only' });
+      } else {
+        post({ ok: false, type: 'submitLogin', error: 'submit_not_found' });
+      }
+      return true;
+    }
+
+    if (cmd.type === 'assertLoggedIn') {
+      var body = (document.body && document.body.innerText || '');
+      if (/Kennung bzw\\. das Kennwort ist falsch|Kennwort ist falsch|Login failed/i.test(body)) {
+        post({ ok: false, type: 'assertLoggedIn', error: 'bad_credentials', code: 'BAD_CREDENTIALS' });
+        return true;
+      }
+      var kennung = q('input[name="Kennung"]') || q('input[placeholder*="Kennung"]');
+      var kennwort = q('input[name="Kennwort"]') || q('input[type="password"]');
+      // Do NOT use visible() here — GWT inputs often report offsetParent=null in WebView
+      var stillLogin = !!kennung || (!!kennwort && /Anmelden/i.test(body));
+      var picker = q('#ZeitdatenMonthPicker');
+      post({
+        ok: !stillLogin,
+        type: 'assertLoggedIn',
+        stillLogin: stillLogin,
+        pickerFound: !!picker,
+        error: stillLogin ? 'still_on_login' : undefined,
+        code: stillLogin ? 'STILL_LOGIN' : undefined,
+        sample: body.slice(0, 200),
+        href: location.href,
+        note: 'kennung=' + !!kennung + ',kennwort=' + !!kennwort
+      });
+      return true;
+    }
+
+    function findZeitenControl() {
+      return (
+        qa('button, a, [role="button"], div, span, td, li, [data-uin]').find(function(el) {
+          var t = textOf(el);
+          return /^zeiten$/i.test(t) && visible(el);
+        }) ||
+        qa('a, button, div, span, [role="button"]').find(function(el) {
+          var t = textOf(el);
+          return /\\bzeiten\\b/i.test(t) && visible(el) && t.length < 24;
+        }) ||
+        qa('a, button, div').find(function(el) {
+          return /Zeitdaten|Dienstplan|Zeitwirtschaft/i.test(textOf(el)) && visible(el) && textOf(el).length < 40;
+        }) ||
+        null
+      );
+    }
+
+    function isBootSplash() {
+      if (document.querySelector('[aria-busy="true"]')) return true;
+      var busySel = [
+        '[class*="loading" i]',
+        '[class*="spinner" i]',
+        '[class*="LoadingPanel"]',
+        '[class*="splash" i]',
+        '.gwt-PopupPanelGlass'
+      ];
+      for (var bi = 0; bi < busySel.length; bi++) {
+        var nodes = document.querySelectorAll(busySel[bi]);
+        for (var bj = 0; bj < nodes.length; bj++) {
+          if (visible(nodes[bj])) return true;
+        }
+      }
+      var raw = ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ').trim();
+      // Classic LOGA3 boot: almost only "LOGA3" + loading tiles, no nav yet
+      if (/^LOGA3\\b/i.test(raw) && raw.length < 120 && !findZeitenControl() && !q('#ZeitdatenMonthPicker')) {
+        return true;
+      }
+      return false;
+    }
+
+    if (cmd.type === 'assertShellReady') {
+      var body2 = (document.body && document.body.innerText || '');
+      var kennung2 = q('input[name="Kennung"]') || q('input[placeholder*="Kennung"]');
+      var kennwort2 = q('input[name="Kennwort"]') || q('input[type="password"]');
+      var stillLogin2 = !!kennung2 || (!!kennwort2 && /Anmelden/i.test(body2));
+      var splash = !stillLogin2 && isBootSplash();
+      var zCtrl = findZeitenControl();
+      var picker2 = q('#ZeitdatenMonthPicker');
+      var ready = !stillLogin2 && !splash && (!!zCtrl || !!picker2);
+      post({
+        ok: ready,
+        type: 'assertShellReady',
+        stillLogin: stillLogin2,
+        splash: splash,
+        zeitenFound: !!zCtrl,
+        pickerFound: !!picker2,
+        error: stillLogin2
+          ? 'still_on_login'
+          : (splash ? 'shell_loading' : (ready ? undefined : 'shell_not_ready')),
+        code: stillLogin2 ? 'STILL_LOGIN' : (splash ? 'SHELL_LOADING' : (ready ? undefined : 'SHELL_NOT_READY')),
+        sample: body2.slice(0, 200),
+        href: location.href,
+        note: splash ? 'LOGA3 splash / loading' : (zCtrl ? textOf(zCtrl).slice(0, 40) : 'no_zeiten')
+      });
       return true;
     }
 
     if (cmd.type === 'probeReady') {
       var text = (document.body && document.body.innerText || '').slice(0, 800);
       var ps = getPickerState();
+      var inputs = qa('input').slice(0, 12).map(function(el) {
+        return {
+          type: el.getAttribute('type') || '',
+          name: el.getAttribute('name') || '',
+          id: el.getAttribute('id') || '',
+          placeholder: el.getAttribute('placeholder') || ''
+        };
+      });
+      var iframes = Array.from(document.querySelectorAll('iframe')).slice(0, 8).map(function(f) {
+        var accessible = false;
+        try { accessible = !!(f.contentDocument && f.contentDocument.body); } catch (e) { accessible = false; }
+        return { src: f.getAttribute('src') || '', name: f.getAttribute('name') || '', accessible: accessible };
+      });
       post({
         ok: true,
         type: 'probeReady',
@@ -378,7 +1016,8 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         sample: text.slice(0, 200),
         month: ps.month,
         year: ps.year,
-        label: ps.label
+        label: ps.label,
+        note: JSON.stringify({ inputs: inputs, iframes: iframes, inputCount: qa('input').length })
       });
       return true;
     }
@@ -395,6 +1034,31 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       });
       if (oeffnen) { oeffnen.click(); post({ ok: true, type: 'clickOeffnen' }); }
       else post({ ok: false, type: 'clickOeffnen', error: 'oeffnen_not_found' });
+      return true;
+    }
+
+    if (cmd.type === 'clickZeiten') {
+      if (isBootSplash()) {
+        post({
+          ok: false,
+          type: 'clickZeiten',
+          error: 'shell_still_loading',
+          code: 'SHELL_LOADING',
+          splash: true,
+          sample: (document.body && document.body.innerText || '').slice(0, 240)
+        });
+        return true;
+      }
+      var z = findZeitenControl();
+      if (z) { z.click(); post({ ok: true, type: 'clickZeiten', note: textOf(z).slice(0, 40) }); }
+      else post({
+        ok: false,
+        type: 'clickZeiten',
+        error: 'zeiten_not_found',
+        zeitenFound: false,
+        splash: isBootSplash(),
+        sample: (document.body && document.body.innerText || '').slice(0, 240)
+      });
       return true;
     }
 
@@ -415,17 +1079,117 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     }
 
     if (cmd.type === 'selectMonth') {
-      var result = selectMonthViaPopup(cmd.month, cmd.year);
-      post(Object.assign({ type: 'selectMonth', target: String(cmd.month).padStart(2,'0') + '/' + cmd.year }, result));
+      selectMonthViaPopup(cmd.month, cmd.year).then(function(result) {
+        post(Object.assign({ type: 'selectMonth', target: String(cmd.month).padStart(2,'0') + '/' + cmd.year }, result));
+      }).catch(function(err) {
+        post({ ok: false, type: 'selectMonth', error: String(err && err.message || err) });
+      });
+      return true;
+    }
+
+    if (cmd.type === 'getContentSignature') {
+      post({ ok: true, type: 'getContentSignature', signature: getContentSignature(), pickerFound: getPickerState().found });
+      return true;
+    }
+
+    if (cmd.type === 'verifyCalendarMonth') {
+      var sig = getContentSignature();
+      var picker = getPickerState();
+      var mm = String(cmd.month).padStart(2, '0');
+      var yearStr = String(cmd.year);
+      var expectedWd = expectedFirstWeekdayCode(cmd.month, cmd.year);
+      var expectedLast = expectedLastDay(cmd.month, cmd.year);
+      var headerOk = picker.month === mm && picker.year === yearStr;
+      var weekdayOk = sig.firstWeekday === expectedWd;
+      var lastDayOk = !sig.lastDay || sig.lastDay === expectedLast;
+      var ok = headerOk && !!sig.firstWeekday && weekdayOk && lastDayOk;
+      var reason = !headerOk
+        ? ('header ' + picker.month + '/' + picker.year + ' != ' + mm + '/' + yearStr)
+        : (!sig.firstWeekday ? 'day01 missing' : (!weekdayOk ? ('day01=' + sig.firstWeekday + ' expected=' + expectedWd) : (!lastDayOk ? ('lastDay=' + sig.lastDay + ' expected=' + expectedLast) : undefined)));
+      post({
+        ok: ok,
+        type: 'verifyCalendarMonth',
+        signature: sig,
+        month: picker.month,
+        year: picker.year,
+        reason: reason,
+        error: ok ? undefined : (reason || 'content_invalid'),
+        code: ok ? undefined : 'CONTENT_INVALID'
+      });
+      return true;
+    }
+
+    if (cmd.type === 'clickBerechnen') {
+      var ber = qa('button, a, [role="button"], div.LG-Button, span').find(function(el) {
+        return /^berechnen$/i.test(textOf(el)) && visible(el);
+      });
+      if (ber) { ber.click(); post({ ok: true, type: 'clickBerechnen' }); }
+      else post({ ok: true, type: 'clickBerechnen', note: 'not_found' });
+      return true;
+    }
+
+    if (cmd.type === 'getDialogAbrechnungsmonat') {
+      var dialogs = []
+        .concat(qa('.gwt-DialogBox'))
+        .concat(qa('[class*="Dialog"]'))
+        .concat(qa('.popupContent'));
+      var texts = dialogs.filter(function(el) { return el && visible(el); }).map(function(el) {
+        return ((el.innerText || '')).replace(/\\s+/g, ' ').trim();
+      });
+      var blob = texts.join(' \\n ');
+      // Prefer dialogs that look like Zeitprotokoll (Herunterladen)
+      var zpBlob = texts.filter(function(t) {
+        return /Herunterladen|Abrechnungsmonat|Zeitprotokoll/i.test(t);
+      }).join(' \\n ');
+      if (zpBlob) blob = zpBlob;
+      var labeled = blob.match(/Abrechnungsmonat\\s*[:\\-]?\\s*(\\d{1,2})\\s*[\\/.\\-]\\s*(\\d{4})/i)
+        || blob.match(/Abrechnungsmonat\\s*[:\\-]?\\s*([A-Za-zÄÖÜäöüß]+)\\s+(\\d{4})/i);
+      if (labeled) {
+        post({ ok: true, type: 'getDialogAbrechnungsmonat', monthToken: labeled[1], dialogYear: labeled[2], dialogSource: 'dialog-label', sample: labeled[0] });
+      } else if (blob && /Herunterladen/i.test(blob)) {
+        // Dialog ready but no Abrechnungsmonat label — Desktop relies on content gate
+        var generic = blob.match(/\\b(0?[1-9]|1[0-2])\\s*[\\/.\\-]\\s*(20\\d{2})\\b/);
+        if (generic) {
+          post({ ok: true, type: 'getDialogAbrechnungsmonat', monthToken: generic[1], dialogYear: generic[2], dialogSource: 'dialog-generic', sample: generic[0] });
+        } else {
+          post({ ok: true, type: 'getDialogAbrechnungsmonat', monthToken: null, dialogYear: null, dialogSource: 'dialog-missing', sample: blob.slice(0, 300) });
+        }
+      } else {
+        // Do NOT scan whole body for MM/YYYY — calendar dates false-positive and block download
+        post({ ok: true, type: 'getDialogAbrechnungsmonat', monthToken: null, dialogYear: null, dialogSource: 'dialog-missing', sample: (blob || '').slice(0, 300) });
+      }
+      return true;
+    }
+
+    if (cmd.type === 'isZeitprotokollDialogVisible') {
+      var herunter = qa('button, a, [role="button"], span.PrimaryButton, span, div, input').some(function(el) {
+        return /herunterladen/i.test(textOf(el)) && visible(el) && textOf(el).length < 60;
+      });
+      var visibleDlg = qa('.gwt-DialogBox, [class*="Dialog"], .popupContent').some(function(el) {
+        if (!visible(el)) return false;
+        var t = textOf(el);
+        return /Herunterladen|Zeitprotokoll|Abrechnungsmonat/i.test(t);
+      });
+      if (!visibleDlg) visibleDlg = herunter;
+      post({
+        ok: true,
+        type: 'isZeitprotokollDialogVisible',
+        dialogVisible: !!visibleDlg,
+        note: herunter ? 'herunterladen' : (visibleDlg ? 'dialog' : 'none')
+      });
       return true;
     }
 
     if (cmd.type === 'assertHasPlan') {
-      var plan = hasSchedulePlan();
+      var sigPlan = getContentSignature();
+      var plan = (sigPlan.ranges && sigPlan.ranges.length > 0)
+        || (sigPlan.geKo && sigPlan.geKo.length > 0)
+        || (sigPlan.schichtfrei > 0);
       post({
         ok: plan,
         type: 'assertHasPlan',
         hasPlan: plan,
+        signature: sigPlan,
         code: plan ? undefined : 'NO_PLAN',
         error: plan ? undefined : 'NO_PLAN',
         month: getPickerState().month,
@@ -437,46 +1201,285 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     if (cmd.type === 'clickSmartEdin') {
       var icon = q('span.LG-Icon.ic-smartedingeborder[data-uin="ic-smartedingeborder"]') ||
         q('[data-uin="ic-smartedingeborder"]');
-      if (icon && visible(icon)) { icon.click(); post({ ok: true, type: 'clickSmartEdin' }); }
-      else post({ ok: false, type: 'clickSmartEdin', error: 'smartedin_not_found' });
+      if (icon && visible(icon)) {
+        try { icon.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+        icon.click();
+        post({ ok: true, type: 'clickSmartEdin' });
+      } else post({ ok: false, type: 'clickSmartEdin', error: 'smartedin_not_found' });
       return true;
     }
 
     if (cmd.type === 'clickExport') {
       var exportBtn =
         q('div.MenuItem[data-uin="smartthing-cat-exports"]') ||
+        q('div.MenuItem.selected[data-uin="smartthing-cat-exports"]') ||
         qa('div.MenuItem, div.gwt-Label, button, div.LG-Button, span').find(function(el) {
           return /^Export$/i.test(textOf(el)) && visible(el);
         });
-      if (exportBtn) { exportBtn.click(); post({ ok: true, type: 'clickExport' }); }
-      else post({ ok: false, type: 'clickExport', error: 'export_not_found' });
+      if (exportBtn) {
+        try { exportBtn.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+        exportBtn.click();
+        var zpReady = !!q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+        post({
+          ok: true,
+          type: 'clickExport',
+          note: zpReady ? 'lagsdzpg_visible' : 'export_clicked'
+        });
+      } else post({ ok: false, type: 'clickExport', error: 'export_not_found' });
       return true;
     }
 
-    if (cmd.type === 'openZeitprotokoll') {
-      var zp =
-        q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]') ||
-        qa('button, a, [role="button"], div.LGSmartThingContentItem, div').find(function(el) {
-          return /Zeitprotokoll\\s*generieren/i.test(textOf(el)) && visible(el);
-        });
-      if (zp) {
-        zp.click();
-        sleep(400);
-        zp.click();
-        post({ ok: true, type: 'openZeitprotokoll' });
-      } else {
-        post({ ok: false, type: 'openZeitprotokoll', error: 'button_not_found' });
+    if (cmd.type === 'armPdfCapture') {
+      try {
+        function armWin(w) {
+          try { if (w && w.__loga3ArmPdfCapture) w.__loga3ArmPdfCapture(cmd.ms || 180000); } catch (e) {}
+          try {
+            var ifr = w.document && w.document.querySelectorAll('iframe');
+            if (!ifr) return;
+            for (var i = 0; i < ifr.length; i++) {
+              try { if (ifr[i].contentWindow) armWin(ifr[i].contentWindow); } catch (e) {}
+            }
+          } catch (e) {}
+        }
+        armWin(window);
+        post({ ok: true, type: 'armPdfCapture', note: String(cmd.ms || 180000) });
+      } catch (e) {
+        post({ ok: false, type: 'armPdfCapture', error: String(e && e.message || e) });
       }
       return true;
     }
 
-    if (cmd.type === 'clickDownload') {
-      var dl = qa('button, a, [role="button"], span.PrimaryButton, span').find(function(el) {
-        var t = textOf(el) + ' ' + (el.getAttribute('aria-label') || '');
-        return /herunterladen/i.test(t) && visible(el);
+    if (cmd.type === 'probeDialog') {
+      var boxes = qa('.gwt-DialogBox, [class*="Dialog"], .popupContent').filter(function(el) { return visible(el); });
+      var herunter = qa('button, a, [role="button"], span, div').filter(function(el) {
+        return /herunterladen/i.test(textOf(el)) && visible(el);
       });
-      if (dl) { dl.click(); post({ ok: true, type: 'clickDownload' }); }
-      else post({ ok: false, type: 'clickDownload', error: 'download_not_found' });
+      var zp = q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+      var body = ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ');
+      post({
+        ok: true,
+        type: 'probeDialog',
+        dialogVisible: boxes.length > 0 || herunter.length > 0,
+        note: 'boxes=' + boxes.length + ' herunter=' + herunter.length + ' zp=' + (zp && visible(zp) ? '1' : '0'),
+        sample: body.slice(0, 280)
+      });
+      return true;
+    }
+
+    if (cmd.type === 'openZeitprotokoll') {
+      // Prefer Desktop selector — text match can hit wrong widgets
+      var zp = q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+      if (!zp || !visible(zp)) {
+        zp = qa('div.LGSmartThingContentItem').find(function(el) {
+          return /Zeitprotokoll\\s*generieren/i.test(textOf(el)) && visible(el);
+        }) || null;
+      }
+      if (!zp) {
+        post({
+          ok: false,
+          type: 'openZeitprotokoll',
+          error: 'button_not_found',
+          sample: (document.body && document.body.innerText || '').slice(0, 240),
+          note: q('[data-uin="smartthing-cat-exports"]') ? 'export_present' : 'export_missing'
+        });
+        return true;
+      }
+      try { zp.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+      var clickTarget = zp.querySelector('.gwt-Label, .LG-Label, span, a, div') || zp;
+      // Desktop: click, wait 1s, then click-and-hold ~1s
+      try { clickTarget.click(); } catch (e) { try { zp.click(); } catch (e2) {} }
+      waitMs(1000).then(function() {
+        var r = zp.getBoundingClientRect();
+        var cx = Math.floor(r.left + r.width / 2);
+        var cy = Math.floor(r.top + r.height / 2);
+        var down = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+        var up = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 0 };
+        try { clickTarget.dispatchEvent(new MouseEvent('mousedown', down)); } catch (e) {}
+        return waitMs(1100).then(function() {
+          try { clickTarget.dispatchEvent(new MouseEvent('mouseup', up)); } catch (e) {}
+          try { clickTarget.click(); } catch (e) { try { zp.click(); } catch (e2) {} }
+          try {
+            clickTarget.focus && clickTarget.focus();
+            ['keydown', 'keypress', 'keyup'].forEach(function(type) {
+              clickTarget.dispatchEvent(new KeyboardEvent(type, {
+                key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
+              }));
+            });
+          } catch (e) {}
+          post({
+            ok: true,
+            type: 'openZeitprotokoll',
+            note: 'hold:' + textOf(zp).slice(0, 40) + ' @' + cx + ',' + cy,
+            href: zp.getAttribute('data-uin') || ''
+          });
+        });
+      }).catch(function(err) {
+        post({ ok: false, type: 'openZeitprotokoll', error: String(err && err.message || err) });
+      });
+      return true;
+    }
+
+    if (cmd.type === 'scrapePdfViewer') {
+      var notes = [];
+      function scrapeWin(w, depth) {
+        if (!w || depth > 6) return;
+        try {
+          if (w.__loga3ScrapePdfViewer) {
+            w.__loga3ScrapePdfViewer();
+            notes.push('hook');
+          }
+        } catch (e) {}
+        try {
+          var app = w.PDFViewerApplication;
+          if (app && app.pdfDocument && typeof app.pdfDocument.getData === 'function') {
+            notes.push('pdfjs');
+            app.pdfDocument.getData().then(function(u8) {
+              try {
+                var raw = u8 && u8.buffer ? new Uint8Array(u8.buffer || u8) : new Uint8Array(u8);
+                var blob = new Blob([raw], { type: 'application/pdf' });
+                var reader = new FileReader();
+                reader.onloadend = function() {
+                  var result = String(reader.result || '');
+                  var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+                  if (base64 && base64.length >= 32) {
+                    post({
+                      ok: true,
+                      type: 'pdfBlob',
+                      base64: base64,
+                      mime: 'application/pdf',
+                      size: raw.length || 0,
+                      filename: 'pdfjs-viewer.pdf',
+                      note: 'scrapePdfViewer'
+                    });
+                  }
+                };
+                reader.readAsDataURL(blob);
+              } catch (err) {}
+            }).catch(function() {});
+          }
+        } catch (e) {}
+        try {
+          var nodes = w.document ? w.document.querySelectorAll('embed, object, iframe') : [];
+          for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            var src = el.src || el.getAttribute('src') || el.getAttribute('data') || '';
+            if (src && (src.indexOf('blob:') === 0 || /pdf/i.test(src))) {
+              notes.push('embed');
+              try {
+                w.fetch(src, { credentials: 'include' }).then(function(r) { return r.blob(); }).then(function(b) {
+                  var reader = new FileReader();
+                  reader.onloadend = function() {
+                    var result = String(reader.result || '');
+                    var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+                    if (base64 && base64.length >= 32 && base64.indexOf('JVBERi') === 0) {
+                      post({
+                        ok: true,
+                        type: 'pdfBlob',
+                        base64: base64,
+                        mime: 'application/pdf',
+                        size: b.size || 0,
+                        filename: 'embed.pdf',
+                        note: 'scrape-embed'
+                      });
+                    }
+                  };
+                  reader.readAsDataURL(b);
+                }).catch(function() {});
+              } catch (e2) {}
+            }
+            try { if (el.contentWindow) scrapeWin(el.contentWindow, depth + 1); } catch (e3) {}
+          }
+        } catch (e) {}
+        try {
+          var entries = w.performance && w.performance.getEntriesByType
+            ? w.performance.getEntriesByType('resource') : [];
+          for (var j = 0; j < entries.length; j++) {
+            var n = entries[j].name || '';
+            if (!/^https?:/i.test(n)) continue;
+            if (!/pdf|zeitprotokoll|export|download|servlet|stream|attachment|report/i.test(n)) continue;
+            notes.push('res');
+            try {
+              w.fetch(n, { credentials: 'include' }).then(function(r) { return r.blob(); }).then(function(b) {
+                var reader = new FileReader();
+                reader.onloadend = function() {
+                  var result = String(reader.result || '');
+                  var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+                  if (base64 && base64.length >= 32 && base64.indexOf('JVBERi') === 0) {
+                    post({
+                      ok: true,
+                      type: 'pdfBlob',
+                      base64: base64,
+                      mime: 'application/pdf',
+                      size: b.size || 0,
+                      filename: 'perf-resource.pdf',
+                      note: 'scrape-perf'
+                    });
+                  }
+                };
+                reader.readAsDataURL(b);
+              }).catch(function() {});
+            } catch (e4) {}
+          }
+        } catch (e) {}
+      }
+      scrapeWin(window, 0);
+      post({
+        ok: true,
+        type: 'scrapePdfViewer',
+        note: notes.length ? notes.slice(0, 8).join(',') : 'no_viewer_yet',
+        sample: (document.title || '') + ' | ' + String(location.href || '').slice(0, 120)
+      });
+      return true;
+    }
+
+    if (cmd.type === 'clickDownload') {
+      // Arm capture in this frame + same-origin iframes (Android has no onFileDownload)
+      try {
+        function armWin(w) {
+          try { if (w && w.__loga3ArmPdfCapture) w.__loga3ArmPdfCapture(120000); } catch (e) {}
+          try { if (w && w.__loga3ScrapePdfViewer) w.__loga3ScrapePdfViewer(); } catch (e) {}
+          try {
+            var ifr = w.document && w.document.querySelectorAll('iframe');
+            if (!ifr) return;
+            for (var i = 0; i < ifr.length; i++) {
+              try { if (ifr[i].contentWindow) armWin(ifr[i].contentWindow); } catch (e) {}
+            }
+          } catch (e) {}
+        }
+        armWin(window);
+      } catch (e) {}
+      var dl = qa('button, a, [role="button"], span.PrimaryButton, span, div, input').find(function(el) {
+        var t = textOf(el) + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.value || '');
+        return /herunterladen|download|speichern|pdf/i.test(t) && visible(el) && textOf(el).length < 60;
+      });
+      if (dl) {
+        // Prefer direct href capture over native DownloadManager
+        try {
+          var href = dl.getAttribute && (dl.getAttribute('href') || '');
+          if (href && (href.indexOf('blob:') === 0 || /\\.pdf($|\\?)/i.test(href) || /^https?:/i.test(href))) {
+            if (window.__loga3ArmPdfCapture) { /* already armed */ }
+            fetch(href, { credentials: 'include' }).then(function(r) { return r.blob(); }).then(function(b) {
+              // PDF_CAPTURE_INJECT emit via createObjectURL path — also post via FileReader here
+              var reader = new FileReader();
+              reader.onloadend = function() {
+                var result = String(reader.result || '');
+                var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+                if (base64 && base64.length >= 32) {
+                  post({ ok: true, type: 'pdfBlob', base64: base64, mime: b.type || 'application/pdf', size: b.size || 0, filename: href, note: 'href-fetch' });
+                }
+              };
+              reader.readAsDataURL(b);
+            }).catch(function() {});
+          }
+        } catch (e) {}
+        dl.click();
+        post({ ok: true, type: 'clickDownload', note: textOf(dl).slice(0, 40) });
+      } else post({
+        ok: false,
+        type: 'clickDownload',
+        error: 'download_not_found',
+        sample: (document.body && document.body.innerText || '').slice(0, 240)
+      });
       return true;
     }
 
@@ -490,6 +1493,18 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         });
       if (close) { close.click(); post({ ok: true, type: 'closeDialog' }); }
       else post({ ok: false, type: 'closeDialog', error: 'close_not_found' });
+      return true;
+    }
+
+    if (cmd.type === 'closePopups') {
+      try {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+      } catch (e) {}
+      // Click glass if present
+      var glass = q('.gwt-PopupPanelGlass, .popupContent ~ .gwt-PopupPanelGlass');
+      if (glass && visible(glass)) { try { glass.click(); } catch (e) {} }
+      post({ ok: true, type: 'closePopups' });
       return true;
     }
 
