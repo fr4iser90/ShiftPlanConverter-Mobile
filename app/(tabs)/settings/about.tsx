@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Linking, ScrollView, Text } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
+import { router, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
 import { buildSupportParserSample } from '@/src/convert/anonymize';
@@ -145,6 +146,10 @@ export default function SettingsAboutScreen() {
           <Meta>{t('legalDisclaimerBody')}</Meta>
           <Text style={styles.contact}>{SUPPORT_EMAIL}</Text>
           <Meta>LOGA3 Automation Mobile v{version}</Meta>
+          <AppButton
+            title={t('legalHandbook')}
+            onPress={() => router.push('/(tabs)/settings/handbook' as Href)}
+          />
           <AppButton
             title={t('legalMail')}
             variant="secondary"

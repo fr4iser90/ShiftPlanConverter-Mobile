@@ -10,7 +10,7 @@ LOGA3 Automation Mobile fetches your **shift schedule from LOGA3** on-device, sh
 ### Features
 
 1. **Setup** — Tenant URL, login (Secure Store), employer pack, optional Google.
-2. **Fetch (Holen)** — In-app **WebView** automates LOGA3 (no public shift API): login → Zeiten → month → Zeitprotokoll PDF → parse.
+2. **Fetch (Abrufen)** — In-app **WebView** automates LOGA3 (no public shift API): login → Zeiten → month → Zeitprotokoll PDF → parse. Tab label **Abrufen**; primary action **Zeitprotokolle laden**.
 3. **Calendar** — Week / month / list; collapsible AZK / carry-over summary.
 4. **Export** — Share `.ics` (Apple, Outlook, Nextcloud, …) or sync to a dedicated Google calendar.
 5. **Widgets (Android)** — Next shift + this week; theme in Settings.

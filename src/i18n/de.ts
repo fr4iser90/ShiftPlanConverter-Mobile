@@ -110,6 +110,7 @@ export const de = {
   legalDisclaimerBody:
     'Keine Gewähr für Vollständigkeit oder Richtigkeit von Parser-, Kalender- oder Sync-Ausgabe. Dienstplan, Zeiten und Abrechnung prüfst du selbst; die App ersetzt keine offizielle LOGA3-/Arbeitgeber-Auskunft. Nutzung auf eigenes Risiko.',
   legalMail: 'E-Mail öffnen',
+  legalHandbook: 'Nutzerhandbuch',
   legalWebsite: 'Website öffnen',
   legalGithub: 'Mobile auf GitHub',
   legalDesktop: 'Desktop auf GitHub',

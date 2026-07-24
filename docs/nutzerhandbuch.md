@@ -1,5 +1,8 @@
 # Nutzerhandbuch — LOGA3 Automation Mobile
 
+> In der App: **Einstellungen → App & Support → Nutzerhandbuch**.  
+> Quelle hier in `docs/`; nach Änderungen: `scripts/dev/sync-handbook.sh`.
+
 **Status:** experimentell · getestet für einen Arbeitgeber + eine Berufsgruppe (Pack).  
 **Desktop:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)
 
@@ -12,17 +15,17 @@ Kurze Antwort auf „Was macht die App?“: Sie holt deinen **Dienstplan aus LOG
 | Feature | Was du siehst | Wozu |
 |---------|---------------|------|
 | **Setup** | URL, Login, Arbeitgeber-Pack, optional Google | Einmalig einrichten |
-| **Holen** | Monate wählen → Aktualisieren / Ausgewählte laden | Dienstplan von LOGA3 holen |
+| **Abrufen** | Monate wählen → **Zeitprotokolle laden** | Zeitprotokolle aus LOGA3 laden |
 | **Kalender** | Woche / Monat / Liste + AZK-Monatsübersicht | Schichten prüfen |
 | **Export** | ICS teilen · Google sync | In andere Kalender bringen |
 | **Widgets** | Nächste Schicht · Diese Woche (Android) | Homescreen ohne App zu öffnen |
-| **Einstellungen** | Fenster, Sync-Prefs, Widget-Theme, Update-Links | Feintuning + App-Update |
+| **Einstellungen** | Fenster, Erinnerungen, Darstellung, App & Support | Feintuning + Handbuch + Update |
 
 Alles läuft **on-device**. Es gibt **keinen** Fr4iser-Server, der dein Passwort oder den Dienstplan speichert.
 
 ---
 
-## 2. Warum WebView? (Holen)
+## 2. Warum WebView? (Abrufen)
 
 LOGA3 ist eine **Browser-Webanwendung** (kein öffentliches Schicht-API). Die Desktop-App steuert den Browser mit Playwright. Auf dem Handy macht dasselbe eine **eingebettete WebView**:
 
@@ -43,14 +46,13 @@ Technische Details: [webview-fetch.md](./webview-fetch.md).
 3. **Arbeitgeber / Pack** — Parser- und Farb-Mapping (z. B. St. Elisabeth · Anästhesie). Falsches Pack → falsche Zeiten/Codes.
 4. **Google (optional)** — später unter Export nachholen.
 
-Ohne abgeschlossenes Setup bleibt Holen gesperrt.
+Ohne abgeschlossenes Setup bleibt Abrufen gesperrt.
 
 ---
 
-## 4. Holen (Dienstplan aktualisieren)
+## 4. Abrufen (Zeitprotokolle laden)
 
-- **Aktualisieren / Dienstplan holen** — holt ein konfigurierbares Monatsfenster (Einstellungen: Vorgänger-/Folgemonate), danach optional Google oder ICS-Angebot.
-- **Ausgewählte laden** — nur die angekreuzten Monate + Jahr.
+- **Zeitprotokolle laden** — lädt die angekreuzten Monate (Vorauswahl = Monatsfenster aus Einstellungen → Abrufen), danach optional Google oder ICS-Angebot.
 - Währenddessen kann die WebView sichtbar sein (Fortschritt / Debug).
 
 Nach Erfolg springt die App typischerweise in den **Kalender**-Tab.
@@ -86,13 +88,13 @@ Nach Erfolg springt die App typischerweise in den **Kalender**-Tab.
 | **Nextcloud / DAVx⁵ / CalDAV** | ICS oder externes CalDAV; eigener CalDAV-Client = hoher Aufwand |
 | **Samsung** | i. d. R. ICS |
 
-Priorität: Holen stabil für mehr Packs → Google + ICS UX → erst dann weitere OAuth-Targets (`src/sync/targets` ist dafür vorbereitet).
+Priorität: Abrufen stabil für mehr Packs → Google + ICS UX → erst dann weitere OAuth-Targets (`src/sync/targets` ist dafür vorbereitet).
 
 ---
 
 ## 7. Widgets (Android)
 
-Unter **Einstellungen → Homescreen-Widget**: Theme System / Hell / Dunkel.
+Unter **Einstellungen → Darstellung**: Theme System / Hell / Dunkel (Widget ebenfalls dort).
 
 Im Launcher hinzufügen:
 
@@ -107,20 +109,21 @@ Tippen öffnet die App. Daten kommen aus dem zuletzt geholten Plan (kein Netzwer
 
 Es gibt (noch) **keinen** Play-Store-Auto-Update. Verteilung: **GitHub Releases** (APK).
 
-In **Einstellungen**:
+In **Einstellungen → App & Support**:
 
 - installierte Version sehen  
 - **Nach Updates suchen** → vergleicht mit GitHub `releases/latest`  
 - bei neuer Version: **Release öffnen**  
 - **Was ist neu?** → Changelog  
+- **Nutzerhandbuch** → diese Anleitung in der App  
 
 Vor jedem Release: `CHANGELOG.md` (DE) und `CHANGELOG.en.md` (EN) pflegen — gleiche Version, keine Sprachmischung. Prozess: [releases.md](./releases.md).
 
-## 8b. Sync-Erinnerung (kein stiller Nacht-Fetch)
+## 8b. Sync-Erinnerung (kein stiller Nacht-Abruf)
 
-Unter **Einstellungen → Sync-Erinnerung**: Intervall (z. B. alle 3 Tage), Reminder-Stunde, optionale **Benachrichtigung**, Frage beim Öffnen, **Widget-Hinweis „Sync fällig“**.
+Unter **Einstellungen → Erinnerungen**: Intervall (z. B. alle 3 Tage), Reminder-Stunde, optionale **Benachrichtigung**, Frage beim Öffnen, **Widget-Hinweis „Sync fällig“**. Optional auch **Schicht-Erinnerungen** (Uhrzeiten pro Dienst).
 
-Wichtig: Holen braucht die App/WebView — ein zuverlässiger Sync um 3 Uhr nachts *ohne* App ist auf Android nicht seriös machbar. Details: [schedule-and-updates.md](./schedule-and-updates.md).
+Wichtig: Abrufen braucht die App/WebView — ein zuverlässiger Sync um 3 Uhr nachts *ohne* App ist auf Android nicht seriös machbar. Details: [schedule-and-updates.md](./schedule-and-updates.md).
 
 ---
 
@@ -141,5 +144,5 @@ Details / Audit-Checkliste: [security-audit.md](./security-audit.md).
 
 - Experimentell — ein AG/Pack live verifiziert.
 - Anderer Arbeitgeber oder Berufsgruppe kann scheitern, bis ein Pack existiert.
-- LOGA3-UI-Änderungen können Holen brechen → Update der App nötig.
+- LOGA3-UI-Änderungen können Abrufen brechen → Update der App nötig.
 - iOS: Build möglich (EAS/Mac), Fokus der Live-Tests bisher Android.
