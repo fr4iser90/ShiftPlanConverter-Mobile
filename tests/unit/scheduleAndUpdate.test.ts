@@ -4,6 +4,17 @@ import {
   nextReminderDate,
   normalizeSchedulePrefs,
 } from '@/src/schedule/prefs';
+import {
+  listMappingShiftOptions,
+  normalizeShiftAlarmPrefs,
+  normalizeTimes,
+  parseLooseTime,
+  timesForCode,
+} from '@/src/schedule/shiftAlarmPrefs';
+import { fireAtForRemindTime, planShiftAlarms } from '@/src/schedule/shiftAlarmPlan';
+import type { ShiftEntry } from '@/src/convert/types';
+import { getBuiltinMapping } from '@/src/packs';
+
 
 describe('compareVersions', () => {
   it('orders semver-ish tags', () => {
@@ -50,5 +61,65 @@ describe('schedule overdue', () => {
     const next = nextReminderDate(prefs, last, now)!;
     expect(next.getHours()).toBe(3);
     expect(next.getTime()).toBeGreaterThan(now.getTime());
+  });
+});
+
+describe('shift alarm prefs', () => {
+  it('normalizes clock times unique sorted max 7', () => {
+    expect(normalizeTimes(['06:00', '05:30', '06:00', 'bad', '25:00', '12:15'])).toEqual([
+      '05:30',
+      '06:00',
+      '12:15',
+    ]);
+  });
+
+  it('parses loose clock input', () => {
+    expect(parseLooseTime('630')).toBe('06:30');
+    expect(parseLooseTime('6 30')).toBe('06:30');
+    expect(parseLooseTime('6:30')).toBe('06:30');
+    expect(parseLooseTime('6')).toBe('06:00');
+    expect(parseLooseTime('1230')).toBe('12:30');
+    expect(parseLooseTime('2560')).toBeNull();
+  });
+
+  it('lists mapping Dienste from preset', () => {
+    const opts = listMappingShiftOptions(getBuiltinMapping(), 'Anästhesie');
+    expect(opts.some((o) => o.code === 'F' && o.label.includes('Früh'))).toBe(true);
+    expect(opts.some((o) => o.code === 'S')).toBe(true);
+  });
+
+  it('uses per-code clock times', () => {
+    const prefs = normalizeShiftAlarmPrefs({
+      enabled: true,
+      times: ['06:00'],
+      codeTimes: { S: ['10:00', '12:00'] },
+    });
+    expect(timesForCode(prefs, 'S')).toEqual(['10:00', '12:00']);
+    expect(timesForCode(prefs, 'F')).toEqual(['06:00']);
+  });
+
+  it('fireAt uses previous day when remind ≥ shift start', () => {
+    const fire = fireAtForRemindTime('2026-07-25', '07:35', '22:00')!;
+    expect(fire.getFullYear()).toBe(2026);
+    expect(fire.getMonth()).toBe(6);
+    expect(fire.getDate()).toBe(24);
+    expect(fire.getHours()).toBe(22);
+  });
+
+  it('plans alarms at configured clock times', () => {
+    const prefs = normalizeShiftAlarmPrefs({
+      enabled: true,
+      codeTimes: { F: ['06:05'] },
+      horizonDays: 7,
+    });
+    const entries: ShiftEntry[] = [
+      { type: 'F', date: '2026-07-25', start: '07:35', end: '15:50' },
+    ];
+    const now = new Date('2026-07-24T12:00:00');
+    const planned = planShiftAlarms(entries, prefs, now);
+    expect(planned).toHaveLength(1);
+    expect(planned[0].remindAt).toBe('06:05');
+    expect(planned[0].fireAt.getHours()).toBe(6);
+    expect(planned[0].fireAt.getMinutes()).toBe(5);
   });
 });
