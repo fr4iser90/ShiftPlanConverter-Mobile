@@ -29,6 +29,13 @@
     "android": {
       "package": "com.fr4iser.loga3mobile",
       "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM",
+        "USE_EXACT_ALARM",
+        "POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#0f766e",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

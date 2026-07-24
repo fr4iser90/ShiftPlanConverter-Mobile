@@ -14,12 +14,16 @@ import {
 const SYNC_REMINDER_ID = 'loga3-sync-reminder';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const type = notification.request.content.data?.type;
+    const loud = type === 'shift_alarm';
+    return {
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: loud,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 export async function ensureNotificationPermission(): Promise<boolean> {

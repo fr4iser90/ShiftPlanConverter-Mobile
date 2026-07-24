@@ -175,6 +175,11 @@ export async function setEntries(
   }
   notify();
   pingHomeWidgets(entries);
+  void import('../schedule/shiftAlarms')
+    .then((m) => m.rescheduleShiftAlarms())
+    .catch(() => {
+      // optional
+    });
 }
 
 export async function setUserMappings(mappings: Record<string, string>): Promise<void> {

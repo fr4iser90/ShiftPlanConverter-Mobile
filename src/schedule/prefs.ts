@@ -116,6 +116,12 @@ export async function markSuccessfulFetch(at = new Date()): Promise<void> {
   } catch {
     // ignore
   }
+  try {
+    const { rescheduleShiftAlarms } = await import('./shiftAlarms');
+    await rescheduleShiftAlarms();
+  } catch {
+    // ignore
+  }
 }
 
 export async function getLastSuccessfulFetchAt(): Promise<Date | null> {
