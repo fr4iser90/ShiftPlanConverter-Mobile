@@ -180,7 +180,7 @@ export function tokensToLoga3Text(parts: string[]): string {
       shifts.push(row.join(' '));
       continue;
     }
-    if (/^(URLTV|URLAUB|KRANK|KR|FEIER)/i.test(kind)) {
+    if (/^(URLTV|URLAUB|KROAU|KRANK|KR|FEIER)/i.test(kind)) {
       shifts.push([parts[i], parts[i + 1], kind].join(' '));
     }
   }

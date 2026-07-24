@@ -1,7 +1,7 @@
 const MAX_SAMPLE_CHARS = 12000;
 
 const STRUCTURAL =
-  /Abrechnung|Zeit|Soll|Ist|AZK|Pause|Dienst|Bereitschaft|Übertrag|Uebertrag|Periode|Seite\s+\d|KO\*|GE\*|URLAUB|URLTV|KRANK|FEIER/i;
+  /Abrechnung|Zeit|Soll|Ist|AZK|Pause|Dienst|Bereitschaft|Übertrag|Uebertrag|Periode|Seite\s+\d|KO\*|GE\*|URLAUB|URLTV|KROAU|KRANK|FEIER/i;
 
 export function anonymizeDienstplanText(
   text: string,
@@ -59,7 +59,7 @@ function anonymizeLine(line: string, idx: number): string {
   }
 
   const shift = trimmed.match(
-    /^(\d{2})\s+(\S+)\s+(KO\*|GE\*|URLTV|URLAUB|KRANK|KR|FEIER\w*)(?=\s|$)(.*)$/i
+    /^(\d{2})\s+(\S+)\s+(KO\*|GE\*|URLTV|URLAUB|KROAU|KRANK|KR|FEIER\w*)(?=\s|$)(.*)$/i
   );
   if (shift) {
     return `${shift[1]} [NAME] ${shift[3]}${shift[4] || ''}`;
@@ -86,7 +86,7 @@ export function buildSupportParserSample(
     .map((l) => l.trim())
     .filter(Boolean);
 
-  const isVacation = (l: string) => /URLTV|URLAUB|KRANK|\bKR\b|FEIER/i.test(l);
+  const isVacation = (l: string) => /URLTV|URLAUB|KROAU|KRANK|\bKR\b|FEIER/i.test(l);
   const isWorkShift = (l: string) => /KO\*|GE\*/.test(l) && /\d{2}:\d{2}/.test(l);
   const isTimedDay = (l: string) =>
     /^\d{2}\b/.test(l) && /\d{2}:\d{2}/.test(l) && !isVacation(l);
