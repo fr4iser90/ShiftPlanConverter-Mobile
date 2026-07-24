@@ -1,148 +1,118 @@
-# Nutzerhandbuch — LOGA3 Automation Mobile
+# Nutzerhandbuch
 
-> In der App: **Einstellungen → App & Support → Nutzerhandbuch**.  
-> Quelle hier in `docs/`; nach Änderungen: `scripts/dev/sync-handbook.sh`.
+LOGA3 Automation Mobile lädt deine **Zeitprotokolle aus LOGA3**, speichert alles **nur auf dem Gerät**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
 
-**Status:** experimentell · getestet für einen Arbeitgeber + eine Berufsgruppe (Pack).  
-**Desktop:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)
-
-Kurze Antwort auf „Was macht die App?“: Sie holt deinen **Dienstplan aus LOGA3**, speichert ihn **nur auf dem Gerät**, zeigt ihn als Kalender und kann ihn als **ICS** teilen oder optional nach **Google Calendar** schreiben.
+Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Berufsgruppe** (Pack) ausgelegt. Anderer Arbeitgeber oder Bereich kann fehlschlagen, bis ein passendes Pack existiert.
 
 ---
 
-## 1. Überblick der Features
+## 1. Die Tabs
 
-| Feature | Was du siehst | Wozu |
-|---------|---------------|------|
-| **Setup** | URL, Login, Arbeitgeber-Pack, optional Google | Einmalig einrichten |
-| **Abrufen** | Monate wählen → **Zeitprotokolle laden** | Zeitprotokolle aus LOGA3 laden |
-| **Kalender** | Woche / Monat / Liste + AZK-Monatsübersicht | Schichten prüfen |
-| **Export** | ICS teilen · Google sync | In andere Kalender bringen |
-| **Widgets** | Nächste Schicht · Diese Woche (Android) | Homescreen ohne App zu öffnen |
-| **Einstellungen** | Fenster, Erinnerungen, Darstellung, App & Support | Feintuning + Handbuch + Update |
+| Tab | Wozu |
+|-----|------|
+| **Abrufen** | Monate wählen und Zeitprotokolle aus LOGA3 laden |
+| **Kalender** | Schichten prüfen (Woche / Monat / Liste) |
+| **Export** | ICS teilen oder Google synchronisieren |
+| **Einstellungen** | Einrichtung, Abrufen-Fenster, Erinnerungen, Darstellung, Hilfe |
 
-Alles läuft **on-device**. Es gibt **keinen** Fr4iser-Server, der dein Passwort oder den Dienstplan speichert.
+Es gibt **keinen** Fr4iser-Server für dein Passwort oder deinen Dienstplan.
 
 ---
 
-## 2. Warum WebView? (Abrufen)
+## 2. Erste Einrichtung
 
-LOGA3 ist eine **Browser-Webanwendung** (kein öffentliches Schicht-API). Die Desktop-App steuert den Browser mit Playwright. Auf dem Handy macht dasselbe eine **eingebettete WebView**:
+Unter **Einstellungen → Einrichtung** (oder beim ersten Start):
 
-1. Du loggst dich (einmal) mit Kennung/Kennwort ein → gespeichert im **Secure Store**.
-2. Die App öffnet die Tenant-URL in der WebView (wie Chrome, aber in der App).
-3. Automatisierung klickt denselben Pfad wie Desktop: Zeiten → Monat → Export **Zeitprotokoll (PDF)** → PDF speichern → Parser → Schichten.
-
-**Deshalb brauchst du Credentials:** Ohne Login kann die WebView den persönlichen Buchungsplan nicht laden. Die App sendet sie nur an **deine** LOGA3-URL, nicht an uns.
-
-Technische Details: [webview-fetch.md](./webview-fetch.md).
-
----
-
-## 3. Setup Schritt für Schritt
-
-1. **Tenant-URL** — die LOGA3-Adresse deiner Einrichtung (steht oft im Browser-Lesezeichen).
-2. **Kennung / Kennwort** — wie im Browser; nur lokal im Secure Store.
-3. **Arbeitgeber / Pack** — Parser- und Farb-Mapping (z. B. St. Elisabeth · Anästhesie). Falsches Pack → falsche Zeiten/Codes.
-4. **Google (optional)** — später unter Export nachholen.
+1. **Tenant-URL** — die LOGA3-Adresse deiner Einrichtung (oft im Browser-Lesezeichen).
+2. **Kennung / Kennwort** — wie im Browser; bleiben lokal im Secure Store.
+3. **Arbeitgeber / Pack** — z. B. St. Elisabeth · Anästhesie. Falsches Pack → falsche Codes oder Zeiten.
+4. **Google** — optional, kannst du später unter Export nachholen.
 
 Ohne abgeschlossenes Setup bleibt Abrufen gesperrt.
 
 ---
 
-## 4. Abrufen (Zeitprotokolle laden)
+## 3. Zeitprotokolle abrufen
 
-- **Zeitprotokolle laden** — lädt die angekreuzten Monate (Vorauswahl = Monatsfenster aus Einstellungen → Abrufen), danach optional Google oder ICS-Angebot.
-- Währenddessen kann die WebView sichtbar sein (Fortschritt / Debug).
+1. Tab **Abrufen** öffnen.
+2. Gewünschte **Monate** anhaken (Vorauswahl kommt aus **Einstellungen → Abrufen**: Vorgänger-/Folgemonate).
+3. **Zeitprotokolle laden** tippen.
 
-Nach Erfolg springt die App typischerweise in den **Kalender**-Tab.
+Die App öffnet LOGA3 in einer eingebetteten Ansicht, meldet dich an und exportiert die Monats-PDFs. Das kann etwas dauern; die Ansicht kann dabei sichtbar sein.
 
----
+Nach Erfolg siehst du die Schichten typischerweise unter **Kalender**.
 
-## 5. Kalender (Vorschau)
-
-- **Woche / Monat / Liste** — Umschalter oben.
-- **Monatsübersicht (AZK, Übertrag, …)** — unter dem Kalender, einklappbar.
-- Farben kommen aus dem Pack; unbekannte Codes kannst du mappen.
+**Hinweis:** Abrufen funktioniert nur, während die App offen ist — es gibt keinen zuverlässigen stillen Abruf mitten in der Nacht ohne App.
 
 ---
 
-## 6. Export & Kalender-Anbieter
+## 4. Kalender
 
-### Was heute geht
-
-| Weg | Anbieter | Wie |
-|-----|----------|-----|
-| **ICS teilen** | Apple Kalender, Outlook, Samsung, Nextcloud, Thunderbird, … | Datei über Share-Sheet importieren |
-| **Google Sync** | Google Calendar | OAuth in der App → eigener Schicht-Kalender (nicht Primär) |
-
-### Sollten wir Outlook / Apple / CalDAV nativ anbinden?
-
-**Kurz: nicht zuerst.** ICS deckt die meisten Anbieter ab. Native Sync bedeutet je Anbieter OAuth, APIs, Review und Wartung.
-
-| Anbieter | Empfehlung |
-|----------|------------|
-| **Google** | Schon drin — behalten |
-| **Apple** | ICS oder „In Kalender“; EventKit nur wenn viele iOS-Nutzer das verlangen |
-| **Outlook / Microsoft 365** | ICS reicht oft; Graph-API später optional |
-| **Nextcloud / DAVx⁵ / CalDAV** | ICS oder externes CalDAV; eigener CalDAV-Client = hoher Aufwand |
-| **Samsung** | i. d. R. ICS |
-
-Priorität: Abrufen stabil für mehr Packs → Google + ICS UX → erst dann weitere OAuth-Targets (`src/sync/targets` ist dafür vorbereitet).
+- Umschalter **Woche / Monat / Liste**.
+- Darunter oft eine **Monatsübersicht** (AZK, Übertrag, …), einklappbar.
+- Farben und Dienst-Codes kommen aus deinem Pack. Unbekannte Zeiten kannst du ggf. zuordnen.
 
 ---
 
-## 7. Widgets (Android)
+## 5. Export
 
-Unter **Einstellungen → Darstellung**: Theme System / Hell / Dunkel (Widget ebenfalls dort).
+| Weg | Was passiert |
+|-----|----------------|
+| **ICS teilen** | Datei erzeugen und über das Share-Menü in Apple Kalender, Outlook, Samsung, Nextcloud, … importieren |
+| **Google Sync** | Nach Anmeldung in einen **eigenen** Schicht-Kalender schreiben (nicht den Primärkalender) |
 
-Im Launcher hinzufügen:
+Google und ICS steuerst du unter **Einstellungen → Abrufen** bzw. im Export-Tab.
+
+---
+
+## 6. Erinnerungen
+
+Unter **Einstellungen → Erinnerungen**:
+
+- **Sync fällig** — Intervall und Uhrzeit, optional Benachrichtigung oder Frage beim Öffnen der App, optional Hinweis im Widget.
+- **Schicht-Erinnerungen** — pro Dienst aus dem Mapping eine Uhrzeit setzen (z. B. 06:00 vor dem Frühdienst). Liegt die Uhrzeit nicht vor dem Schichtstart, fragt die App, ob es eine **Vorabend**-Erinnerung sein soll.
+
+---
+
+## 7. Widgets & Darstellung
+
+Unter **Einstellungen → Darstellung**: App-Theme und Widget-Theme (System / Hell / Dunkel).
+
+Auf dem Homescreen (Android) kannst du hinzufügen:
 
 - **LOGA3 nächste Schicht**
-- **LOGA3 diese Woche** (braucht ggf. Native-Rebuild nach App-Update)
+- **LOGA3 diese Woche**
 
-Tippen öffnet die App. Daten kommen aus dem zuletzt geholten Plan (kein Netzwerk im Widget).
+Tippen öffnet die App. Die Widgets zeigen den zuletzt abgerufenen Plan (kein eigener Netzwerkabruf).
 
 ---
 
-## 8. App aktualisieren (GitHub-APK)
+## 8. App aktualisieren
 
-Es gibt (noch) **keinen** Play-Store-Auto-Update. Verteilung: **GitHub Releases** (APK).
+Die App kommt bisher als **APK über GitHub Releases** (kein Play-Store-Auto-Update).
 
-In **Einstellungen → App & Support**:
+Unter **Einstellungen → App & Support**:
 
 - installierte Version sehen  
-- **Nach Updates suchen** → vergleicht mit GitHub `releases/latest`  
-- bei neuer Version: **Release öffnen**  
-- **Was ist neu?** → Changelog  
-- **Nutzerhandbuch** → diese Anleitung in der App  
-
-Vor jedem Release: `CHANGELOG.md` (DE) und `CHANGELOG.en.md` (EN) pflegen — gleiche Version, keine Sprachmischung. Prozess: [releases.md](./releases.md).
-
-## 8b. Sync-Erinnerung (kein stiller Nacht-Abruf)
-
-Unter **Einstellungen → Erinnerungen**: Intervall (z. B. alle 3 Tage), Reminder-Stunde, optionale **Benachrichtigung**, Frage beim Öffnen, **Widget-Hinweis „Sync fällig“**. Optional auch **Schicht-Erinnerungen** (Uhrzeiten pro Dienst).
-
-Wichtig: Abrufen braucht die App/WebView — ein zuverlässiger Sync um 3 Uhr nachts *ohne* App ist auf Android nicht seriös machbar. Details: [schedule-and-updates.md](./schedule-and-updates.md).
+- nach Updates suchen  
+- bei neuer Version die Release-Seite öffnen und das Changelog lesen  
+- dieses Handbuch erneut öffnen  
 
 ---
 
-## 9. Privatsphäre (kurz)
+## 9. Privatsphäre & Grenzen
 
 | Daten | Ort |
 |-------|-----|
-| Passwort | Secure Store |
-| Tenant-URL, Schichten, Prefs | App-Speicher (Gerät) |
+| Passwort | Secure Store auf dem Gerät |
+| URL, Schichten, Einstellungen | App-Speicher auf dem Gerät |
 | PDFs | App-Dokumentordner |
-| Google-Token | Google Sign-In auf dem Gerät |
+| Google-Anmeldung | Google Sign-In auf dem Gerät |
 
-Details / Audit-Checkliste: [security-audit.md](./security-audit.md).
+**Grenzen (ehrlich):**
 
----
+- Ein Pack live verifiziert; andere Einrichtungen brauchen ggf. ein neues Pack.
+- Ändert sich die LOGA3-Oberfläche, kann Abrufen kaputtgehen — dann hilft ein App-Update.
+- Fokus der Tests bisher Android; iOS-Build ist möglich, aber weniger erprobt.
 
-## 10. Grenzen (ehrlich)
-
-- Experimentell — ein AG/Pack live verifiziert.
-- Anderer Arbeitgeber oder Berufsgruppe kann scheitern, bis ein Pack existiert.
-- LOGA3-UI-Änderungen können Abrufen brechen → Update der App nötig.
-- iOS: Build möglich (EAS/Mac), Fokus der Live-Tests bisher Android.
+Bei Problemen: **Einstellungen → App & Support** → Support-Mail (anonymisierte Probe möglich).
