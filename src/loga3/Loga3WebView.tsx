@@ -17,6 +17,7 @@ import {
   type AutomationMessage,
 } from './automation';
 import { getLoga3BaseUrl } from './env';
+import { buildLayoutFixInject } from './layoutFixInject';
 
 /** LOGA3/GWT desktop layout width — keep in sync with automation expectations */
 export const LOGA3_DESKTOP_WIDTH = 1280;
@@ -104,6 +105,11 @@ export const Loga3WebView = React.forwardRef<
   const { width: windowWidth } = useWindowDimensions();
   const effectiveWidth = layoutWidth && layoutWidth > 0 ? layoutWidth : windowWidth;
   const viewportInject = useMemo(() => buildViewportInject(effectiveWidth), [effectiveWidth]);
+  const layoutFixInject = useMemo(() => buildLayoutFixInject(), []);
+  const bootInject = useMemo(
+    () => `${viewportInject}${layoutFixInject}${PDF_CAPTURE_INJECT}`,
+    [viewportInject, layoutFixInject]
+  );
 
   React.useImperativeHandle(ref, () => ({
     run(cmd: AutomationCommand) {
@@ -212,10 +218,10 @@ export const Loga3WebView = React.forwardRef<
     return () => sub.remove();
   }, [captureDownloadUrl]);
 
-  // Re-apply scale when host width changes (warm → visible, rotation)
+  // Re-apply scale + layout fix when host width changes (warm → visible, rotation)
   useEffect(() => {
-    webRef.current?.injectJavaScript(`${viewportInject}true;`);
-  }, [viewportInject]);
+    webRef.current?.injectJavaScript(`${viewportInject}${layoutFixInject}true;`);
+  }, [viewportInject, layoutFixInject]);
 
   if (!resolvedUrl) {
     return (
@@ -240,7 +246,7 @@ export const Loga3WebView = React.forwardRef<
         source={{ uri: resolvedUrl }}
         onLoadEnd={() => {
           setLoading(false);
-          webRef.current?.injectJavaScript(`${viewportInject}${PDF_CAPTURE_INJECT}true;`);
+          webRef.current?.injectJavaScript(`${bootInject}true;`);
           onReady?.();
         }}
         onMessage={onMsg}
@@ -271,7 +277,7 @@ export const Loga3WebView = React.forwardRef<
         mixedContentMode="always"
         originWhitelist={['*']}
         webviewDebuggingEnabled
-        injectedJavaScriptBeforeContentLoaded={`${viewportInject}${PDF_CAPTURE_INJECT}`}
+        injectedJavaScriptBeforeContentLoaded={bootInject}
         style={styles.web}
       />
     </View>

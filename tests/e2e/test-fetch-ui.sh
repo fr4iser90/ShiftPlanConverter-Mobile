@@ -8,7 +8,12 @@ adb shell am force-stop com.fr4iser.loga3mobile || true
 sleep 1
 
 # Clear any stale packager preference pointing at old host:8088
-adb shell pm clear com.fr4iser.loga3mobile >/dev/null 2>&1 || true
+# Requires LOGA3_ALLOW_PM_CLEAR=1 (+ LOGA3_ALLOW_PM_CLEAR_ON_DEVICE=1 on phones)
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tests/e2e/_pm_clear_guard.sh
+source "$ROOT/tests/e2e/_pm_clear_guard.sh"
+loga3_pm_clear_guard
+adb shell pm clear com.fr4iser.loga3mobile
 sleep 1
 
 ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('http://10.0.2.2:8091', safe=''))")

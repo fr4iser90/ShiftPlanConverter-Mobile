@@ -1,0 +1,26 @@
+---
+description: Never wipe Android app data (pm clear) without explicit dual opt-in
+alwaysApply: true
+---
+
+# No casual `pm clear` / app data wipe
+
+**Never** run `adb shell pm clear`, uninstall+reinstall wipes, or smoke scripts that clear app data on the user's phone unless the user **explicitly** asks to wipe.
+
+## Hard gates (must exist in scripts)
+
+Before any `pm clear`:
+
+1. `LOGA3_ALLOW_PM_CLEAR=1` required always
+2. On physical USB devices: also `LOGA3_ALLOW_PM_CLEAR_ON_DEVICE=1`
+
+Use `tests/e2e/_pm_clear_guard.py` / `tests/e2e/_pm_clear_guard.sh`.
+
+## Phone vs emulator
+
+- Real phone (`ZY22J3RHFC` etc.): **no** Metro/Dev Client, **no** `.env` smoke-seed unless user asks, **no** `pm clear`
+- Emulator: smoke may clear only with the env flags above
+
+## If setup was wiped by mistake
+
+Do **not** invent recovery. Tell the user data is gone; wait for their instructions (manual setup or explicit re-seed).

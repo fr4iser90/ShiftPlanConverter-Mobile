@@ -1,6 +1,6 @@
 # Fetch pipeline — ein Pfad, keine Fallbacks
 
-Orchestration: `src/loga3/fetchJob.ts` · Klicks: `src/loga3/automation.ts` · Viewport: `Loga3WebView` (`width=1280` + scale)
+Orchestration: `src/loga3/fetchJob.ts` · Klicks: `src/loga3/automation.ts` · Viewport: `Loga3WebView` (`width=1280` + scale) · Layout-Fix PDF: `layoutFixInject.ts` (siehe [`layout-fix-pdf.md`](layout-fix-pdf.md))
 
 **Scope:** nur eigenes Zeitprotokoll-PDF. Keine Team-UI. **Keine Fallbacks** (kein Zeiten, kein zweites Öffnen).
 

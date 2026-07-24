@@ -169,7 +169,11 @@ def main() -> None:
     except Exception:
         pass
     # Fresh install state for deterministic seed — persistence checked AFTER fetch
-    sh("shell", "pm", "clear", PKG)
+    from _pm_clear_guard import pm_clear
+
+    r = pm_clear(PKG, adb=ADB, serial=os.environ.get("ANDROID_SERIAL") or None)
+    if r.returncode != 0:
+        raise SystemExit(f"pm clear failed: {r.stderr or r.stdout}")
     time.sleep(1.5)
 
     q = urllib.parse.urlencode(

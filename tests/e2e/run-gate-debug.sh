@@ -27,6 +27,9 @@ adb shell wm density 420 || true
 echo "SIZE=$(adb shell wm size | tr -d '\''\r'\'')"
 
 adb shell am force-stop "$PKG" || true
+# shellcheck disable=SC1091
+source /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile/tests/e2e/_pm_clear_guard.sh
+loga3_pm_clear_guard
 adb shell pm clear "$PKG"
 sleep 2
 
