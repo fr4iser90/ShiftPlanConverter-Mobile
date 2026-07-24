@@ -13,7 +13,7 @@ export function requireLoga3Url(): string {
   const url = getLoga3BaseUrl();
   if (!url) {
     throw new Error(
-      'LOGA3-URL fehlt. In Settings (pro Installation) eintragen — nicht im App-Build.'
+      'LOGA3 URL missing. Set it in Settings (per install) — not baked into the app build.'
     );
   }
   return url;
@@ -168,57 +168,71 @@ export const PDF_CAPTURE_INJECT = `
       if (!blob) return;
       var type = (blob.type || '').toLowerCase();
       var name = filename || '';
-      var looksPdf = force
+      // Candidate only — NEVER post ok:true without %PDF magic (Login-HTML is ~19KB).
+      var looksCandidate = force
         || headerLooksPdf(type, name)
-        || (!type && blob.size > 500)
-        || (armed() && blob.size > 500 && (type.indexOf('application/') === 0 || !type));
-      if (!looksPdf) return;
-      var finish = function(okBlob) {
-        var reader = new FileReader();
-        reader.onloadend = function() {
-          var result = String(reader.result || '');
-          var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
-          if (!base64 || base64.length < 32) {
-            post({ ok: false, type: 'pdfBlob', error: 'empty_base64' });
+        || (armed() && blob.size > 500);
+      if (!looksCandidate) return;
+      try {
+        var slice = blob.slice(0, 8);
+        var fr = new FileReader();
+        fr.onloadend = function() {
+          var u8 = fr.result ? new Uint8Array(fr.result) : null;
+          if (!bytesLookPdf(u8)) {
+            post({
+              ok: false,
+              type: 'pdfBlob',
+              error: 'not_pdf_magic',
+              note: (type || name || '').slice(0, 60),
+              size: blob.size || 0
+            });
             return;
           }
-          // Verify magic when possible (data URL decoded later on RN; check prefix of base64 of %PDF)
-          post({
-            ok: true,
-            type: 'pdfBlob',
-            base64: base64,
-            mime: type || 'application/pdf',
-            size: okBlob.size || 0,
-            filename: name,
-            note: 'frame-capture'
-          });
-        };
-        reader.onerror = function() {
-          post({ ok: false, type: 'pdfBlob', error: 'filereader_failed' });
-        };
-        reader.readAsDataURL(okBlob);
-      };
-      // Confirm %PDF magic for ambiguous types
-      if (!headerLooksPdf(type, name) || type.indexOf('octet-stream') >= 0) {
-        try {
-          var slice = blob.slice(0, 5);
-          var fr = new FileReader();
-          fr.onloadend = function() {
-            var buf = fr.result;
-            var u8 = buf ? new Uint8Array(buf) : null;
-            if (bytesLookPdf(u8) || headerLooksPdf(type, name) || force) finish(blob);
+          var reader = new FileReader();
+          reader.onloadend = function() {
+            var result = String(reader.result || '');
+            var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
+            if (!base64 || base64.length < 32 || base64.indexOf('JVBERi') !== 0) {
+              post({ ok: false, type: 'pdfBlob', error: 'not_pdf_b64', size: blob.size || 0 });
+              return;
+            }
+            post({
+              ok: true,
+              type: 'pdfBlob',
+              base64: base64,
+              mime: 'application/pdf',
+              size: blob.size || 0,
+              filename: name,
+              note: 'frame-capture'
+            });
           };
-          fr.readAsArrayBuffer(slice);
-          return;
-        } catch (e) {}
+          reader.onerror = function() {
+            post({ ok: false, type: 'pdfBlob', error: 'filereader_failed' });
+          };
+          reader.readAsDataURL(blob);
+        };
+        fr.onerror = function() {
+          post({ ok: false, type: 'pdfBlob', error: 'magic_read_failed' });
+        };
+        fr.readAsArrayBuffer(slice);
+      } catch (e) {
+        post({ ok: false, type: 'pdfBlob', error: String(e && e.message || e) });
       }
-      finish(blob);
     }
     function emitArrayBuffer(buf, filename, mime, force) {
       try {
         var u8 = new Uint8Array(buf);
-        if (!force && !bytesLookPdf(u8) && !headerLooksPdf(mime, filename)) return;
-        emitBlob(new Blob([buf], { type: mime || 'application/pdf' }), filename || '', true);
+        if (!bytesLookPdf(u8)) {
+          post({
+            ok: false,
+            type: 'pdfBlob',
+            error: 'not_pdf_magic',
+            note: String(filename || '').slice(0, 80),
+            size: u8.length || 0
+          });
+          return;
+        }
+        emitBlob(new Blob([buf], { type: 'application/pdf' }), filename || '', true);
       } catch (e) {
         post({ ok: false, type: 'pdfBlob', error: String(e && e.message || e) });
       }
@@ -229,11 +243,24 @@ export const PDF_CAPTURE_INJECT = `
       try {
         win.fetch(url, { credentials: 'include', redirect: 'follow' })
           .then(function(res) {
-            var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
-            return res.blob().then(function(b) { return { b: b, ct: ct }; });
+            return res.arrayBuffer().then(function(buf) {
+              var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
+              return { buf: buf, ct: ct };
+            });
           })
           .then(function(o) {
-            emitBlob(o.b, filename || url, headerLooksPdf(o.ct, filename || url) || armed());
+            var u8 = new Uint8Array(o.buf);
+            if (!bytesLookPdf(u8)) {
+              post({
+                ok: false,
+                type: 'pdfBlob',
+                error: 'capture_url_not_pdf',
+                note: (o.ct || '').slice(0, 40),
+                size: u8.length || 0
+              });
+              return;
+            }
+            emitArrayBuffer(o.buf, filename || url, 'application/pdf', true);
           })
           .catch(function(e) {
             post({ ok: false, type: 'pdfBlob', error: 'capture_url:' + String(e && e.message || e) });
@@ -242,17 +269,21 @@ export const PDF_CAPTURE_INJECT = `
         post({ ok: false, type: 'pdfBlob', error: 'capture_url_throw:' + String(e && e.message || e) });
       }
     }
+    // Click/open: only blob / data-pdf / *.pdf — never preventDefault on GWT servlets
+    // (that blocked LOGA3 download JS and left DownloadManager with Login-HTML).
     function shouldInterceptUrl(url) {
       if (!url) return false;
       var u = String(url);
       if (u.indexOf('blob:') === 0 || u.indexOf('data:application/pdf') === 0) return true;
       if (/\\.pdf($|\\?)/i.test(u)) return true;
-      // When armed: intercept export-ish HTTP URLs (Content-Disposition → Android DownloadManager otherwise)
-      if (armed() && /^https?:/i.test(u)
-        && /export|download|zeitprotokoll|report|pdf|stream|servlet|generat|attachment|print/i.test(u)) {
-        return true;
-      }
       return false;
+    }
+    function shouldCaptureNavUrl(url) {
+      if (!url || !armed()) return false;
+      var u = String(url);
+      if (shouldInterceptUrl(u)) return true;
+      return /^https?:/i.test(u)
+        && /export|download|zeitprotokoll|report|pdf|stream|servlet|generat|attachment|print/i.test(u);
     }
     // createObjectURL
     try {
@@ -282,6 +313,7 @@ export const PDF_CAPTURE_INJECT = `
             var ct = (xhr.getResponseHeader('content-type') || '').toLowerCase();
             var want = armed() || headerLooksPdf(ct, _url);
             if (!want) return;
+            // emitBlob/emitArrayBuffer enforce %PDF — HTML login never resolves waiters
             if (xhr.responseType === 'blob' && xhr.response) emitBlob(xhr.response, _url, true);
             else if (xhr.responseType === 'arraybuffer' && xhr.response) emitArrayBuffer(xhr.response, _url, ct, true);
             else if (!xhr.responseType || xhr.responseType === '' || xhr.responseType === 'text') {
@@ -308,8 +340,8 @@ export const PDF_CAPTURE_INJECT = `
           try {
             var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
             if (armed() || headerLooksPdf(ct, url)) {
-              res.clone().blob().then(function(b) {
-                emitBlob(b, url, true);
+              res.clone().arrayBuffer().then(function(buf) {
+                emitArrayBuffer(buf, url, ct || 'application/pdf', true);
               }).catch(function() {});
             }
           } catch (e) {}
@@ -325,29 +357,45 @@ export const PDF_CAPTURE_INJECT = `
           captureUrl(url, '');
           return null;
         }
+        if (shouldCaptureNavUrl(url)) {
+          post({ ok: true, type: 'pdfCaptureProbe', note: 'open:' + String(url).slice(0, 140) });
+          win.fetch(String(url), { credentials: 'include', redirect: 'follow' })
+            .then(function(res) { return res.arrayBuffer(); })
+            .then(function(buf) {
+              var u8 = new Uint8Array(buf);
+              if (bytesLookPdf(u8)) {
+                emitArrayBuffer(buf, String(url), 'application/pdf', true);
+                return;
+              }
+              origOpen.apply(win, [url]);
+            })
+            .catch(function() { origOpen.apply(win, [url]); });
+          return null;
+        }
         return origOpen.apply(win, arguments);
       };
     } catch (e) {}
-    // location.assign / replace — when armed, fetch first (Android DownloadManager otherwise)
+    // location.assign / replace — when armed, fetch with cookies first (DownloadManager has none)
     try {
       var loc = win.location;
       var origAssign = loc.assign.bind(loc);
       var origReplace = loc.replace.bind(loc);
       function maybeCaptureNav(url, fallback) {
-        if (!armed() || !url || !/^https?:/i.test(String(url))) {
+        if (!shouldCaptureNavUrl(url) || !/^https?:/i.test(String(url))) {
           return fallback(url);
         }
         post({ ok: true, type: 'pdfCaptureProbe', note: 'nav:' + String(url).slice(0, 140) });
         win.fetch(String(url), { credentials: 'include', redirect: 'follow' })
-          .then(function(res) {
-            return res.blob().then(function(b) {
-              var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
-              if (headerLooksPdf(ct, url) || (b && b.size > 500)) {
-                emitBlob(b, String(url), true);
-                return;
-              }
-              fallback(url);
-            });
+          .then(function(res) { return res.arrayBuffer(); })
+          .then(function(buf) {
+            var u8 = new Uint8Array(buf);
+            if (bytesLookPdf(u8)) {
+              emitArrayBuffer(buf, String(url), 'application/pdf', true);
+              return;
+            }
+            // HTML/login → still navigate (viewer may work); never emit fake PDF
+            post({ ok: false, type: 'pdfBlob', error: 'nav_not_pdf', size: u8.length || 0 });
+            fallback(url);
           })
           .catch(function() { fallback(url); });
       }
@@ -364,33 +412,17 @@ export const PDF_CAPTURE_INJECT = `
           get: desc.get,
           set: function(v) {
             var self = this;
-            if (armed() && v && /^https?:/i.test(String(v))) {
+            if (shouldCaptureNavUrl(v) && /^https?:/i.test(String(v))) {
               post({ ok: true, type: 'pdfCaptureProbe', note: 'iframe:' + String(v).slice(0, 140) });
               win.fetch(String(v), { credentials: 'include', redirect: 'follow' })
-                .then(function(res) {
-                  return res.blob().then(function(b) {
-                    var ct = (res.headers && res.headers.get('content-type') || '').toLowerCase();
-                    if (headerLooksPdf(ct, v) || (b && b.size > 800)) {
-                      // verify magic
-                      try {
-                        var slice = b.slice(0, 5);
-                        var fr = new FileReader();
-                        fr.onloadend = function() {
-                          var u8 = fr.result ? new Uint8Array(fr.result) : null;
-                          if (bytesLookPdf(u8) || headerLooksPdf(ct, v)) {
-                            emitBlob(b, String(v), true);
-                          } else {
-                            desc.set.call(self, v);
-                          }
-                        };
-                        fr.readAsArrayBuffer(slice);
-                        return;
-                      } catch (e) {}
-                      emitBlob(b, String(v), true);
-                      return;
-                    }
-                    desc.set.call(self, v);
-                  });
+                .then(function(res) { return res.arrayBuffer(); })
+                .then(function(buf) {
+                  var u8 = new Uint8Array(buf);
+                  if (bytesLookPdf(u8)) {
+                    emitArrayBuffer(buf, String(v), 'application/pdf', true);
+                    return;
+                  }
+                  desc.set.call(self, v);
                 })
                 .catch(function() { desc.set.call(self, v); });
               return;
@@ -1534,7 +1566,7 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
                 reader.onloadend = function() {
                   var result = String(reader.result || '');
                   var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
-                  if (base64 && base64.length >= 32) {
+                  if (base64 && base64.length >= 32 && base64.indexOf('JVBERi') === 0) {
                     post({
                       ok: true,
                       type: 'pdfBlob',
@@ -1544,6 +1576,8 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
                       filename: 'pdfjs-viewer.pdf',
                       note: 'scrapePdfViewer'
                     });
+                  } else {
+                    post({ ok: false, type: 'pdfBlob', error: 'pdfjs_not_pdf' });
                   }
                 };
                 reader.readAsDataURL(blob);
@@ -1659,8 +1693,11 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
               reader.onloadend = function() {
                 var result = String(reader.result || '');
                 var base64 = result.indexOf(',') >= 0 ? result.split(',')[1] : result;
-                if (base64 && base64.length >= 32) {
+                // Only real %PDF — never Login-HTML saved as .pdf
+                if (base64 && base64.length >= 32 && base64.indexOf('JVBERi') === 0) {
                   post({ ok: true, type: 'pdfBlob', base64: base64, mime: b.type || 'application/pdf', size: b.size || 0, filename: href, note: 'href-fetch' });
+                } else {
+                  post({ ok: false, type: 'pdfBlob', error: 'href_not_pdf', note: String((b && b.type) || '').slice(0, 40) });
                 }
               };
               reader.readAsDataURL(b);

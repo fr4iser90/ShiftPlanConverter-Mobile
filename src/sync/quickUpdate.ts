@@ -16,6 +16,7 @@ import {
   groupMonthsByYear,
   type YearMonth,
 } from './monthWindow';
+import { t } from '../i18n';
 
 export type QuickUpdateResult = {
   window: YearMonth[];
@@ -48,7 +49,7 @@ export async function runQuickUpdate(opts: {
       ? opts.months
       : buildMonthWindow(prefs.prevMonths, prefs.nextMonths, opts.now);
   const windowLabel = formatMonthWindow(window);
-  opts.onStatus?.(`Fenster: ${windowLabel}`);
+  opts.onStatus?.(t('fjQuickWindow', { label: windowLabel }));
 
   const groups = groupMonthsByYear(window);
   const merged: FetchJobResult = {
@@ -63,7 +64,10 @@ export async function runQuickUpdate(opts: {
   for (let i = 0; i < groups.length; i++) {
     const g = groups[i];
     opts.onStatus?.(
-      `Fetch ${g.months.map((m) => String(m).padStart(2, '0')).join(',')}/${g.year}…`
+      t('fjQuickFetchYear', {
+        months: g.months.map((m) => String(m).padStart(2, '0')).join(','),
+        year: String(g.year),
+      })
     );
     try {
       const part = await runFetchJob({
@@ -85,7 +89,7 @@ export async function runQuickUpdate(opts: {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       merged.errors.push(`${g.year}: ${msg}`);
-      opts.onStatus?.(`Jahr ${g.year}: ${msg}`);
+      opts.onStatus?.(t('fjQuickYearError', { year: String(g.year), msg }));
     }
   }
 

@@ -330,7 +330,7 @@ export default function FetchScreen() {
         summary: result.summary,
         summaries: result.summaries,
       });
-      setStatus(`Offline-Fixture: ${result.entries.length} Schichten`);
+      setStatus(t('fjOfflineFixture', { count: result.entries.length }));
       Alert.alert('Fixture', t('fixtureLoaded', { count: result.entries.length }));
     } catch (e) {
       Alert.alert(t('alertError'), String(e));
@@ -391,8 +391,8 @@ export default function FetchScreen() {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setStatus(`Live-Selektoren Fehler: ${msg}`);
-      Alert.alert('Live-Selektoren', msg);
+      setStatus(t('fjLiveSelectorsError', { msg }));
+      Alert.alert('Live selectors', msg);
     } finally {
       setBusy(false);
     }
@@ -480,19 +480,30 @@ export default function FetchScreen() {
       });
       const parts = [
         result.windowLabel,
-        `${result.fetch.entries.length} Schichten`,
-        result.fetch.savedPdfs.length ? `${result.fetch.savedPdfs.length} PDF(s)` : null,
+        t('fjResultShifts', { count: result.fetch.entries.length }),
+        result.fetch.savedPdfs.length
+          ? t('fjResultPdfs', { count: result.fetch.savedPdfs.length })
+          : null,
         result.fetch.skippedNoPlan.length
-          ? `NO_PLAN: ${result.fetch.skippedNoPlan.join(', ')}`
+          ? t('fjResultNoPlan', { months: result.fetch.skippedNoPlan.join(', ') })
           : null,
         result.fetch.errors.length
-          ? `Fehler:\n${result.fetch.errors.map((e) => `· ${e}`).join('\n')}`
+          ? t('fjResultErrors', {
+              errors: result.fetch.errors.map((e) => `· ${e}`).join('\n'),
+            })
           : null,
         ...result.targets.map((r) =>
           r.skipped
             ? `${r.id}: ${r.reason || '—'}`
             : `${r.id}: +${r.created || 0}/−${r.deleted || 0}`
         ),
+        result.fetch.timings?.length
+          ? t('fjTimingSummary', {
+              summary: result.fetch.timings
+                .map((x) => `${x.step}=${(x.ms / 1000).toFixed(1)}s`)
+                .join(' · '),
+            })
+          : null,
       ].filter(Boolean);
       setStatus(parts.join(' · '));
       await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
@@ -513,7 +524,7 @@ export default function FetchScreen() {
       Alert.alert(t('quickUpdateDone'), parts.join('\n'), buttons);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setStatus(`Fehler: ${msg}`);
+      setStatus(t('fjResultErrorLine', { msg }));
       await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
       Alert.alert(t('quickUpdate'), msg);
     } finally {
@@ -588,16 +599,20 @@ export default function FetchScreen() {
           inject: (cmd) => webRef.current?.run(cmd),
           onStatus: setStatus,
           replaceEntries: true,
-          gateTrace: true,
+          // Gate dumps are debug-only — they make Open/picker waits feel like ~1min.
+          gateTrace: false,
         });
         const parts = [
-          `${result.entries.length} Schichten`,
-          result.savedPdfs.length ? `${result.savedPdfs.length} PDF(s)` : null,
-          result.skippedNoPlan.length ? `NO_PLAN: ${result.skippedNoPlan.join(', ')}` : null,
-          result.errors.length
-            ? `Fehler:\n${result.errors.map((e) => `· ${e}`).join('\n')}`
+          t('fjResultShifts', { count: result.entries.length }),
+          result.savedPdfs.length ? t('fjResultPdfs', { count: result.savedPdfs.length }) : null,
+          result.skippedNoPlan.length
+            ? t('fjResultNoPlan', { months: result.skippedNoPlan.join(', ') })
             : null,
-          result.gateTraces?.length ? `Gates: ${result.gateTraces.length}` : null,
+          result.errors.length
+            ? t('fjResultErrors', {
+                errors: result.errors.map((e) => `· ${e}`).join('\n'),
+              })
+            : null,
         ].filter(Boolean);
         setStatus(parts.join(' · '));
         await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
@@ -607,7 +622,7 @@ export default function FetchScreen() {
         Alert.alert(t('alertDone'), parts.join('\n'));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setStatus(`Fehler: ${msg}`);
+        setStatus(t('fjResultErrorLine', { msg }));
         await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
         Alert.alert(t('alertFetchFailed'), msg);
       } finally {

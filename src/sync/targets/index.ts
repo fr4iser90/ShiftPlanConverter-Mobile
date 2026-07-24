@@ -1,6 +1,7 @@
 import { googleExportTarget } from './googleTarget';
 import { icsExportTarget } from './icsTarget';
 import type { ExportTarget, ExportTargetResult } from './types';
+import { t } from '../../i18n';
 
 export type { ExportTarget, ExportTargetKind, ExportTargetResult, ExportTargetSyncOpts } from './types';
 
@@ -40,7 +41,7 @@ export async function runEnabledOauthTargets(
       continue;
     }
     if (!(await t.isConfigured())) {
-      results.push({ id: t.id, skipped: true, reason: 'nicht konfiguriert' });
+      results.push({ id: t.id, skipped: true, reason: t('fjSkipNotConfigured') });
       continue;
     }
     opts?.onStatus?.(`${t.id} sync…`);
