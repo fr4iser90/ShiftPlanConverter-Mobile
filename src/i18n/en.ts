@@ -111,6 +111,7 @@ export const en: { [K in keyof typeof de]: string } = {
   legalDisclaimerBody:
     'No warranty for completeness or correctness of parser, calendar, or sync output. You must verify shifts, times, and payroll yourself; the app is not an official LOGA3/employer source. Use at your own risk.',
   legalMail: 'Open email',
+  legalHandbook: 'User handbook',
   legalWebsite: 'Open website',
   legalGithub: 'Mobile on GitHub',
   legalDesktop: 'Desktop on GitHub',

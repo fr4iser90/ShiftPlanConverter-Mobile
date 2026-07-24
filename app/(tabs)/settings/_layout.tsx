@@ -21,6 +21,7 @@ export default function SettingsStackLayout() {
       <Stack.Screen name="reminders" options={{ title: t('settingsHubReminders') }} />
       <Stack.Screen name="appearance" options={{ title: t('settingsHubAppearance') }} />
       <Stack.Screen name="about" options={{ title: t('settingsHubAbout') }} />
+      <Stack.Screen name="handbook" options={{ title: t('legalHandbook') }} />
     </Stack>
   );
 }
