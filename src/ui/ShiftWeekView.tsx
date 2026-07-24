@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ShiftEntry } from '@/src/convert/types';
@@ -10,7 +11,7 @@ import {
   weekTitle,
 } from '@/src/calendar/dates';
 import { colorForShiftType, entriesByDate, formatShiftLine } from '@/src/calendar/shifts';
-import { theme } from '@/src/ui/theme';
+import { useTheme } from '@/src/ui/useTheme';
 
 type Props = {
   entries: ShiftEntry[];
@@ -20,6 +21,49 @@ type Props = {
 };
 
 export function ShiftWeekView({ entries, anchor, onAnchorChange, packColors }: Props) {
+  const theme = useTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        wrap: { gap: 6, paddingHorizontal: 16, paddingBottom: 8 },
+        nav: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 4,
+        },
+        navBtn: { fontSize: 28, color: theme.color.primary, paddingHorizontal: 8, fontWeight: '300' },
+        navTitle: { fontSize: 15, fontWeight: '700', color: theme.color.ink },
+        dayRow: {
+          flexDirection: 'row',
+          gap: 10,
+          paddingVertical: 8,
+          paddingHorizontal: 10,
+          borderRadius: theme.radius.md,
+          backgroundColor: theme.color.surface,
+          borderWidth: 1,
+          borderColor: theme.color.border,
+        },
+        dayToday: {
+          borderColor: theme.color.primary,
+          backgroundColor: theme.color.primarySoft,
+        },
+        dayLabel: { width: 40, alignItems: 'center' },
+        weekday: { fontSize: 11, color: theme.color.inkFaint, fontWeight: '600' },
+        dayNum: { fontSize: 18, fontWeight: '700', color: theme.color.ink },
+        todayText: { color: theme.color.primary },
+        chips: { flex: 1, gap: 4, justifyContent: 'center' },
+        emptyDay: { color: theme.color.inkFaint, fontSize: 13 },
+        chip: {
+          borderRadius: 6,
+          paddingVertical: 5,
+          paddingHorizontal: 8,
+        },
+        chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+      }),
+    [theme],
+  );
+
   const sow = startOfWeek(anchor);
   const byDate = entriesByDate(entries);
   const today = new Date();
@@ -70,41 +114,3 @@ export function ShiftWeekView({ entries, anchor, onAnchorChange, packColors }: P
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: 6, paddingHorizontal: 16, paddingBottom: 8 },
-  nav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  navBtn: { fontSize: 28, color: theme.color.primary, paddingHorizontal: 8, fontWeight: '300' },
-  navTitle: { fontSize: 15, fontWeight: '700', color: theme.color.ink },
-  dayRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: theme.radius.md,
-    backgroundColor: theme.color.surface,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-  },
-  dayToday: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primarySoft,
-  },
-  dayLabel: { width: 40, alignItems: 'center' },
-  weekday: { fontSize: 11, color: theme.color.inkFaint, fontWeight: '600' },
-  dayNum: { fontSize: 18, fontWeight: '700', color: theme.color.ink },
-  todayText: { color: theme.color.primary },
-  chips: { flex: 1, gap: 4, justifyContent: 'center' },
-  emptyDay: { color: theme.color.inkFaint, fontSize: 13 },
-  chip: {
-    borderRadius: 6,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-  },
-  chipText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-});

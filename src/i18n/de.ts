@@ -111,7 +111,7 @@ export const de = {
   colEnd: 'Ende',
   allDay: 'Ganztägig',
   entriesCount: 'Schichten',
-  previewHint: 'Woche / Monat / Liste — Pack-Farben, Navigation mit Pfeilen.',
+  previewHint: 'Woche, Monat oder Liste. Monatsübersicht (AZK …) unten einklappbar.',
   previewHighlightHint: 'Teal = heute · heller = Woche · blass = Monat',
   webviewHint:
     'Setup einmalig → Monate → Ausgewählte laden. Fixture nur Offline-Smoke.',
@@ -144,6 +144,8 @@ export const de = {
   calWeek: 'Woche',
   calMonth: 'Monat',
   calList: 'Liste',
+  calCalendar: 'Kalender',
+  calMonthOverview: 'Monatsübersicht',
   advanced: 'Erweitert',
   alertDone: 'Fertig',
   alertError: 'Fehler',

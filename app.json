@@ -8,6 +8,11 @@
     "scheme": "loga3mobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#F1F5F9",
+      "translucent": false
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fr4iser.loga3mobile",
@@ -23,6 +28,7 @@
     },
     "android": {
       "package": "com.fr4iser.loga3mobile",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#0f766e",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

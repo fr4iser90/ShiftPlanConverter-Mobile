@@ -34,9 +34,12 @@ import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
-import { theme } from '@/src/ui/theme';
+import { Screen } from '@/src/ui/Screen';
+import { useTheme } from '@/src/ui/useTheme';
+import type { AppTheme } from '@/src/ui/theme';
 
 const SETUP_HREF = '/setup' as Href;
+const CALENDAR_HREF = '/(tabs)/preview' as Href;
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 /** Persist collapsible LOGA3 WebView (default: open). */
 const SHOW_WEB_KEY = 'loga3.showWebView';
@@ -53,7 +56,115 @@ const FIXTURE_TEXT = [
   '17 Fr KO* 08:30 GE* 16:45 0,30 7,45 4,24 7,45 3,21 37,29',
 ].join('\n');
 
+function makeFetchStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: theme.color.canvas },
+    scrollFlex: { flex: 1, backgroundColor: theme.color.canvas },
+    container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 24 },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme.space.xl,
+      gap: theme.space.md,
+      backgroundColor: theme.color.canvas,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: theme.space.sm,
+    },
+    summary: {
+      ...theme.type.meta,
+      color: theme.color.inkSecondary,
+      fontWeight: '600',
+    },
+    windowLine: {
+      ...theme.type.caption,
+      color: theme.color.primary,
+      fontWeight: '600',
+    },
+    monthGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    monthChip: {
+      width: 48,
+      height: 40,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.color.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.color.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    monthChipOn: {
+      backgroundColor: theme.color.primary,
+      borderColor: theme.color.primary,
+    },
+    monthChipText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.color.inkSecondary,
+    },
+    monthChipTextOn: { color: theme.color.primaryText },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.color.borderStrong,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: theme.space.md,
+      paddingVertical: 12,
+      backgroundColor: theme.color.surfaceMuted,
+      color: theme.color.ink,
+      fontSize: 15,
+    },
+    status: {
+      ...theme.type.caption,
+      color: theme.color.inkMuted,
+      marginTop: 4,
+    },
+    advancedToggle: { paddingVertical: 4 },
+    advancedToggleText: {
+      ...theme.type.caption,
+      color: theme.color.inkMuted,
+    },
+    webToggle: {
+      marginTop: 4,
+      paddingHorizontal: theme.space.md,
+      paddingVertical: 12,
+      backgroundColor: theme.color.primary,
+      borderRadius: theme.radius.sm,
+    },
+    webToggleText: {
+      color: theme.color.primaryText,
+      fontWeight: '700',
+      fontSize: 15,
+    },
+    webPanel: {
+      backgroundColor: theme.color.surface,
+      borderWidth: 2,
+      borderColor: theme.color.primary,
+      borderRadius: theme.radius.sm,
+      overflow: 'hidden',
+      minHeight: 200,
+    },
+    webPanelCollapsed: {
+      height: 0,
+      minHeight: 0,
+      borderWidth: 0,
+      overflow: 'hidden',
+    },
+    footerMeta: {
+      ...theme.type.caption,
+      color: theme.color.inkFaint,
+    },
+  });
+}
+
 export default function FetchScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeFetchStyles(theme), [theme]);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [, setTick] = useState(0);
   const [setup, setSetup] = useState<SetupStatus | null>(null);
@@ -351,6 +462,9 @@ export default function FetchScreen() {
           onPress: () => shareIcsNow(),
         });
       }
+      if (result.fetch.entries.length > 0) {
+        router.replace(CALENDAR_HREF);
+      }
       Alert.alert(t('quickUpdateDone'), parts.join('\n'), buttons);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -404,6 +518,9 @@ export default function FetchScreen() {
       ].filter(Boolean);
       setStatus(parts.join(' · '));
       await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
+      if (result.entries.length > 0) {
+        router.replace(CALENDAR_HREF);
+      }
       Alert.alert(t('alertDone'), parts.join('\n'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -472,6 +589,9 @@ export default function FetchScreen() {
         ].filter(Boolean);
         setStatus(parts.join(' · '));
         await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
+        if (result.entries.length > 0) {
+          router.replace(CALENDAR_HREF);
+        }
         Alert.alert(t('alertDone'), parts.join('\n'));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -496,19 +616,19 @@ export default function FetchScreen() {
 
   if (!setup) {
     return (
-      <View style={styles.center}>
+      <Screen style={styles.center}>
         <ActivityIndicator color={theme.color.primary} />
-      </View>
+      </Screen>
     );
   }
 
   if (!setup.complete) {
     return (
-      <View style={styles.center}>
+      <Screen style={styles.center}>
         <ScreenTitle>{t('setupRequired')}</ScreenTitle>
         <Meta>{t('setupRequiredHint')}</Meta>
         <AppButton title={t('openSetup')} onPress={() => router.push(SETUP_HREF)} />
-      </View>
+      </Screen>
     );
   }
 
@@ -519,7 +639,7 @@ export default function FetchScreen() {
     : Math.max(280, Math.round(windowHeight * 0.42));
 
   return (
-    <View style={styles.root}>
+    <Screen style={styles.root}>
       <ScrollView
         style={styles.scrollFlex}
         contentContainerStyle={styles.container}
@@ -664,110 +784,6 @@ export default function FetchScreen() {
             : ''}
         </Text>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.canvas },
-  scrollFlex: { flex: 1, backgroundColor: theme.color.canvas },
-  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 24 },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.space.xl,
-    gap: theme.space.md,
-    backgroundColor: theme.color.canvas,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: theme.space.sm,
-  },
-  summary: {
-    ...theme.type.meta,
-    color: theme.color.inkSecondary,
-    fontWeight: '600',
-  },
-  windowLine: {
-    ...theme.type.caption,
-    color: theme.color.primary,
-    fontWeight: '600',
-  },
-  monthGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  monthChip: {
-    width: 48,
-    height: 40,
-    borderRadius: theme.radius.sm,
-    backgroundColor: theme.color.surfaceMuted,
-    borderWidth: 1,
-    borderColor: theme.color.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  monthChipOn: {
-    backgroundColor: theme.color.primary,
-    borderColor: theme.color.primary,
-  },
-  monthChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.color.inkSecondary,
-  },
-  monthChipTextOn: { color: '#fff' },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.color.borderStrong,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.space.md,
-    paddingVertical: 12,
-    backgroundColor: theme.color.surfaceMuted,
-    color: theme.color.ink,
-    fontSize: 15,
-  },
-  status: {
-    ...theme.type.caption,
-    color: theme.color.inkMuted,
-    marginTop: 4,
-  },
-  advancedToggle: { paddingVertical: 4 },
-  advancedToggleText: {
-    ...theme.type.caption,
-    color: theme.color.inkMuted,
-  },
-  webToggle: {
-    marginTop: 4,
-    paddingHorizontal: theme.space.md,
-    paddingVertical: 12,
-    backgroundColor: theme.color.primary,
-    borderRadius: theme.radius.sm,
-  },
-  webToggleText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  webPanel: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: theme.color.primary,
-    borderRadius: theme.radius.sm,
-    overflow: 'hidden',
-    minHeight: 200,
-  },
-  webPanelCollapsed: {
-    height: 0,
-    minHeight: 0,
-    borderWidth: 0,
-    overflow: 'hidden',
-  },
-  footerMeta: {
-    ...theme.type.caption,
-    color: theme.color.inkFaint,
-  },
-});

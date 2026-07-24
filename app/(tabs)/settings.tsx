@@ -39,11 +39,53 @@ import {
 import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
-import { theme } from '@/src/ui/theme';
+import { Screen } from '@/src/ui/Screen';
+import { useTheme } from '@/src/ui/useTheme';
+import type { AppTheme } from '@/src/ui/theme';
 
 const SETUP_HREF = '/setup' as Href;
 
+function makeSettingsStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    scroll: { flex: 1, backgroundColor: theme.color.canvas },
+    container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 48 },
+    window: { ...theme.type.caption, color: theme.color.primary, fontWeight: '600' },
+    row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
+    switchRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 8,
+    },
+    switchLabel: { flex: 1, color: theme.color.ink, fontSize: 14 },
+    stepper: { gap: 4, marginTop: 4 },
+    stepperLabel: { fontSize: 13, color: theme.color.inkSecondary },
+    stepperVal: {
+      minWidth: 28,
+      textAlign: 'center',
+      fontWeight: '700',
+      fontSize: 16,
+      color: theme.color.ink,
+    },
+    sampleLabel: { fontWeight: '600', fontSize: 13, color: theme.color.ink, marginTop: 4 },
+    sample: {
+      fontSize: 11,
+      fontFamily: 'SpaceMono',
+      backgroundColor: theme.color.surfaceMuted,
+      padding: 10,
+      borderRadius: theme.radius.sm,
+      color: theme.color.inkSecondary,
+    },
+    contact: { fontSize: 14, fontWeight: '600', color: theme.color.ink },
+  });
+}
+
+type SettingsStyles = ReturnType<typeof makeSettingsStyles>;
+
 export default function SettingsScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeSettingsStyles(theme), [theme]);
   const [, setTick] = useState(0);
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [quick, setQuick] = useState<QuickUpdatePrefs>(DEFAULT_QUICK_PREFS);
@@ -97,6 +139,7 @@ export default function SettingsScreen() {
   };
 
   return (
+    <Screen>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <ScreenTitle>{t('tabSettings')}</ScreenTitle>
 
@@ -118,11 +161,13 @@ export default function SettingsScreen() {
           label={t('quickPrefsPrev')}
           value={quick.prevMonths}
           onChange={(n) => void patchQuick({ prevMonths: n })}
+          styles={styles}
         />
         <Stepper
           label={t('quickPrefsNext')}
           value={quick.nextMonths}
           onChange={(n) => void patchQuick({ nextMonths: n })}
+          styles={styles}
         />
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>{t('quickPrefsGoogle')}</Text>
@@ -213,6 +258,7 @@ export default function SettingsScreen() {
         }}
       />
     </ScrollView>
+    </Screen>
   );
 }
 
@@ -220,10 +266,12 @@ function Stepper({
   label,
   value,
   onChange,
+  styles,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
+  styles: SettingsStyles;
 }) {
   return (
     <View style={styles.stepper}>
@@ -236,31 +284,3 @@ function Stepper({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: theme.color.canvas },
-  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 48 },
-  window: { ...theme.type.caption, color: theme.color.primary, fontWeight: '600' },
-  row: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  switchRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
-  },
-  switchLabel: { flex: 1, color: theme.color.ink, fontSize: 14 },
-  stepper: { gap: 4, marginTop: 4 },
-  stepperLabel: { fontSize: 13, color: theme.color.inkSecondary },
-  stepperVal: { minWidth: 28, textAlign: 'center', fontWeight: '700', fontSize: 16, color: theme.color.ink },
-  sampleLabel: { fontWeight: '600', fontSize: 13, color: theme.color.ink, marginTop: 4 },
-  sample: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono',
-    backgroundColor: theme.color.surfaceMuted,
-    padding: 10,
-    borderRadius: theme.radius.sm,
-    color: theme.color.inkSecondary,
-  },
-  contact: { fontSize: 14, fontWeight: '600', color: theme.color.ink },
-});

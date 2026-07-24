@@ -7,7 +7,7 @@ import {
   type TextStyle,
 } from 'react-native';
 
-import { theme } from './theme';
+import { useTheme } from '@/src/ui/useTheme';
 
 export type AppButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'soft';
 
@@ -32,29 +32,58 @@ export function AppButton({
   style,
   textStyle,
 }: Props) {
+  const theme = useTheme();
   const off = disabled || busy;
+  const variantBox: Record<AppButtonVariant, ViewStyle> = {
+    primary: { backgroundColor: theme.color.primary },
+    secondary: {
+      backgroundColor: theme.color.surface,
+      borderWidth: 1,
+      borderColor: theme.color.borderStrong,
+    },
+    soft: { backgroundColor: theme.color.primarySoft },
+    ghost: { backgroundColor: 'transparent' },
+    danger: { backgroundColor: theme.color.danger },
+  };
+  const variantLabel: Record<AppButtonVariant, TextStyle> = {
+    primary: { color: theme.color.primaryText },
+    secondary: { color: theme.color.ink },
+    soft: { color: theme.color.primary },
+    ghost: { color: theme.color.primary },
+    danger: { color: '#fff' },
+  };
   return (
     <Pressable
       accessibilityRole="button"
       disabled={off}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.base,
-        compact && styles.compact,
-        variantStyles[variant],
+        {
+          minHeight: compact ? 40 : 48,
+          paddingHorizontal: compact ? theme.space.md : theme.space.lg,
+          paddingVertical: compact ? theme.space.sm : theme.space.md,
+          borderRadius: theme.radius.md,
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+        variantBox[variant],
         pressed && !off && styles.pressed,
         off && styles.disabled,
         style,
       ]}>
       {busy ? (
-        <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? '#fff' : theme.color.primary} />
+        <ActivityIndicator
+          color={variant === 'primary' || variant === 'danger' ? '#fff' : theme.color.primary}
+        />
       ) : (
         <Text
           style={[
-            styles.label,
-            compact && styles.labelCompact,
-            labelStyles[variant],
-            off && styles.labelDisabled,
+            {
+              fontSize: compact ? 13 : 15,
+              fontWeight: '600',
+              letterSpacing: 0.1,
+            },
+            variantLabel[variant],
             textStyle,
           ]}>
           {title}
@@ -65,46 +94,6 @@ export function AppButton({
 }
 
 const styles = StyleSheet.create({
-  base: {
-    minHeight: 48,
-    paddingHorizontal: theme.space.lg,
-    paddingVertical: theme.space.md,
-    borderRadius: theme.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  compact: {
-    minHeight: 40,
-    paddingHorizontal: theme.space.md,
-    paddingVertical: theme.space.sm,
-  },
   pressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
   disabled: { opacity: 0.45 },
-  label: {
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.1,
-  },
-  labelCompact: { fontSize: 13 },
-  labelDisabled: {},
-});
-
-const variantStyles = StyleSheet.create({
-  primary: { backgroundColor: theme.color.primary },
-  secondary: {
-    backgroundColor: theme.color.surface,
-    borderWidth: 1,
-    borderColor: theme.color.borderStrong,
-  },
-  soft: { backgroundColor: theme.color.primarySoft },
-  ghost: { backgroundColor: 'transparent' },
-  danger: { backgroundColor: theme.color.danger },
-});
-
-const labelStyles = StyleSheet.create({
-  primary: { color: theme.color.primaryText },
-  secondary: { color: theme.color.ink },
-  soft: { color: theme.color.primary },
-  ghost: { color: theme.color.primary },
-  danger: { color: '#fff' },
 });

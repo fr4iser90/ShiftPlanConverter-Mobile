@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { ShiftEntry } from '@/src/convert/types';
@@ -10,7 +11,7 @@ import {
   weekdayShort,
 } from '@/src/calendar/dates';
 import { colorForShiftType, entriesByDate } from '@/src/calendar/shifts';
-import { theme } from '@/src/ui/theme';
+import { useTheme } from '@/src/ui/useTheme';
 
 type Props = {
   entries: ShiftEntry[];
@@ -20,6 +21,55 @@ type Props = {
 };
 
 export function ShiftMonthView({ entries, anchor, onAnchorChange, packColors }: Props) {
+  const theme = useTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        wrap: { paddingHorizontal: 12, paddingBottom: 8 },
+        nav: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 8,
+          paddingHorizontal: 4,
+        },
+        navBtn: { fontSize: 28, color: theme.color.primary, paddingHorizontal: 8, fontWeight: '300' },
+        navTitle: {
+          fontSize: 16,
+          fontWeight: '700',
+          color: theme.color.ink,
+          textTransform: 'capitalize',
+        },
+        weekHead: { flexDirection: 'row', marginBottom: 4 },
+        weekHeadCell: {
+          flex: 1,
+          textAlign: 'center',
+          fontSize: 11,
+          fontWeight: '700',
+          color: theme.color.inkFaint,
+        },
+        grid: { flexDirection: 'row', flexWrap: 'wrap' },
+        cell: {
+          width: '14.28%',
+          minHeight: 64,
+          padding: 4,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.color.border,
+          backgroundColor: theme.color.surface,
+        },
+        cellOutside: { backgroundColor: theme.color.canvas },
+        cellToday: { borderColor: theme.color.primary, borderWidth: 1.5 },
+        dayNum: { fontSize: 12, fontWeight: '600', color: theme.color.ink },
+        todayText: { color: theme.color.primary },
+        outText: { color: theme.color.inkFaint },
+        dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, marginTop: 2, alignItems: 'center' },
+        dot: { width: 6, height: 6, borderRadius: 3 },
+        more: { fontSize: 9, color: theme.color.inkFaint },
+        code: { fontSize: 10, fontWeight: '700', color: theme.color.inkSecondary, marginTop: 2 },
+      }),
+    [theme],
+  );
+
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
   const first = new Date(year, month, 1);
@@ -62,11 +112,7 @@ export function ShiftMonthView({ entries, anchor, onAnchorChange, packColors }: 
           return (
             <View
               key={iso}
-              style={[
-                styles.cell,
-                !inMonth && styles.cellOutside,
-                isToday && styles.cellToday,
-              ]}>
+              style={[styles.cell, !inMonth && styles.cellOutside, isToday && styles.cellToday]}>
               <Text style={[styles.dayNum, isToday && styles.todayText, !inMonth && styles.outText]}>
                 {day.getDate()}
               </Text>
@@ -91,42 +137,3 @@ export function ShiftMonthView({ entries, anchor, onAnchorChange, packColors }: 
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 12, paddingBottom: 8 },
-  nav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-  },
-  navBtn: { fontSize: 28, color: theme.color.primary, paddingHorizontal: 8, fontWeight: '300' },
-  navTitle: { fontSize: 16, fontWeight: '700', color: theme.color.ink, textTransform: 'capitalize' },
-  weekHead: { flexDirection: 'row', marginBottom: 4 },
-  weekHeadCell: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.color.inkFaint,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: {
-    width: '14.28%',
-    minHeight: 64,
-    padding: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.color.border,
-    backgroundColor: theme.color.surface,
-  },
-  cellOutside: { backgroundColor: theme.color.canvas },
-  cellToday: { borderColor: theme.color.primary, borderWidth: 1.5 },
-  dayNum: { fontSize: 12, fontWeight: '600', color: theme.color.ink },
-  todayText: { color: theme.color.primary },
-  outText: { color: theme.color.inkFaint },
-  dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, marginTop: 2, alignItems: 'center' },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-  more: { fontSize: 9, color: theme.color.inkFaint },
-  code: { fontSize: 10, fontWeight: '700', color: theme.color.inkSecondary, marginTop: 2 },
-});

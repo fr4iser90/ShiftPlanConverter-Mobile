@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 
@@ -26,9 +26,32 @@ import {
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
-import { theme } from '@/src/ui/theme';
+import { Screen } from '@/src/ui/Screen';
+import { useTheme } from '@/src/ui/useTheme';
+import type { AppTheme } from '@/src/ui/theme';
+
+function makeExportStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    scroll: { flex: 1, backgroundColor: theme.color.canvas },
+    container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 40 },
+    connected: {
+      color: theme.color.inkSecondary,
+      fontSize: 13,
+    },
+    warn: {
+      marginTop: 4,
+      color: theme.color.warn,
+      backgroundColor: theme.color.warnSoft,
+      padding: 10,
+      borderRadius: theme.radius.sm,
+      fontSize: 12,
+    },
+  });
+}
 
 export default function ExportScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeExportStyles(theme), [theme]);
   const [, setTick] = useState(0);
   const snap = getSnapshot();
   const [busy, setBusy] = useState(false);
@@ -145,6 +168,7 @@ export default function ExportScreen() {
     (calendarId ? calendarId.split('@')[0] : null);
 
   return (
+    <Screen>
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       <ScreenTitle>{t('tabExport')}</ScreenTitle>
       <Meta>
@@ -203,22 +227,6 @@ export default function ExportScreen() {
         )}
       </AppCard>
     </ScrollView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: theme.color.canvas },
-  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 40 },
-  connected: {
-    color: theme.color.inkSecondary,
-    fontSize: 13,
-  },
-  warn: {
-    marginTop: 4,
-    color: theme.color.warn,
-    backgroundColor: theme.color.warnSoft,
-    padding: 10,
-    borderRadius: theme.radius.sm,
-    fontSize: 12,
-  },
-});
