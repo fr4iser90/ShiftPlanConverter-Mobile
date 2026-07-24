@@ -14,6 +14,7 @@ const KEYS = {
   rawText: 'loga3.rawText',
   userMappings: 'loga3.userMappings',
   locale: 'loga3.locale',
+  themePref: 'loga3.themePref',
   richDetails: 'loga3.richDetails',
   preset: 'loga3.preset',
   hospitalId: 'loga3.hospitalId',
@@ -25,12 +26,15 @@ const KEYS = {
 } as const;
 
 export type AppLocale = 'de' | 'en';
+/** App chrome: follow system, or force light/dark. */
+export type ThemePref = 'system' | 'light' | 'dark';
 
 export type AppStateSnapshot = {
   entries: ShiftEntry[];
   rawText: string;
   userMappings: Record<string, string>;
   locale: AppLocale;
+  themePref: ThemePref;
   richDetails: boolean;
   /** Empty until user picks an employer pack on this device */
   preset: string;
@@ -47,6 +51,7 @@ let cache: AppStateSnapshot = {
   rawText: '',
   userMappings: {},
   locale: 'de',
+  themePref: 'system',
   richDetails: false,
   preset: '',
   hospitalId: '',
@@ -82,6 +87,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       rawText,
       mappingsRaw,
       locale,
+      themePrefRaw,
       rich,
       preset,
       hospitalId,
@@ -94,6 +100,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.rawText),
       AsyncStorage.getItem(KEYS.userMappings),
       AsyncStorage.getItem(KEYS.locale),
+      AsyncStorage.getItem(KEYS.themePref),
       AsyncStorage.getItem(KEYS.richDetails),
       AsyncStorage.getItem(KEYS.preset),
       AsyncStorage.getItem(KEYS.hospitalId),
@@ -102,12 +109,17 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.summary),
       AsyncStorage.getItem(KEYS.summaries),
     ]);
+    const themePref: ThemePref =
+      themePrefRaw === 'light' || themePrefRaw === 'dark' || themePrefRaw === 'system'
+        ? themePrefRaw
+        : 'system';
     cache = {
       ...cache,
       entries: entriesRaw ? JSON.parse(entriesRaw) : [],
       rawText: rawText || '',
       userMappings: mappingsRaw ? JSON.parse(mappingsRaw) : {},
       locale: locale === 'en' ? 'en' : 'de',
+      themePref,
       richDetails: rich === '1',
       preset: preset || '',
       hospitalId: hospitalId || '',
@@ -174,6 +186,12 @@ export async function setUserMappings(mappings: Record<string, string>): Promise
 export async function setLocale(locale: AppLocale): Promise<void> {
   cache = { ...cache, locale };
   await AsyncStorage.setItem(KEYS.locale, locale);
+  notify();
+}
+
+export async function setThemePref(themePref: ThemePref): Promise<void> {
+  cache = { ...cache, themePref };
+  await AsyncStorage.setItem(KEYS.themePref, themePref);
   notify();
 }
 

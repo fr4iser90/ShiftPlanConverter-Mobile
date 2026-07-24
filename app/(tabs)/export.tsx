@@ -24,6 +24,7 @@ import {
   type GoogleCalendar,
 } from '@/src/sync/google';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
+import { openErrorReportMail } from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
@@ -170,7 +171,24 @@ export default function ExportScreen() {
         : t('syncDone', { created });
       Alert.alert(t('syncTitle'), body);
     } catch (e) {
-      Alert.alert(t('syncTitle'), String(e));
+      const msg = String(e);
+      Alert.alert(t('syncTitle'), msg, [
+        { text: 'OK', style: 'cancel' },
+        {
+          text: t('reportError'),
+          onPress: () => {
+            void openErrorReportMail({ error: msg, context: 'Export / Google sync' }).catch(
+              (err) =>
+                Alert.alert(
+                  t('reportError'),
+                  t('reportErrorFailed', {
+                    msg: err instanceof Error ? err.message : String(err),
+                  })
+                )
+            );
+          },
+        },
+      ]);
     } finally {
       setBusy(false);
     }

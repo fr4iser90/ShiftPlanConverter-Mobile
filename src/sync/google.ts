@@ -3,7 +3,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { buildEventDescription } from '../convert/eventDescription';
+import { buildEventDescription, buildEventSummary } from '../convert/eventDescription';
 import type { ShiftEntry } from '../convert/types';
 import { getGoogleCalendarId, setGoogleCalendarId } from '../state/store';
 
@@ -396,6 +396,7 @@ export async function syncEntriesToGoogle(
   let created = 0;
   const createT0 = Date.now();
   for (const entry of entries) {
+    const summary = buildEventSummary(entry, { richDetails });
     const description = buildEventDescription(entry, { richDetails });
     let endDate = entry.date;
     if (!entry.allDay && entry.start && entry.end && entry.end < entry.start) {
@@ -406,13 +407,13 @@ export async function syncEntriesToGoogle(
 
     const body = entry.allDay
       ? {
-          summary: entry.type,
+          summary,
           description,
           start: { date: entry.date },
           end: { date: entry.date },
         }
       : {
-          summary: entry.type,
+          summary,
           description,
           start: { dateTime: `${entry.date}T${entry.start}:00`, timeZone: 'Europe/Berlin' },
           end: { dateTime: `${endDate}T${entry.end}:00`, timeZone: 'Europe/Berlin' },

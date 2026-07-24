@@ -1,5 +1,7 @@
 import { Linking } from 'react-native';
+import Constants from 'expo-constants';
 
+import { getSnapshot } from '../state/store';
 import { MAILTO_SAFE_CHARS, SUPPORT_EMAIL } from './legal';
 
 export function trimForMailto(text: string, maxChars = MAILTO_SAFE_CHARS): string {
@@ -24,6 +26,15 @@ export async function openSupportMail(opts: {
   await Linking.openURL(href);
 }
 
+export function appVersionLabel(): string {
+  const v =
+    Constants.expoConfig?.version ||
+    Constants.nativeAppVersion ||
+    Constants.nativeBuildVersion ||
+    '?';
+  return String(v);
+}
+
 export function buildSupportMailBody(opts: {
   hospital?: string;
   group?: string;
@@ -36,6 +47,7 @@ export function buildSupportMailBody(opts: {
     '',
     'Support-Anfrage aus LOGA3 Automation Mobile:',
     '',
+    `App-Version: ${appVersionLabel()}`,
     `Arbeitgeber: ${opts.hospital || '—'}`,
     `Berufsgruppe: ${opts.group || '—'}`,
     `Bereich: ${opts.area || '—'}`,
@@ -49,4 +61,50 @@ export function buildSupportMailBody(opts: {
   }
   parts.push('', 'Danke!');
   return parts.join('\n');
+}
+
+/** Error report: message + pack meta only — never credentials, never raw PDF. */
+export function buildErrorReportMailBody(opts: {
+  error: string;
+  hospital?: string;
+  group?: string;
+  area?: string;
+  context?: string;
+}): string {
+  const parts = [
+    'Hallo,',
+    '',
+    'Fehlerbericht aus LOGA3 Automation Mobile:',
+    '',
+    `App-Version: ${appVersionLabel()}`,
+    `Arbeitgeber: ${opts.hospital || '—'}`,
+    `Berufsgruppe: ${opts.group || '—'}`,
+    `Bereich: ${opts.area || '—'}`,
+  ];
+  if (opts.context?.trim()) parts.push(`Kontext: ${opts.context.trim()}`);
+  parts.push('', 'Fehlermeldung:', '---', trimForMailto(opts.error, 900), '---');
+  parts.push(
+    '',
+    'Hinweis: Keine Zugangsdaten / keine Roh-PDFs in dieser Mail.',
+    '',
+    'Danke!'
+  );
+  return parts.join('\n');
+}
+
+export async function openErrorReportMail(opts: {
+  error: string;
+  context?: string;
+}): Promise<void> {
+  const snap = getSnapshot();
+  await openSupportMail({
+    subject: 'LOGA3 Mobile — Fehlerbericht',
+    body: buildErrorReportMailBody({
+      error: opts.error,
+      context: opts.context,
+      hospital: snap.hospitalId || undefined,
+      group: snap.groupId || undefined,
+      area: snap.areaId || undefined,
+    }),
+  });
 }

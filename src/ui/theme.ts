@@ -1,8 +1,7 @@
 /**
  * LOGA3 Mobile design tokens — product UI (not marketing).
  *
- * Light + dark follow the system appearance. Status bar icons adapt;
- * we do not force a black chrome bar in light mode.
+ * Light + dark tokens. Active scheme = Settings themePref, or system when set to „System“.
  */
 const space = {
   xs: 4,

@@ -7,6 +7,24 @@ function formatSignedHours(value: string): string {
   return `+${s}`;
 }
 
+/**
+ * Calendar event title. With richDetails: include times like Desktop Google sync
+ * (`GE* 06:30–15:06`).
+ */
+export function buildEventSummary(
+  entry: ShiftEntry,
+  { richDetails = false }: { richDetails?: boolean } = {}
+): string {
+  let summary = entry.type || '';
+  if (richDetails && !entry.allDay && entry.start && entry.end) {
+    summary += ` ${entry.start}–${entry.end}`;
+  }
+  return summary;
+}
+
+/**
+ * Calendar event body. With richDetails: Pause / Ist / AZK / Bereitschaft (Desktop parity).
+ */
 export function buildEventDescription(
   entry: ShiftEntry,
   { richDetails = false }: { richDetails?: boolean } = {}
