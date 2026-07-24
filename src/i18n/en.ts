@@ -79,19 +79,27 @@ export const en: { [K in keyof typeof de]: string } = {
   googleCalendarMissingCancel: 'Cancel',
   googleCalendarRecreate: 'Create & sync',
   language: 'Language',
-  richDetails: 'Rich calendar details',
+  appTheme: 'Appearance',
+  appThemeHint: 'App light/dark. “System” follows the device. Widgets have a separate control below.',
+  richDetails: 'Extended calendar details',
+  richDetailsHint:
+    'Titles include times (e.g. GE* 06:30–15:06); details add break, actual hours, AZK, on-call. Applies after the next sync / ICS.',
   supportSample: 'Support sample (anonymized)',
   copySupport: 'Copy support text',
   supportTitle: 'Support',
   supportIntro:
-    'Different employer/PDF? Email an anonymized excerpt — no raw PDFs; names/IDs removed.',
+    'Different employer/PDF? Email an anonymized excerpt — no raw PDFs; names/IDs removed. On fetch errors, “Report error” opens mail with the error text and pack meta only (no passwords).',
   supportMail: 'Email support@fr4iser.com',
   supportCopied: 'Copied to clipboard.',
+  reportError: 'Report error',
+  reportErrorFailed: 'Could not open mail: {msg}',
   legalTitle: 'Legal & privacy',
   legalImpressumBody:
     'LOGA3 Automation Mobile — contact: support@fr4iser.com · web: shift.fr4iser.com · open source on GitHub.',
   legalPrivacyBody:
     'Tenant URL, login, and shift data stay on this device (Secure Store / storage). No upload to our servers. Optional: Google OAuth only for calendar sync (device ↔ Google).',
+  legalDisclaimerBody:
+    'No warranty for completeness or correctness of parser, calendar, or sync output. You must verify shifts, times, and payroll yourself; the app is not an official LOGA3/employer source. Use at your own risk.',
   legalMail: 'Open email',
   legalWebsite: 'Open website',
   legalGithub: 'Mobile on GitHub',

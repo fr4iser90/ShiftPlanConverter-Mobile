@@ -18,8 +18,10 @@ import {
   getSnapshot,
   setLocale,
   setRichDetails,
+  setThemePref,
   subscribe,
   type AppLocale,
+  type ThemePref,
 } from '@/src/state/store';
 import { clearCredentials } from '@/src/loga3/credentials';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
@@ -408,6 +410,25 @@ export default function SettingsScreen() {
             onPress={() => void setLocale('en' as AppLocale)}
           />
         </View>
+        <SectionTitle>{t('appTheme')}</SectionTitle>
+        <Meta>{t('appThemeHint')}</Meta>
+        <View style={styles.row}>
+          {(
+            [
+              ['system', 'widgetThemeSystem'],
+              ['light', 'widgetThemeLight'],
+              ['dark', 'widgetThemeDark'],
+            ] as const
+          ).map(([pref, labelKey]) => (
+            <AppButton
+              key={pref}
+              compact
+              title={t(labelKey)}
+              variant={snap.themePref === pref ? 'soft' : 'secondary'}
+              onPress={() => void setThemePref(pref as ThemePref)}
+            />
+          ))}
+        </View>
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>{t('richDetails')}</Text>
           <Switch
@@ -417,6 +438,7 @@ export default function SettingsScreen() {
             thumbColor="#fff"
           />
         </View>
+        <Meta>{t('richDetailsHint')}</Meta>
       </AppCard>
 
       <AppCard>
@@ -443,6 +465,7 @@ export default function SettingsScreen() {
         <SectionTitle>{t('legalTitle')}</SectionTitle>
         <Meta>{t('legalImpressumBody')}</Meta>
         <Meta>{t('legalPrivacyBody')}</Meta>
+        <Meta>{t('legalDisclaimerBody')}</Meta>
         <Text style={styles.contact}>{SUPPORT_EMAIL}</Text>
         <Meta>LOGA3 Automation Mobile v{version}</Meta>
         <AppButton title={t('legalMail')} variant="secondary" onPress={() => void openUrl(`mailto:${SUPPORT_EMAIL}`)} />

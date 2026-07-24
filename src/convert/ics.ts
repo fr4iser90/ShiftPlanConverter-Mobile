@@ -1,4 +1,4 @@
-import { buildEventDescription } from './eventDescription';
+import { buildEventDescription, buildEventSummary } from './eventDescription';
 import type { ShiftEntry } from './types';
 
 function formatDateTime(date: string, time?: string): string {
@@ -57,11 +57,12 @@ export function generateIcs(
       .join('-')
       .replace(/\s/g, '');
 
+    const summary = buildEventSummary(entry, { richDetails });
     const description = buildEventDescription(entry, { richDetails });
 
     lines.push('BEGIN:VEVENT');
     lines.push('UID:' + uid + '@loga3-mobile');
-    lines.push('SUMMARY:' + escapeICalText(entry.type));
+    lines.push('SUMMARY:' + escapeICalText(summary));
     lines.push('DESCRIPTION:' + escapeICalText(description));
     if (entry.allDay) {
       lines.push('DTSTART;VALUE=DATE:' + entry.date.replace(/-/g, ''));

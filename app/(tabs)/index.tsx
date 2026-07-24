@@ -38,6 +38,7 @@ import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/sr
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
+import { openErrorReportMail } from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -49,6 +50,23 @@ const CALENDAR_HREF = '/(tabs)/preview' as Href;
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
 /** Persist collapsible LOGA3 WebView (default: open). */
 const SHOW_WEB_KEY = 'loga3.showWebView';
+
+function alertErrorWithReport(title: string, msg: string, context: string) {
+  Alert.alert(title, msg, [
+    { text: 'OK', style: 'cancel' },
+    {
+      text: t('reportError'),
+      onPress: () => {
+        void openErrorReportMail({ error: msg, context }).catch((e) => {
+          Alert.alert(
+            t('reportError'),
+            t('reportErrorFailed', { msg: e instanceof Error ? e.message : String(e) })
+          );
+        });
+      },
+    },
+  ]);
+}
 
 const FIXTURE_TEXT = [
   'Abrechnungsmonat 09/2026',
@@ -526,7 +544,7 @@ export default function FetchScreen() {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(t('fjResultErrorLine', { msg }));
       await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
-      Alert.alert(t('quickUpdate'), msg);
+      alertErrorWithReport(t('quickUpdate'), msg, 'Holen / QuickUpdate');
     } finally {
       setBusy(false);
     }
@@ -624,7 +642,7 @@ export default function FetchScreen() {
         const msg = e instanceof Error ? e.message : String(e);
         setStatus(t('fjResultErrorLine', { msg }));
         await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
-        Alert.alert(t('alertFetchFailed'), msg);
+        alertErrorWithReport(t('alertFetchFailed'), msg, 'Autofetch / smoke');
       } finally {
         setBusy(false);
       }
