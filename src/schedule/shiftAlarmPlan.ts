@@ -2,7 +2,7 @@
  * Pure planning of shift wake reminders (no expo-notifications).
  */
 import type { ShiftEntry } from '../convert/types';
-import { timesForCode, type ShiftAlarmPrefs } from './shiftAlarmPrefs';
+import { remindsForCode, type ShiftAlarmPrefs, type ShiftRemind } from './shiftAlarmPrefs';
 
 export const SHIFT_ALARM_ID_PREFIX = 'loga3-shift-';
 /** Soft cap — Android / Expo scheduled notif limits. */
@@ -16,6 +16,8 @@ export type PlannedShiftAlarm = {
   code: string;
   /** Clock time configured by user (HH:MM). */
   remindAt: string;
+  /** True = fire on calendar day before the shift date. */
+  eve: boolean;
 };
 
 function parseLocal(date: string, hhmm: string): Date | null {
@@ -26,21 +28,40 @@ function parseLocal(date: string, hhmm: string): Date | null {
 }
 
 /**
- * Fire at remindAt on the shift day if that is still before shift start;
- * otherwise the previous calendar day (e.g. 22:00 for a 07:35 Frühdienst).
+ * Resolve fire time for a remind.
+ * - Same day: only if remindAt is strictly before shift start.
+ * - Eve: previous calendar day at remindAt (user confirmed Vorabend).
  */
 export function fireAtForRemindTime(
   shiftDate: string,
   shiftStart: string,
-  remindAt: string
+  remind: ShiftRemind | string,
+  eveFlag?: boolean
 ): Date | null {
+  const r: ShiftRemind =
+    typeof remind === 'string'
+      ? { time: remind, eve: eveFlag === true }
+      : remind;
   const startAt = parseLocal(shiftDate, shiftStart);
-  let fireAt = parseLocal(shiftDate, remindAt);
+  let fireAt = parseLocal(shiftDate, r.time);
   if (!startAt || !fireAt) return null;
-  if (fireAt.getTime() >= startAt.getTime()) {
+
+  if (r.eve) {
     fireAt = new Date(fireAt.getTime() - 24 * 60 * 60 * 1000);
+    return fireAt;
   }
+  if (fireAt.getTime() >= startAt.getTime()) return null;
   return fireAt;
+}
+
+/** True when HH:MM remindAt is strictly before HH:MM shiftStart. */
+export function isRemindBeforeShiftStart(remindAt: string, shiftStart: string): boolean {
+  const rm = /^(\d{2}):(\d{2})$/.exec(remindAt);
+  const sm = /^(\d{2}):(\d{2})$/.exec(shiftStart);
+  if (!rm || !sm) return false;
+  const r = Number(rm[1]) * 60 + Number(rm[2]);
+  const s = Number(sm[1]) * 60 + Number(sm[2]);
+  return r < s;
 }
 
 function prefsHaveAnyTimes(prefs: ShiftAlarmPrefs): boolean {
@@ -69,18 +90,21 @@ export function planShiftAlarms(
     if (startAt.getTime() > horizonEnd.getTime()) continue;
 
     const code = String(entry.type || '').trim() || '?';
-    const times = timesForCode(prefs, code);
-    for (const remindAt of times) {
-      const fireAt = fireAtForRemindTime(entry.date, entry.start!, remindAt);
+    const reminds = remindsForCode(prefs, code);
+    for (const remind of reminds) {
+      const fireAt = fireAtForRemindTime(entry.date, entry.start!, remind);
       if (!fireAt || fireAt.getTime() <= now.getTime()) continue;
-      const id = `${SHIFT_ALARM_ID_PREFIX}${entry.date}-${entry.start}-${remindAt}`;
+      const id = `${SHIFT_ALARM_ID_PREFIX}${entry.date}-${entry.start}-${remind.time}${
+        remind.eve ? '-eve' : ''
+      }`;
       planned.push({
         id,
         fireAt,
         shiftDate: entry.date,
         shiftStart: entry.start!,
         code,
-        remindAt,
+        remindAt: remind.time,
+        eve: remind.eve,
       });
     }
   }

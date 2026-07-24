@@ -233,7 +233,7 @@ export const en: { [K in keyof typeof de]: string } = {
 
   shiftAlarmSection: 'Shift reminders',
   shiftAlarmHint:
-    'Loud reminders before a shift. Tap a mapped Dienst and add clock times (e.g. 06:00) — not “minutes before”. If the time is at/after shift start, it fires the previous day.',
+    'Loud reminders before a shift. Clock time on the shift day before start — or evening before (with confirmation), e.g. 22:00 before an early shift.',
   shiftAlarmEnable: 'Reminders before shift',
   shiftAlarmHorizon: 'Days ahead to schedule',
   shiftAlarmPickShift: 'Dienst from mapping',
@@ -242,8 +242,17 @@ export const en: { [K in keyof typeof de]: string } = {
   shiftAlarmTimeInput: 'Type a time',
   shiftAlarmTimePlaceholder: 'e.g. 630 or 6 30',
   shiftAlarmTimeInvalid: 'Time not recognized — e.g. 630, 6:30 or 6 30',
+  shiftAlarmEveShort: 'eve',
+  shiftAlarmEveHint:
+    '{time} is not before start {start}. Can be saved as an evening-before reminder.',
+  shiftAlarmEveTitle: 'Evening-before reminder?',
+  shiftAlarmEveBody:
+    '{time} is not before shift start {start}. Save as reminder on the evening before?',
+  shiftAlarmEveYes: 'Yes, evening before',
+  shiftAlarmEveNo: 'Cancel',
   shiftAlarmAdd: 'Add',
   shiftAlarmAddTime: 'Add {time}',
+  shiftAlarmAddEve: '{time} eve…',
   shiftAlarmRemoveTime: 'Remove {time}',
   shiftAlarmMaxTimes: 'At most 7 times per shift.',
   shiftAlarmReschedule: 'Reschedule reminders',

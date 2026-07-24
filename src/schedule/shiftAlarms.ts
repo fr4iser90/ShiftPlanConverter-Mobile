@@ -83,8 +83,10 @@ export async function rescheduleShiftAlarms(
     await Notifications.scheduleNotificationAsync({
       identifier: a.id,
       content: {
-        title: `Erinnerung · ${a.code}`,
-        body: `Dienst ${a.shiftStart} · ${a.shiftDate} (Wecker ${a.remindAt})`,
+        title: a.eve ? `Vorabend · ${a.code}` : `Erinnerung · ${a.code}`,
+        body: a.eve
+          ? `Morgen ${a.code} ab ${a.shiftStart} · Wecker ${a.remindAt}`
+          : `Dienst ${a.shiftStart} · ${a.shiftDate} (Wecker ${a.remindAt})`,
         sound: true,
         priority: Notifications.AndroidNotificationPriority.MAX,
         data: { type: 'shift_alarm', code: a.code, date: a.shiftDate },
