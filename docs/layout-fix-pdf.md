@@ -35,7 +35,7 @@ App: `src/loga3/layoutFixInject.ts` → `Loga3WebView` (`bootInject` = viewport 
 ## Noch prüfen
 
 - [x] Monat wechseln (`ic-previous` / `ic-next`) → Header + Grid updaten (**OK 2026-07-24**: Juli→August, `gridW=336`, `pe:auto`)
+- [ ] Holen App-Tap End-to-End (Warm: LAGSDZPG-Timeout; Cold: Picker-Wait — siehe Checklist)
 - [ ] Danach erneut Zeitprotokoll → PDF für den neuen Monat
-- [ ] Holen/`fetchJob` End-to-end mit Bundle (ohne CDP)
 
 Details / Lab: [`pdf-path-checklist.md`](pdf-path-checklist.md)

@@ -81,6 +81,8 @@ export const LOGA3_LAYOUT_FIX_CSS = `
 /**
  * Inject CSS + keep re-applying GWT width quirks when Zeitdaten grid mounts.
  * Safe to call multiple times (idempotent style tag).
+ * Quiet: no full-document MutationObserver thrash (that fights SmartEdin / Export menus).
+ * Only fixGrid when width is actually wrong; slow interval is enough after GWT mounts.
  */
 export function buildLayoutFixInject(): string {
   const cssJson = JSON.stringify(LOGA3_LAYOUT_FIX_CSS);
@@ -97,31 +99,27 @@ export function buildLayoutFixInject(): string {
     ensureStyle();
     var body=document.querySelector('.ZDBodyPanel');
     var grid=document.querySelector('.L3ZeitdatenFixedWidthGridView');
-    if(body&&grid){
-      var bw=body.getBoundingClientRect().width;
-      if(bw>80){
-        grid.style.setProperty('width', bw+'px', 'important');
-        grid.style.setProperty('min-width', bw+'px', 'important');
-      }
-      [].slice.call(grid.querySelectorAll('.TableWrapper, .LGDndTableWrapper')).forEach(function(el){
-        el.style.setProperty('left','0px','important');
-        el.style.setProperty('margin-left','0','important');
-        el.style.setProperty('transform','none','important');
-      });
-      try{ grid.scrollLeft=0; }catch(e){}
+    if(!(body&&grid)) return;
+    var bw=body.getBoundingClientRect().width;
+    if(!(bw>80)) return;
+    var cur=grid.getBoundingClientRect().width;
+    if(Math.abs(cur-bw)>2){
+      grid.style.setProperty('width', bw+'px', 'important');
+      grid.style.setProperty('min-width', bw+'px', 'important');
     }
+    [].slice.call(grid.querySelectorAll('.TableWrapper, .LGDndTableWrapper')).forEach(function(el){
+      if(el.style.left==='0px' && el.style.marginLeft==='0px') return;
+      el.style.setProperty('left','0px','important');
+      el.style.setProperty('margin-left','0','important');
+      el.style.setProperty('transform','none','important');
+    });
   }
   ensureStyle();
   fixGrid();
   if(!window.__loga3LayoutFixObs){
     window.__loga3LayoutFixObs=true;
-    var t=null;
-    var run=function(){ if(t) clearTimeout(t); t=setTimeout(fixGrid, 80); };
-    try{
-      var mo=new MutationObserver(run);
-      mo.observe(document.documentElement||document.body,{childList:true,subtree:true});
-    }catch(e){}
-    setInterval(fixGrid, 1500);
+    // Slow poll only — MutationObserver on document caused layout thrash during Export/LAGSDZPG.
+    setInterval(fixGrid, 2500);
   }
 }catch(e){}})();`;
 }

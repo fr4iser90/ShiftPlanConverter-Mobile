@@ -206,5 +206,12 @@ User: Buchungs-Grid wird von anderem DOM mit SPEICHERN/Symbolen überdeckt. CDP 
 - [x] **CSS4** + **CSS5 lite** + **CSS7**: Layout + ZP → PDF-View (**OK**)
 - [x] Bundle in App: `layoutFixInject.ts` / `Loga3WebView` (`bootInject`)
 - [x] Monats-Pfeile: Header + Grid wechseln (**Juli→August 2026**, CSS aktiv, `MONTH_NAV_OK`)
-- [ ] Holen/`fetchJob` mit Bundle ohne CDP
+- [~] **Ausgewählte laden** App-Tap (2026-07-24):
+  - Cold: Login+Shell OK → **FAIL** Picker @25s (Wait → **45s**)
+  - Warm: Plan+SmartEdin/Export OK → **FAIL** LAGSDZPG @20s
+  - Nach Quiet-CSS + one-click SmartEdin/Export + early „bereits Shell/Zeitdaten“:
+    Öffnen→Picker ~1.5s OK → Plan OK → **FAIL** `SmartEdin / Export-Panel` @25s (WebView endet auf Shell-Home; kein PDF)
+- [ ] Holen/`fetchJob` End-to-End PASS (ZP→PDF→`pdfs/` + Preview)
 - [ ] Zeitprotokoll erneut nach Monatswechsel
+
+**Login / kein unnötiges Neu-Laden:** `ensureLoggedIn` prüft zuerst `assertShellReady` — wenn schon Shell/Zeitdaten → kein Login-Fill/Submit. SmartEdin/Export: **ein** Klick, dann warten (kein Re-Click-Spam).

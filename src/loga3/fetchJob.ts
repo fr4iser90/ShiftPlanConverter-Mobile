@@ -118,11 +118,18 @@ function waitOpts(ctx: Ctx, label: string, timeoutMs: number, intervalMs = 600) 
 
 async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   status(ctx, 'Login…');
-  // Soft: cold WebView may miss the first reply — outer wait owns the deadline.
+  // Already on Zeitdaten / shell? Never touch login or navigate away.
+  const shellNow = await softProbe(ctx, { type: 'assertShellReady' }, 12000);
+  if (shellNow.ok && !shellNow.stillLogin && !shellNow.splash) {
+    status(ctx, shellNow.pickerFound ? 'Bereits in Zeitdaten' : 'Bereits eingeloggt — Shell bereit');
+    await gate(ctx, '01-shell-ready');
+    return;
+  }
+
   const pre = await softProbe(ctx, { type: 'assertLoggedIn' }, 20000);
   if (pre.ok && !pre.stillLogin) {
     status(ctx, 'Bereits eingeloggt — warte auf Shell…');
-  } else {
+  } else if (pre.stillLogin || !pre.ok) {
     status(ctx, 'Warte auf Login-Formular…');
     await waitForCondition(async () => {
       try {
@@ -138,7 +145,6 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   }
 
   // Always wait for real shell chrome — "logged in" alone is not enough (GWT still booting).
-  // Budget: fail fast — 3 Monate Gesamtziel ≤2min, Shell darf nicht 3min fressen.
   await waitForCondition(async () => {
     const st = await softProbe(ctx, { type: 'assertShellReady' }, 12000);
     if (st.code === 'BAD_CREDENTIALS' || /bad_credentials|Kennung\/Kennwort/i.test(st.error || '')) {
@@ -187,10 +193,11 @@ async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
 
   status(ctx, 'Öffnen klicken…');
   await run(ctx, { type: 'clickOeffnen' }, 12000);
+  // Phone GWT: mask/picker often lands after ~25–40s (one wait, no re-click).
   const picked = await waitForCondition(async () => {
     const ps = await softProbe(ctx, { type: 'getPickerState' }, 10000);
     return ps.pickerFound ? ps : null;
-  }, waitOpts(ctx, 'ZeitdatenMonthPicker nach Öffnen', 25000, 400));
+  }, waitOpts(ctx, 'ZeitdatenMonthPicker nach Öffnen', 45000, 400));
   await gate(ctx, '03-after-oeffnen');
   return picked;
 }
@@ -220,36 +227,38 @@ async function assertZeitdatenPickerReady(ctx: Ctx): Promise<void> {
 /** SmartEdin required + wait Export panel (desktop waitForExportPanel). */
 async function ensureSmartEdinExportPanel(ctx: Ctx): Promise<void> {
   status(ctx, 'SmartEdin…');
+  const already = await softProbe(ctx, { type: 'assertExportContext' }, 12000);
+  if (already.exportPanel) {
+    await gate(ctx, '07-smartedin-export');
+    return;
+  }
+  // One click, then wait for panel — do not re-click (closes/reopens GWT menu).
+  await run(ctx, { type: 'clickSmartEdin' }, 15000);
   await waitForCondition(async () => {
-    try {
-      const r = await run(ctx, { type: 'clickSmartEdin' }, 15000);
-      if (r.exportPanel) return true;
-    } catch {
-      // retry
-    }
     const st = await softProbe(ctx, { type: 'assertExportContext' }, 12000);
     if (st.code === 'PROBE_TIMEOUT') return null;
     if (st.exportPanel) return true;
     return null;
-  }, waitOpts(ctx, 'SmartEdin / Export-Panel', 20000, 400));
+  }, waitOpts(ctx, 'SmartEdin / Export-Panel', 25000, 500));
   await gate(ctx, '07-smartedin-export');
 }
 
 /** Export menu required + wait LAGSDZPG (desktop waitForZeitprotokollButton). */
 async function ensureExportZeitprotokollButton(ctx: Ctx): Promise<void> {
   status(ctx, 'Export-Menü…');
+  const already = await softProbe(ctx, { type: 'assertExportContext' }, 12000);
+  if (already.lagsdzpg) {
+    await gate(ctx, '08-lagsdzpg');
+    return;
+  }
+  // One Export click, then wait for tile — do not re-click.
+  await run(ctx, { type: 'clickExport' }, 15000);
   await waitForCondition(async () => {
-    try {
-      const r = await run(ctx, { type: 'clickExport' }, 15000);
-      if (r.lagsdzpg) return true;
-    } catch {
-      // retry
-    }
     const st = await softProbe(ctx, { type: 'assertExportContext' }, 12000);
     if (st.code === 'PROBE_TIMEOUT') return null;
     if (st.lagsdzpg) return true;
     return null;
-  }, waitOpts(ctx, 'Zeitprotokoll-Button (LAGSDZPG)', 20000, 400));
+  }, waitOpts(ctx, 'Zeitprotokoll-Button (LAGSDZPG)', 35000, 600));
   await gate(ctx, '08-lagsdzpg');
 }
 

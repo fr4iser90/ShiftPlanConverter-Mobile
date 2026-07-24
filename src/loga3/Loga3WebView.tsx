@@ -30,10 +30,13 @@ export function scaleForLayoutWidth(layoutWidth: number): number {
 
 export function buildViewportInject(layoutWidth: number): string {
   const scale = scaleForLayoutWidth(layoutWidth).toFixed(3);
+  const content = `width=${LOGA3_DESKTOP_WIDTH}, initial-scale=${scale}, maximum-scale=4, user-scalable=yes`;
+  // Skip rewrite when meta already matches — Holen expand (layoutW 400→432) felt like a reload.
   return (
-    `(function(){try{var m=document.querySelector('meta[name=viewport]');` +
+    `(function(){try{var want=${JSON.stringify(content)};` +
+    `var m=document.querySelector('meta[name=viewport]');` +
     `if(!m){m=document.createElement('meta');m.name='viewport';document.head&&document.head.appendChild(m);}` +
-    `m.content='width=${LOGA3_DESKTOP_WIDTH}, initial-scale=${scale}, maximum-scale=4, user-scalable=yes';` +
+    `if(m.content!==want) m.content=want;` +
     `}catch(e){}})();`
   );
 }
@@ -218,7 +221,8 @@ export const Loga3WebView = React.forwardRef<
     return () => sub.remove();
   }, [captureDownloadUrl]);
 
-  // Re-apply scale + layout fix when host width changes (warm → visible, rotation)
+  // Re-apply scale + layout fix when host width changes (warm → visible, rotation).
+  // Inject only — never WebView.reload(). Viewport skip-if-same avoids GWT soft-reflow spam.
   useEffect(() => {
     webRef.current?.injectJavaScript(`${viewportInject}${layoutFixInject}true;`);
   }, [viewportInject, layoutFixInject]);
