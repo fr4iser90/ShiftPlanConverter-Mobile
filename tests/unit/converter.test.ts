@@ -48,6 +48,23 @@ describe('St. Elisabeth parser', () => {
     expect(exact.inferred).toBe(false);
     expect(exact.isValidated).toBe(true);
   });
+
+  it('parses KRANK and KROAU as all-day specials', () => {
+    const text = [
+      'Abrechnungsmonat 07/2026',
+      '24 Fr KROAU Krank ohne Schein (Karenztag) 7,45 7,45 4,24 7,45 3,21 30,14',
+      '25 Sa KRANK',
+      '26 So KR',
+    ].join('\n');
+    const parsed = parseStElisabeth(text);
+    expect(parsed.mainEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'KROAU', date: '2026-07-24', allDay: true }),
+        expect.objectContaining({ type: 'KRANK', date: '2026-07-25', allDay: true }),
+        expect.objectContaining({ type: 'KRANK', date: '2026-07-26', allDay: true }),
+      ])
+    );
+  });
 });
 
 describe('ICS generator', () => {

@@ -40,7 +40,8 @@ export function parseStElisabeth(text: string): ParseResult {
   const shiftRegex =
     /^\s*(\d{2})\s+\S+\s+KO\*\s+(\d{2}:\d{2})\s+GE\*\s+(\d{2}:\d{2})(?:\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([+-]?[\d,]+)\s+([\d,]+))?/;
   const vacationRegex = /^\s*(\d{2})\s+\S+\s+(URLTV|URLAUB)\b/i;
-  const krankRegex = /^\s*(\d{2})\s+\S+\s+(KRANK|KR)\b/i;
+  /** KRANK / KR = sick; KROAU = Krank ohne Schein (Karenztag). */
+  const krankRegex = /^\s*(\d{2})\s+\S+\s+(KROAU|KRANK|KR)\b/i;
   const holidayRegex = /^\s*(\d{2})\s+\S+\s+FEIER/i;
   const onCallBereitschaftRegex =
     /^\s*(\d{2}\.\d{2}\.\d{4})\s+.*?(\d{2}:\d{2})\s+(\d{2}:\d{2}).*?(\d+)\s+(\d+)\s+([\d,]+)\s*$/;
@@ -161,7 +162,9 @@ export function parseStElisabeth(text: string): ParseResult {
     } else if (krankMatch && currentYear && currentMonth) {
       const day = krankMatch[1];
       const date = `${currentYear}-${currentMonth.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      mainEntries.push({ type: 'KRANK', date, allDay: true, isSpecial: true });
+      const raw = String(krankMatch[2] || '').toUpperCase();
+      const type = raw === 'KR' ? 'KRANK' : raw; // KRANK | KROAU
+      mainEntries.push({ type, date, allDay: true, isSpecial: true });
     } else if (holidayMatch && currentYear && currentMonth) {
       const day = holidayMatch[1];
       const date = `${currentYear}-${currentMonth.padStart(2, '0')}-${day.padStart(2, '0')}`;

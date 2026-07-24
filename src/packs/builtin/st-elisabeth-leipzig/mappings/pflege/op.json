@@ -12,7 +12,11 @@
     "B38": "#dc2626",
     "MO": "#8b5cf6",
     "OP": "#f97316",
-    "OP-N": "#ea580c"
+    "OP-N": "#ea580c",
+    "URLAUB": "#a78bfa",
+    "KRANK": "#fb7185",
+    "KROAU": "#f43f5e",
+    "FEIERTAG": "#94a3b8"
   },
   "presets": {
     "Anästhesie": {
