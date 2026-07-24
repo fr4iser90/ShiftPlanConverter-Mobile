@@ -3,49 +3,55 @@ import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { ShiftEntry } from '../convert/types';
-import { formatDeDate } from '../calendar/dates';
-import { findNextShift, formatShiftLine } from '../calendar/shifts';
-import { NextShiftWidget, NEXT_SHIFT_WIDGET, type NextShiftWidgetData } from './NextShiftWidget';
+import {
+  getLastSuccessfulFetchAt,
+  isSyncOverdue,
+  loadSchedulePrefs,
+} from '../schedule/prefs';
+import { buildNextShiftData, buildWeekPlanData } from './data';
+import { NextShiftWidget, NEXT_SHIFT_WIDGET } from './NextShiftWidget';
+import { resolveWidgetScheme } from './prefs';
+import { WeekPlanWidget, WEEK_PLAN_WIDGET } from './WeekPlanWidget';
 
 const ENTRIES_KEY = 'loga3.entries';
 
-async function loadWidgetData(): Promise<NextShiftWidgetData> {
+async function loadEntries(): Promise<ShiftEntry[]> {
   try {
     const raw = await AsyncStorage.getItem(ENTRIES_KEY);
-    const entries = (raw ? JSON.parse(raw) : []) as ShiftEntry[];
-    const next = findNextShift(entries);
-    if (!next) {
-      return {
-        empty: true,
-        title: 'Keine Schichten',
-        subtitle: 'In der App aktualisieren',
-      };
-    }
-    return {
-      empty: false,
-      title: formatShiftLine(next),
-      subtitle: formatDeDate(next.date),
-    };
+    return (raw ? JSON.parse(raw) : []) as ShiftEntry[];
   } catch {
-    return {
-      empty: true,
-      title: 'LOGA3',
-      subtitle: 'App öffnen',
-    };
+    return [];
   }
 }
 
+async function syncBadge(): Promise<string | null> {
+  const prefs = await loadSchedulePrefs();
+  if (!prefs.widgetBadge) return null;
+  const last = await getLastSuccessfulFetchAt();
+  if (!isSyncOverdue(prefs, last)) return null;
+  return 'Sync fällig — App öffnen';
+}
+
+const UPDATE_ACTIONS = new Set([
+  'WIDGET_ADDED',
+  'WIDGET_UPDATE',
+  'WIDGET_RESIZED',
+  'WIDGET_CLICK',
+]);
+
 export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<void> {
   const { widgetInfo, widgetAction, renderWidget } = props;
-  if (widgetInfo.widgetName !== NEXT_SHIFT_WIDGET) return;
+  if (!UPDATE_ACTIONS.has(widgetAction)) return;
 
-  if (
-    widgetAction === 'WIDGET_ADDED' ||
-    widgetAction === 'WIDGET_UPDATE' ||
-    widgetAction === 'WIDGET_RESIZED' ||
-    widgetAction === 'WIDGET_CLICK'
-  ) {
-    const data = await loadWidgetData();
-    renderWidget(<NextShiftWidget {...data} />);
+  const entries = await loadEntries();
+  const scheme = await resolveWidgetScheme();
+  const badge = await syncBadge();
+
+  if (widgetInfo.widgetName === NEXT_SHIFT_WIDGET) {
+    renderWidget(<NextShiftWidget {...buildNextShiftData(entries, scheme, new Date(), badge)} />);
+    return;
+  }
+  if (widgetInfo.widgetName === WEEK_PLAN_WIDGET) {
+    renderWidget(<WeekPlanWidget {...buildWeekPlanData(entries, scheme, new Date(), badge)} />);
   }
 }

@@ -29,6 +29,17 @@ if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'react-native-android
           previewImage: './assets/images/icon.png',
           updatePeriodMillis: 1800000,
         },
+        {
+          name: 'WeekPlan',
+          label: 'LOGA3 diese Woche',
+          description: 'Wochenübersicht der Schichten (Mo–So)',
+          minWidth: '320dp',
+          minHeight: '120dp',
+          targetCellWidth: 4,
+          targetCellHeight: 2,
+          previewImage: './assets/images/icon.png',
+          updatePeriodMillis: 1800000,
+        },
       ],
     },
   ]);

@@ -29,6 +29,11 @@ import {
   setMatrixStatus,
 } from '@/src/setup/smokeFetchIntent';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '@/src/state/quickPrefs';
+import {
+  getLastSuccessfulFetchAt,
+  isSyncOverdue,
+  loadSchedulePrefs,
+} from '@/src/schedule/prefs';
 import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
@@ -182,6 +187,7 @@ export default function FetchScreen() {
   const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void }>(null);
   const bridgeRef = useRef(new AutomationBridge());
   const readyRef = useRef(false);
+  const schedulePromptedRef = useRef(false);
   const snap = getSnapshot();
 
   useEffect(() => {
@@ -228,12 +234,6 @@ export default function FetchScreen() {
     if (await peekSmokeFetchIntent()) return;
     router.push(SETUP_HREF);
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void refreshSetup();
-    }, [refreshSetup])
-  );
 
   const packMapping = useMemo(() => {
     if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
@@ -475,6 +475,30 @@ export default function FetchScreen() {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      void refreshSetup();
+      void (async () => {
+        if (busy || schedulePromptedRef.current) return;
+        const prefs = await loadSchedulePrefs();
+        if (!prefs.promptOnOpen || prefs.intervalDays <= 0) return;
+        const last = await getLastSuccessfulFetchAt();
+        if (!isSyncOverdue(prefs, last)) return;
+        schedulePromptedRef.current = true;
+        Alert.alert(t('schedulePromptTitle'), t('schedulePromptBody'), [
+          { text: t('schedulePromptNo'), style: 'cancel' },
+          {
+            text: t('schedulePromptYes'),
+            onPress: () => {
+              void onQuickUpdate();
+            },
+          },
+        ]);
+      })();
+    }, [refreshSetup, busy, setup, creds, quickPrefs])
+  );
+;
+
   const onFetchSelected = async () => {
     if (!setup?.complete || !creds) {
       Alert.alert(t('setupTitle'), t('setupIncomplete'));
@@ -489,7 +513,6 @@ export default function FetchScreen() {
     setBusy(true);
     setShowWeb(true);
     setStatus(t('webViewStarting'));
-    // eslint-disable-next-line no-console
     console.log(
       `MATRIX_FETCH_START months=${selectedMonths.join(',')} year=${year} layoutW=${webHostWidth}`
     );
@@ -611,7 +634,6 @@ export default function FetchScreen() {
       cancelled = true;
       clearInterval(iv);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!setup) {

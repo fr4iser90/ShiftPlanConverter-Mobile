@@ -32,11 +32,13 @@ src/
   convert/                # Port of desktop converter/
   packs/
   sync/                   # ICS share, google.ts
+  widget/                 # Android home widgets (next shift + week)
   support/
   i18n/                   # de + en UI strings
 assets/ components/ constants/
 ```
 
+Security checklist: [security-audit.md](./security-audit.md).
 ## Fetch data flow
 
 1. Credentials from Secure Store → WebView session

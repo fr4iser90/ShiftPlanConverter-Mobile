@@ -25,7 +25,9 @@ import { clearCredentials } from '@/src/loga3/credentials';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   DESKTOP_GITHUB,
+  PROJECT_CHANGELOG,
   PROJECT_GITHUB,
+  PROJECT_RELEASES,
   PROJECT_WEBSITE,
   SUPPORT_EMAIL,
 } from '@/src/support/legal';
@@ -36,6 +38,24 @@ import {
   saveQuickPrefs,
   type QuickUpdatePrefs,
 } from '@/src/state/quickPrefs';
+import {
+  DEFAULT_SCHEDULE_PREFS,
+  formatScheduleSummary,
+  getLastSuccessfulFetchAt,
+  isSyncOverdue,
+  loadSchedulePrefs,
+  saveSchedulePrefs,
+  type SchedulePrefs,
+} from '@/src/schedule/prefs';
+import { checkGithubLatestRelease } from '@/src/update/githubRelease';
+import {
+  DEFAULT_WIDGET_PREFS,
+  loadWidgetPrefs,
+  saveWidgetPrefs,
+  type WidgetPrefs,
+  type WidgetThemePref,
+} from '@/src/widget/prefs';
+import { refreshHomeWidgets } from '@/src/widget/refresh';
 import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
@@ -89,6 +109,12 @@ export default function SettingsScreen() {
   const [, setTick] = useState(0);
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [quick, setQuick] = useState<QuickUpdatePrefs>(DEFAULT_QUICK_PREFS);
+  const [schedule, setSchedule] = useState<SchedulePrefs>(DEFAULT_SCHEDULE_PREFS);
+  const [syncStatus, setSyncStatus] = useState<string>('');
+  const [widgetPrefs, setWidgetPrefs] = useState<WidgetPrefs>(DEFAULT_WIDGET_PREFS);
+  const [updateLine, setUpdateLine] = useState<string>('');
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateUrl, setUpdateUrl] = useState<string | null>(null);
   const snap = getSnapshot();
   const version = Constants.expoConfig?.version || '0.1.1';
 
@@ -96,7 +122,56 @@ export default function SettingsScreen() {
   useEffect(() => {
     void getSetupStatus().then(setSetup);
     void loadQuickPrefs().then(setQuick);
+    void loadWidgetPrefs().then(setWidgetPrefs);
+    void (async () => {
+      const prefs = await loadSchedulePrefs();
+      setSchedule(prefs);
+      const last = await getLastSuccessfulFetchAt();
+      setSyncStatus(
+        isSyncOverdue(prefs, last) ? t('scheduleOverdue') : t('scheduleOk')
+      );
+    })();
   }, []);
+
+  const patchQuick = async (patch: Partial<QuickUpdatePrefs>) => {
+    const next = await saveQuickPrefs(patch);
+    setQuick(next);
+  };
+
+  const patchSchedule = async (patch: Partial<SchedulePrefs>) => {
+    const next = await saveSchedulePrefs(patch);
+    setSchedule(next);
+    const last = await getLastSuccessfulFetchAt();
+    setSyncStatus(isSyncOverdue(next, last) ? t('scheduleOverdue') : t('scheduleOk'));
+    void refreshHomeWidgets(snap.entries);
+  };
+
+  const patchWidgetTheme = async (themePref: WidgetThemePref) => {
+    const next = await saveWidgetPrefs({ theme: themePref });
+    setWidgetPrefs(next);
+    void refreshHomeWidgets(snap.entries);
+  };
+
+  const onCheckUpdate = async () => {
+    setUpdateBusy(true);
+    setUpdateLine(t('appUpdateChecking'));
+    setUpdateUrl(null);
+    try {
+      const r = await checkGithubLatestRelease();
+      if (r.status === 'up_to_date') {
+        setUpdateLine(t('appUpdateLatest', { latest: r.latest }));
+      } else if (r.status === 'update_available') {
+        setUpdateLine(t('appUpdateAvailable', { latest: r.latest }));
+        setUpdateUrl(r.htmlUrl);
+      } else if (r.status === 'no_release') {
+        setUpdateLine(t('appUpdateNone'));
+      } else {
+        setUpdateLine(t('appUpdateError', { error: r.message }));
+      }
+    } finally {
+      setUpdateBusy(false);
+    }
+  };
 
   const supportText = useMemo(() => {
     if (!snap.rawText) return '(kein Rohtext — zuerst Fixture/PDF konvertieren)';
@@ -107,11 +182,6 @@ export default function SettingsScreen() {
     () => formatMonthWindow(buildMonthWindow(quick.prevMonths, quick.nextMonths)),
     [quick.prevMonths, quick.nextMonths]
   );
-
-  const patchQuick = async (patch: Partial<QuickUpdatePrefs>) => {
-    const next = await saveQuickPrefs(patch);
-    setQuick(next);
-  };
 
   const openUrl = async (url: string) => {
     try {
@@ -187,6 +257,109 @@ export default function SettingsScreen() {
             thumbColor="#fff"
           />
         </View>
+      </AppCard>
+
+      <AppCard>
+        <SectionTitle>{t('scheduleSection')}</SectionTitle>
+        <Meta>{t('scheduleHint')}</Meta>
+        <Text style={styles.window}>
+          {formatScheduleSummary(schedule, snap.locale === 'en' ? 'en' : 'de')}
+        </Text>
+        <Text style={styles.stepperLabel}>{syncStatus}</Text>
+        <Stepper
+          label={t('scheduleInterval')}
+          value={schedule.intervalDays}
+          onChange={(n) => void patchSchedule({ intervalDays: n })}
+          styles={styles}
+          max={30}
+        />
+        <Stepper
+          label={t('scheduleHour')}
+          value={schedule.preferredHour}
+          onChange={(n) => void patchSchedule({ preferredHour: n })}
+          styles={styles}
+          max={23}
+        />
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{t('scheduleNotify')}</Text>
+          <Switch
+            value={schedule.notifyEnabled}
+            onValueChange={(v) => void patchSchedule({ notifyEnabled: v })}
+            trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+            thumbColor="#fff"
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{t('schedulePrompt')}</Text>
+          <Switch
+            value={schedule.promptOnOpen}
+            onValueChange={(v) => void patchSchedule({ promptOnOpen: v })}
+            trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+            thumbColor="#fff"
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{t('scheduleWidgetBadge')}</Text>
+          <Switch
+            value={schedule.widgetBadge}
+            onValueChange={(v) => void patchSchedule({ widgetBadge: v })}
+            trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+            thumbColor="#fff"
+          />
+        </View>
+      </AppCard>
+
+      <AppCard>
+        <SectionTitle>{t('widgetSection')}</SectionTitle>
+        <Meta>{t('widgetSectionHint')}</Meta>
+        <Text style={styles.stepperLabel}>{t('widgetTheme')}</Text>
+        <View style={styles.row}>
+          {(
+            [
+              ['system', 'widgetThemeSystem'],
+              ['light', 'widgetThemeLight'],
+              ['dark', 'widgetThemeDark'],
+            ] as const
+          ).map(([pref, labelKey]) => (
+            <AppButton
+              key={pref}
+              compact
+              title={t(labelKey)}
+              variant={widgetPrefs.theme === pref ? 'soft' : 'secondary'}
+              onPress={() => void patchWidgetTheme(pref)}
+            />
+          ))}
+        </View>
+      </AppCard>
+
+      <AppCard>
+        <SectionTitle>{t('appUpdateSection')}</SectionTitle>
+        <Meta>{t('appUpdateHint')}</Meta>
+        <Text style={styles.contact}>{t('appUpdateVersion', { version })}</Text>
+        {updateLine ? <Meta>{updateLine}</Meta> : null}
+        <AppButton
+          title={t('appUpdateCheck')}
+          onPress={() => void onCheckUpdate()}
+          busy={updateBusy}
+          disabled={updateBusy}
+        />
+        {updateUrl ? (
+          <AppButton
+            title={t('appUpdateOpenRelease')}
+            variant="soft"
+            onPress={() => void openUrl(updateUrl)}
+          />
+        ) : null}
+        <AppButton
+          title={t('appUpdateChangelog')}
+          variant="secondary"
+          onPress={() => void openUrl(PROJECT_CHANGELOG)}
+        />
+        <AppButton
+          title={t('legalGithub')}
+          variant="ghost"
+          onPress={() => void openUrl(PROJECT_RELEASES)}
+        />
       </AppCard>
 
       <AppCard>
@@ -267,11 +440,13 @@ function Stepper({
   value,
   onChange,
   styles,
+  max = 6,
 }: {
   label: string;
   value: number;
   onChange: (n: number) => void;
   styles: SettingsStyles;
+  max?: number;
 }) {
   return (
     <View style={styles.stepper}>
@@ -279,7 +454,12 @@ function Stepper({
       <View style={styles.row}>
         <AppButton compact title="−" variant="secondary" onPress={() => onChange(Math.max(0, value - 1))} />
         <Text style={styles.stepperVal}>{value}</Text>
-        <AppButton compact title="+" variant="secondary" onPress={() => onChange(Math.min(6, value + 1))} />
+        <AppButton
+          compact
+          title="+"
+          variant="secondary"
+          onPress={() => onChange(Math.min(max, value + 1))}
+        />
       </View>
     </View>
   );

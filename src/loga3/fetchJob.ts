@@ -6,6 +6,8 @@ import type { MonthSummary, ShiftEntry } from '../convert/types';
 import { MONTH_LABELS_DE, validatePdfPeriod } from './contentGate';
 import { base64ToArrayBuffer, deletePdfFile, savePdfBase64 } from './pdfStore';
 import { getSnapshot, setEntries } from '../state/store';
+import { markSuccessfulFetch } from '../schedule/prefs';
+import { refreshHomeWidgets } from '../widget/refresh';
 import { getMappingForScope } from '../packs';
 import { waitForCondition, WaitTimeoutError } from './wait';
 import { clearGateTraces, writeGateTrace } from './gateTrace';
@@ -692,6 +694,8 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       summary: summaries[summaries.length - 1] || null,
     });
     result.entries = unique;
+    await markSuccessfulFetch();
+    void refreshHomeWidgets(unique);
   }
 
   if (!result.entries.length && result.errors.length) {

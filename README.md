@@ -1,18 +1,55 @@
 # LOGA3 Automation Mobile
 
-Android & iOS app — **the same feature set as the desktop app**, running on-device.
+Android & iOS app — **the same idea as the desktop app**, running fully **on-device**.
 
-**Desktop reference:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)
+**Desktop reference:** [LOGA3-Automation](https://github.com/fr4iser90/LOGA3-Automation)  
+**What / why / for users (DE):** [docs/nutzerhandbuch.md](./docs/nutzerhandbuch.md) · [docs/user-guide.md](./docs/user-guide.md)  
+**GitHub APK releases & changelog process:** [docs/releases.md](./docs/releases.md)
 
 ## Features
 
-1. LOGA3 login (credentials in Secure Store)
-2. One-tap **Update** (month window → fetch → optional Google sync / ICS offer)
-3. Parse PDF/text → **week / month / list** calendar preview
-4. Export `.ics` (share sheet) + Google Calendar sync (pluggable export targets)
-5. Android home-screen widget: next shift
+| Area | What it does |
+|------|----------------|
+| **Setup** | Tenant URL + LOGA3 login (**Secure Store**) + employer **pack** (parser/colors). Optional Google connect. |
+| **Holen (Fetch)** | In-app **WebView** drives LOGA3 like desktop Playwright (no public shift API): Zeiten → month → Zeitprotokoll **PDF** → parse → shifts. One-tap window or selected months. |
+| **Kalender** | Week / month / list preview; collapsible AZK / carry-over summary; pack colors + missing-code mapping. |
+| **Export** | **ICS** share sheet (Apple, Outlook, Nextcloud, …) and optional **Google Calendar** sync to a dedicated calendar. |
+| **Widgets** | Android: next shift + this week; theme in Settings. |
+| **Einstellungen** | Month window, Google/ICS prefs, widget theme, **Check for updates** → GitHub Releases + Changelog. |
 
-Playwright replacement: **in-app WebView** + injected JS — see [docs/webview-fetch.md](./docs/webview-fetch.md).
+Playwright replacement details: [docs/webview-fetch.md](./docs/webview-fetch.md).
+
+### Calendar providers
+
+- **Today:** ICS (universal) + Google OAuth sync.  
+- **Not first:** Outlook Graph, Apple EventKit, CalDAV — high cost; ICS already covers most. See handbook §6 / [releases.md](./docs/releases.md) §5.
+
+## Status (experimental)
+
+**Not production-ready for arbitrary LOGA3 tenants.** Validated live so far for **one employer (AG) + one occupational group / pack**. Other hospitals, groups, or PEP layouts can differ in DOM, PDF export, and time mappings — treat those as untested until a pack exists and Holen passes there.
+
+| Area | Today | Needed |
+|------|--------|--------|
+| Holen / parse / ICS / Google sync | Works on the tested pack; resolution matrix covers common phone/tablet sizes for that UI path | More AG/group packs + live checks |
+| Viewports | Same WebView + layout fix for all sizes; matrix ≠ “every AG works” | Spot-check real devices after matrix PASS |
+| Security | Creds in Secure Store; PDFs/entries on-device; no our-server upload | Independent review — checklist: [docs/security-audit.md](./docs/security-audit.md) |
+| Widget | Next shift + week plan; theme in Settings | Native rebuild after adding WeekPlan widget |
+| App updates | Manual via GitHub Releases (Settings links) | Optional latest-release API badge later |
+
+Roadmap ideas (not committed): more customizable preview (colors, density), pack authoring for other AGs, GitHub Action that attaches EAS APK to a release tag.
+
+## CI & supply chain
+
+GitHub Actions runs on push/PR: `npm ci` → typecheck → jest → `npm audit --audit-level=high`.  
+Dependabot opens weekly npm update PRs. Details: [docs/ci-and-supply-chain.md](./docs/ci-and-supply-chain.md).
+
+Local pre-commit (once per clone):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Blocks staging `.env` / `node_modules` / keystores; if `package-lock.json` is staged, runs a high+ audit. **CI is still required** — hooks can be skipped with `--no-verify`.
 
 ## Requirements
 
@@ -139,7 +176,13 @@ docs/                # Architecture & handoff
 
 | File | Content |
 |------|---------|
+| [docs/nutzerhandbuch.md](./docs/nutzerhandbuch.md) | Nutzer: Features, WebView, Creds, Kalender, Updates (DE) |
+| [docs/user-guide.md](./docs/user-guide.md) | Same overview (EN) |
+| [docs/releases.md](./docs/releases.md) | GitHub APK, changelog rules, Settings update |
+| [docs/ci-and-supply-chain.md](./docs/ci-and-supply-chain.md) | CI, Dependabot, pre-commit, lockfile hygiene |
+| [docs/schedule-and-updates.md](./docs/schedule-and-updates.md) | Update-Check, Sync-Erinnerung, Hintergrund-Grenzen |
 | [PLAN.md](./PLAN.md) | Phases / definition of done |
+| [docs/security-audit.md](./docs/security-audit.md) | Security checklist (pre-distribution) |
 | [docs/architecture.md](./docs/architecture.md) | Architecture |
 | [docs/webview-fetch.md](./docs/webview-fetch.md) | WebView vs desktop |
 | [docs/google-oauth-android.md](./docs/google-oauth-android.md) | Android Google Sign-In |

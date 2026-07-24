@@ -1,0 +1,149 @@
+{
+  "bandit": {
+    "accepted_findings": [
+      {
+        "rule_id": "B108",
+        "path_regex": "^tests/e2e/",
+        "message_regex": "Probable insecure usage of temp file/directory",
+        "reason": "False positive. Local developer/CI e2e harness only: fixed paths under /tmp/loga3-shots and /tmp/loga3-smoke-creds.env for screenshots and optional smoke creds. Not shipped in the app binary; no attacker-controlled temp path."
+      },
+      {
+        "rule_id": "B310",
+        "path_regex": "^tests/e2e/viewport-ab-cdp\\.py$",
+        "message_regex": "Audit url open for permitted schemes",
+        "reason": "False positive. urllib.request.urlopen is hard-coded to http://127.0.0.1:<CDP_PORT>/json/list for Android WebView CDP during local debugging. No remote or file: URL from untrusted input."
+      },
+      {
+        "rule_id": "B404",
+        "path_regex": "^tests/e2e/",
+        "message_regex": "subprocess module",
+        "reason": "False positive. E2E scripts intentionally import subprocess to invoke the local adb binary with argv lists (no shell). Dev/CI tooling only; not app runtime code."
+      },
+      {
+        "rule_id": "B603",
+        "path_regex": "^tests/e2e/",
+        "message_regex": "subprocess call - check for execution of untrusted input",
+        "reason": "False positive. subprocess.run/check_output use fixed adb + literal argument arrays (screencap, shell dumpsys, etc.). No shell=True and no untrusted user argv."
+      },
+      {
+        "rule_id": "B101",
+        "path_regex": "^tests/e2e/",
+        "message_regex": "Use of assert detected",
+        "reason": "False positive. assert is used as test/smoke postconditions in e2e scripts, not production app code. Optimized bytecode stripping is irrelevant for these developer runners."
+      },
+      {
+        "rule_id": "B110",
+        "path_regex": "^tests/e2e/",
+        "message_regex": "Try, Except, Pass detected",
+        "reason": "False positive. Narrow best-effort cleanup in e2e (ignore missing files/UI nodes). Failures are still raised on the main smoke path; silence is intentional for teardown only."
+      },
+      {
+        "rule_id": "B311",
+        "path_regex": "^tests/e2e/live-smoke-matrix\\.py$",
+        "message_regex": "Standard pseudo-random generators are not suitable for security/cryptographic purposes",
+        "reason": "False positive. random.sample only picks two extra calendar months for matrix coverage. Not used for secrets, tokens, or crypto."
+      }
+    ]
+  },
+  "npm_audit": {
+    "accepted_findings": [
+      {
+        "rule_id": "uuid",
+        "path_regex": "node_modules/uuid",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk (transitive). uuid@7 comes via xcode → @expo/config-plugins (EAS/prebuild tooling). App source does not import uuid. GHSA/CVE concerns v3/v5/v6 with caller-supplied buffers; that API is not used by our runtime. Revisit when Expo bumps xcode/uuid."
+      },
+      {
+        "rule_id": "xcode",
+        "path_regex": "node_modules/xcode",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Build-time iOS project helper; advisory is inherited from uuid. Not present in the Android/iOS app runtime JS bundle path for Holen/sync."
+      },
+      {
+        "rule_id": "@expo/config-plugins",
+        "path_regex": "node_modules/@expo/config-plugins",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Advisory chain only via xcode→uuid (build/config plugins). No direct runtime exploit path in the mobile app."
+      },
+      {
+        "rule_id": "@expo/config",
+        "path_regex": "node_modules/@expo/config",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Transitive advisory via @expo/config-plugins → xcode → uuid. Dev/prebuild surface only."
+      },
+      {
+        "rule_id": "@expo/inline-modules",
+        "path_regex": "node_modules/@expo/inline-modules",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Transitive Expo CLI packaging dep; same uuid chain."
+      },
+      {
+        "rule_id": "@expo/local-build-cache-provider",
+        "path_regex": "node_modules/@expo/local-build-cache-provider",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Transitive Expo build-cache dep; same uuid chain."
+      },
+      {
+        "rule_id": "@expo/metro-config",
+        "path_regex": "node_modules/@expo/metro-config",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Metro/bundler config dependency; same uuid chain. Not an on-device vulnerability."
+      },
+      {
+        "rule_id": "@expo/prebuild-config",
+        "path_regex": "node_modules/@expo/prebuild-config",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Prebuild-time Expo config; same uuid chain."
+      },
+      {
+        "rule_id": "@expo/cli",
+        "path_regex": "node_modules/.*/@expo/cli",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Expo CLI (dev/build host), not shipped as app logic; advisory is transitive uuid via config-plugins."
+      },
+      {
+        "rule_id": "expo",
+        "path_regex": "node_modules/expo",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Framework package flagged only because it depends on the Expo config/CLI tree that pulls xcode→uuid. No app-code use of vulnerable uuid buffer APIs."
+      },
+      {
+        "rule_id": "expo-sharing",
+        "path_regex": "node_modules/expo-sharing",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Plugin dependency on @expo/config-plugins; share sheet itself does not invoke uuid v3/v5/v6 buffer writes."
+      },
+      {
+        "rule_id": "expo-splash-screen",
+        "path_regex": "node_modules/expo-splash-screen",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Config-plugin transitive only; splash screen has no uuid buffer API usage."
+      },
+      {
+        "rule_id": "@react-native-google-signin/google-signin",
+        "path_regex": "node_modules/@react-native-google-signin/google-signin",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Flagged only via parent expo advisory chain (uuid). Downgrading to 8.x as npm suggests would be a breaking change unrelated to Google Sign-In security."
+      },
+      {
+        "rule_id": "react-native-android-widget",
+        "path_regex": "node_modules/react-native-android-widget",
+        "message_regex": ".*",
+        "reason": "Accepted residual risk. Flagged only via peer/parent expo advisory chain (uuid). Widget code does not use uuid."
+      }
+    ]
+  },
+  "owasp_dc": {
+    "accepted_findings": [
+      {
+        "rule_id": "GHSA-w5hq-g745-h8pq",
+        "path_regex": ".*uuid.*",
+        "message_regex": ".*buffer bounds|v3\\(\\)|v5\\(\\)|v6\\(\\)|UUID.*",
+        "reason": "Accepted residual risk. Transitive uuid@7.0.3 via xcode (Expo config-plugins). Application code never imports uuid; vulnerable pattern requires caller-provided buf/offset to v3/v5/v6. Build-tool only until upstream Expo/xcode bumps uuid. Tracked in docs/security-audit.md follow-ups."
+      }
+    ]
+  },
+  "semgrep": {
+    "accepted_findings": []
+  }
+}

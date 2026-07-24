@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.4 — 2026-07-24
+
+### Added
+- Nutzerhandbuch / user guide + [docs/releases.md](./docs/releases.md) (GitHub-APK, Changelog-Pflicht)
+- Settings: GitHub **Update-Check** (`releases/latest`) + Changelog-Links
+- Settings: **Sync-Erinnerung** (Intervall, Stunde, Notification, Prompt beim Öffnen, Widget-Badge)
+- [docs/schedule-and-updates.md](./docs/schedule-and-updates.md) — Grenzen Hintergrund-Holen
+- System light/dark theme for product UI; status bar follows canvas
+- Calendar: week / month / list chips; AZK monatsübersicht collapsible below
+- Android widgets: polished next-shift + **Diese Woche**; widget theme in Settings
+- Security audit checklist + scanner finding policy (`.scanning/`)
+
+### Changed
+- Holen reliability (layout fix, waits); auto-navigate to Kalender after successful fetch
+- README features table (WebView / creds / ICS vs Google explained)
+
 ## 0.1.2 — 2026-07-23
 
 ### Added
