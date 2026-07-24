@@ -28,10 +28,12 @@ Mobile: WebView + injected JS + `fetchJob.ts`.
 
 ## Gates
 
+Full step matrix (action → wait → validation): [docs/fetch-steps.md](./fetch-steps.md).
+
 Orchestration in `fetchJob.ts` via `waitForCondition` (`src/loga3/wait.ts`):
 
-1. Login form → submit → shell (`assertLoggedIn`)
-2. One `clickZeiten` → wait `#ZeitdatenMonthPicker` (max 1 recovery)
+1. Login form → submit → **shell** (`assertShellReady`: Öffnen / Zeiten / Picker — not splash)
+2. **`clickOeffnen`** (desktop) → wait `#ZeitdatenMonthPicker` (Zeiten = fallback only)
 3. `selectMonth` once → wait calendar header
 4. Content gate (verify; optional grid reload)
 5. Time-sheet dialog (billing month; max 1 re-open)
@@ -39,17 +41,38 @@ Orchestration in `fetchJob.ts` via `waitForCondition` (`src/loga3/wait.ts`):
 
 No sleep/retry spam (no 20–30 blind attempts).
 
-## Emulator smoke (2026-07-22)
+## Resolution matrix (Phone + Tablet)
 
-- Parallel desktop check: `loga3 fetch --months 2026-07` → `juli_2026.pdf` ok
-- Mobile: viewport override **`wm size 1280x800`** (physical 320×640 breaks GWT/SmartThings — dialog never appears)
-- WebView: desktop UA + viewport `width=1280`
-- Flow: Fetch → select 07/2026 → Fetch selected → login → Zeiten → Export → Zeitprotokoll → download → PDF bytes → convert
-- Result: **Done — 14 shifts · 1 PDF(s)**; multi-month 06+07/2026 → **28 shifts · 2 PDFs**
+Validate Live-Fetch on **every** common size — including tablets — before claiming DoD:
 
-### Resolution note
+| id | Size | Density | Role |
+|----|------|---------|------|
+| compact | 720×1280 | 320 | small phone |
+| common | 1080×2400 | 420 | mid-range / Moto-like |
+| tall | 1080×2340 | 400 | 19.5:9 |
+| large | 1440×3200 | 560 | high-end phone |
+| tablet | 1200×1920 | 240 | 7–8″ |
+| tablet_10 | 1600×2560 | 320 | ~10″ |
 
-Tiny AVD (320×640) is unsuitable for LOGA3/GWT. Aim for ~1280×720 (real `pixel_6` AVD or `adb shell wm size 1280x800`). Do not wipe credentials with `pm clear` unless intentional.
+```bash
+nix-shell --run 'python3 tests/e2e/live-smoke-matrix.py'
+```
+
+- Config: `tests/e2e/resolution-matrix.json`
+- Report + screenshots: `/tmp/loga3-shots/matrix/`
+- Per profile the script sets **that** size (`wm size`/`density` = matrix profile). That is intentional validation, **not** the old cheat of forcing 1280 so GWT always looks green.
+- After the run: display reset to AVD default.
+- Desktop LOGA3 still uses in-app CSS `width=1280` + scale (`Loga3WebView`).
+
+## Emulator smoke (historical)
+
+Older smokes (2026-07-22) used a hidden `wm size 1280x…` so the emulator passed while phones failed — **forbidden**. Use the matrix above instead.
+
+```bash
+nix-shell --run 'python3 tests/e2e/live-smoke-year-2026.py'   # year smoke; still no 1280-only cheat
+```
+
+Live DoD = matrix PASS (phones + tablets) **and** real phone spot-check.
 
 ## Configuration (per device)
 

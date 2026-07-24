@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
 
+function pingNextShiftWidget(entries: ShiftEntry[]): void {
+  void import('../widget/refresh')
+    .then((m) => m.refreshNextShiftWidget(entries))
+    .catch(() => {
+      // widget optional (tests / non-android)
+    });
+}
+
 const KEYS = {
   entries: 'loga3.entries',
   rawText: 'loga3.rawText',
@@ -113,6 +121,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
   }
   hydrated = true;
   notify();
+  pingNextShiftWidget(cache.entries);
   return cache;
 }
 
@@ -153,6 +162,7 @@ export async function setEntries(
     await AsyncStorage.setItem(KEYS.summaries, JSON.stringify(summaries));
   }
   notify();
+  pingNextShiftWidget(entries);
 }
 
 export async function setUserMappings(mappings: Record<string, string>): Promise<void> {

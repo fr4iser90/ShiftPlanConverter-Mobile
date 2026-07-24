@@ -36,7 +36,7 @@ Playwright-Ersatz: **eingebettete Browser-Engine (WebView) + JS-Steuerung von LO
 
 ### Phase A — Kern (wie Desktop)
 - [x] Login-UI → Session in WebView
-- [x] Monate wählen → PDFs laden (Live) — Emulator-Smoke 2026-07-22: Juli 2026 → 14 Schichten / 1 PDF (Viewport ≥1280)
+- [ ] Monate wählen → PDFs laden (Live) — re-validate without `wm size` cheat (natural AVD = phone); old 2026-07-22 smoke used artificial 1280 viewport
 - [x] Convert-Pipeline (Parser St. Elisabeth) → Preview *(Fixture + Live)*
 - [x] Mapping freigeschaltet / validiert; User-Mappings speicherbar
 - [x] Export `.ics` (Share Sheet)

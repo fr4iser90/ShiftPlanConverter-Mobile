@@ -49,5 +49,5 @@ result-*
 .idea/
 .vscode/
 *.swp
-
+tmp/
 .screenshots/

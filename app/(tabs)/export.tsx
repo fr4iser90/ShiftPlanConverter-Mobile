@@ -1,21 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { getSnapshot, subscribe } from '@/src/state/store';
+import {
+  getGoogleCalendarId,
+  getSnapshot,
+  setGoogleCalendarId,
+  subscribe,
+} from '@/src/state/store';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
 import { getMappingForScope } from '@/src/packs';
 import { shareIcsFile } from '@/src/sync/shareIcs';
 import {
   connectGoogle,
+  getGoogleAccountEmail,
+  hasGoogleSession,
   isPrimaryCalendar,
   listCalendars,
   preferredCalendarId,
+  restoreGoogleSession,
   syncEntriesToGoogle,
   type GoogleCalendar,
 } from '@/src/sync/google';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
 import { theme } from '@/src/ui/theme';
 
 export default function ExportScreen() {
@@ -25,8 +35,40 @@ export default function ExportScreen() {
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [primaryWarn, setPrimaryWarn] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
+
+  const hydrateGoogle = useCallback(async () => {
+    const storedCal = await getGoogleCalendarId();
+    if (storedCal) setCalendarId(storedCal);
+
+    const restored = hasGoogleSession() || (await restoreGoogleSession());
+    setGoogleEmail(getGoogleAccountEmail());
+    if (!restored) {
+      setCalendars([]);
+      return;
+    }
+    try {
+      const list = await listCalendars();
+      setCalendars(list);
+      const preferred = storedCal || (await preferredCalendarId(list));
+      if (preferred) {
+        setCalendarId(preferred);
+        if (!storedCal) await setGoogleCalendarId(preferred);
+      }
+      const selected = list.find((c) => c.id === preferred);
+      setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
+    } catch {
+      // keep stored calendar id
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void hydrateGoogle();
+    }, [hydrateGoogle])
+  );
 
   const resolvedEntries = () => {
     const mapping =
@@ -55,10 +97,12 @@ export default function ExportScreen() {
     try {
       setBusy(true);
       await connectGoogle();
+      setGoogleEmail(getGoogleAccountEmail());
       const list = await listCalendars();
       setCalendars(list);
       const preferred = await preferredCalendarId(list);
       setCalendarId(preferred);
+      if (preferred) await setGoogleCalendarId(preferred);
       const selected = list.find((c) => c.id === preferred);
       setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
       Alert.alert('Google', t('googleCalendarsLoaded', { count: list.length }));
@@ -76,6 +120,11 @@ export default function ExportScreen() {
     }
     try {
       setBusy(true);
+      if (!hasGoogleSession()) {
+        await restoreGoogleSession();
+        if (!hasGoogleSession()) await connectGoogle();
+        setGoogleEmail(getGoogleAccountEmail());
+      }
       const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
         richDetails: snap.richDetails,
       });
@@ -91,6 +140,9 @@ export default function ExportScreen() {
   };
 
   const hasEntries = snap.entries.length > 0;
+  const selectedSummary =
+    calendars.find((c) => c.id === calendarId)?.summary ||
+    (calendarId ? calendarId.split('@')[0] : null);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -116,8 +168,16 @@ export default function ExportScreen() {
       <AppCard>
         <SectionTitle>{t('exportGoogleSection')}</SectionTitle>
         <Meta>{t('exportGoogleHint')}</Meta>
+        {googleEmail ? (
+          <Text style={styles.connected}>{t('googleConnectedAs', { email: googleEmail })}</Text>
+        ) : null}
+        {selectedSummary && calendars.length === 0 ? (
+          <Text style={styles.connected}>
+            {t('googleCalendarSaved', { name: selectedSummary })}
+          </Text>
+        ) : null}
         <AppButton
-          title={t('googleConnect')}
+          title={googleEmail || calendarId ? t('googleReconnect') : t('googleConnect')}
           onPress={() => void onGoogleConnect()}
           disabled={busy}
           busy={busy}
@@ -129,24 +189,17 @@ export default function ExportScreen() {
           disabled={busy || !hasEntries || !calendarId}
         />
         {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
-        {calendars.length > 0 && (
-          <View style={styles.list}>
-            <Text style={styles.listTitle}>{t('pickCalendar')}</Text>
-            {calendars.map((c) => (
-              <AppButton
-                key={c.id}
-                compact
-                variant={calendarId === c.id ? 'soft' : 'secondary'}
-                title={`${c.summary}${c.primary ? ' (primary)' : ''}${
-                  calendarId === c.id ? ' ✓' : ''
-                }`}
-                onPress={() => {
-                  setCalendarId(c.id);
-                  setPrimaryWarn(isPrimaryCalendar(c));
-                }}
-              />
-            ))}
-          </View>
+        {(calendars.length > 0 || googleEmail) && (
+          <GoogleCalendarPicker
+            calendars={calendars}
+            calendarId={calendarId}
+            onChange={(list, id) => {
+              setCalendars(list);
+              setCalendarId(id);
+              const selected = list.find((c) => c.id === id);
+              setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
+            }}
+          />
         )}
       </AppCard>
     </ScrollView>
@@ -156,6 +209,10 @@ export default function ExportScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: theme.color.canvas },
   container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 40 },
+  connected: {
+    color: theme.color.inkSecondary,
+    fontSize: 13,
+  },
   warn: {
     marginTop: 4,
     color: theme.color.warn,
@@ -164,6 +221,4 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     fontSize: 12,
   },
-  list: { gap: 6, marginTop: 8 },
-  listTitle: { ...theme.type.caption, color: theme.color.inkSecondary, fontWeight: '600' },
 });

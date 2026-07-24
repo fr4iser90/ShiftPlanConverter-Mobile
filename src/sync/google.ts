@@ -273,6 +273,25 @@ export function isPrimaryCalendar(cal: GoogleCalendar): boolean {
   return !!cal.primary || cal.id === 'primary';
 }
 
+/** Create a secondary calendar (never the primary) — for shift sync. */
+export async function createGoogleCalendar(summary: string): Promise<GoogleCalendar> {
+  const name = summary.trim();
+  if (!name) throw new Error('Kalendername fehlt.');
+  const created = await gfetch('/calendars', {
+    method: 'POST',
+    body: JSON.stringify({
+      summary: name,
+      timeZone: 'Europe/Berlin',
+    }),
+  });
+  if (!created?.id) throw new Error('Kalender konnte nicht angelegt werden.');
+  return {
+    id: String(created.id),
+    summary: String(created.summary || name),
+    primary: false,
+  };
+}
+
 /** Wipe events in [timeMin, timeMax) — same strategy as Desktop. */
 async function deleteEventsInRange(
   calendarId: string,
@@ -362,7 +381,9 @@ export async function syncEntriesToGoogle(
 
 export async function preferredCalendarId(calendars: GoogleCalendar[]): Promise<string | null> {
   const stored = await getGoogleCalendarId();
-  if (stored && calendars.some((c) => c.id === stored)) return stored;
-  const nonPrimary = calendars.find((c) => !isPrimaryCalendar(c));
-  return nonPrimary?.id || calendars[0]?.id || null;
+  if (stored) {
+    const hit = calendars.find((c) => c.id === stored);
+    if (hit && !isPrimaryCalendar(hit)) return stored;
+  }
+  return calendars.find((c) => !isPrimaryCalendar(c))?.id || null;
 }

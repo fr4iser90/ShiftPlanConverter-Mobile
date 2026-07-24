@@ -13,6 +13,26 @@ const plugins = [...(appJson.expo.plugins || [])];
 if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === '@react-native-google-signin/google-signin')) {
   plugins.push('@react-native-google-signin/google-signin');
 }
+if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'react-native-android-widget')) {
+  plugins.push([
+    'react-native-android-widget',
+    {
+      widgets: [
+        {
+          name: 'NextShift',
+          label: 'LOGA3 nächste Schicht',
+          description: 'Zeigt die nächste Schicht aus dem Dienstplan',
+          minWidth: '250dp',
+          minHeight: '110dp',
+          targetCellWidth: 3,
+          targetCellHeight: 2,
+          previewImage: './assets/images/icon.png',
+          updatePeriodMillis: 1800000,
+        },
+      ],
+    },
+  ]);
+}
 
 module.exports = {
   expo: {

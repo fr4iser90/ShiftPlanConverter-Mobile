@@ -35,7 +35,7 @@ Scopes: Calendar + Calendar Events (requested by the app).
 ## SHA-1 for this repo keystore (debug = current release signing)
 
 ```bash
-nix-shell --run './scripts/google-sha1.sh'
+nix-shell --run './scripts/dev/google-sha1.sh'
 ```
 
 Current local `android/app/debug.keystore` (also used by `assembleRelease`):

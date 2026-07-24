@@ -13,6 +13,7 @@ import {
   BUILTIN_HOSPITAL_ID,
   BUILTIN_PRESET,
 } from '../packs';
+import { setSmokeFetchIntent, clearMatrixStatus, setMatrixStatus } from './smokeFetchIntent';
 
 export function isSmokeSetupUrl(url: string | null | undefined): boolean {
   if (!url) return false;
@@ -50,5 +51,29 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
     areaId: String(one('area') || BUILTIN_AREA_ID),
     preset: String(one('preset') || BUILTIN_PRESET),
   });
+
+  const monthsRaw = String(one('months') || '').trim();
+  const yearRaw = String(one('year') || '').trim();
+  const autofetch = /^(1|true)$/i.test(String(one('autofetch') || ''));
+  if (monthsRaw || autofetch) {
+    const months = monthsRaw
+      ? monthsRaw
+          .split(/[,;\s]+/)
+          .map((s) => parseInt(s, 10))
+          .filter((n) => n >= 1 && n <= 12)
+      : [new Date().getMonth() + 1];
+    const year = yearRaw ? parseInt(yearRaw, 10) : new Date().getFullYear();
+    await setSmokeFetchIntent({
+      months: months.length ? months : [new Date().getMonth() + 1],
+      year: Number.isFinite(year) ? year : new Date().getFullYear(),
+      autofetch,
+    });
+    await clearMatrixStatus();
+    const intentLine = `MATRIX_INTENT_SET months=${months.join(',')} year=${year} autofetch=${autofetch}`;
+    // eslint-disable-next-line no-console
+    console.warn(intentLine);
+    await setMatrixStatus(intentLine);
+  }
+
   return true;
 }

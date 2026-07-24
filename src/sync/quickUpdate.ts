@@ -3,9 +3,13 @@ import { AutomationBridge } from '../loga3/bridge';
 import { runFetchJob, type FetchJobResult } from '../loga3/fetchJob';
 import { resolveStoredEntries } from '../convert/pipeline';
 import { getMappingForScope } from '../packs';
-import { getGoogleCalendarId, getSnapshot } from '../state/store';
+import { getSnapshot } from '../state/store';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '../state/quickPrefs';
-import { ensureGoogleSession, syncEntriesToGoogle } from './google';
+import {
+  runEnabledOauthTargets,
+  shouldOfferIcs,
+  type TargetRunSummary,
+} from './targets';
 import {
   buildMonthWindow,
   formatMonthWindow,
@@ -17,11 +21,14 @@ export type QuickUpdateResult = {
   window: YearMonth[];
   windowLabel: string;
   fetch: FetchJobResult;
+  /** @deprecated use targets — kept for older UI strings */
   google: { skipped: boolean; reason?: string; created?: number; deleted?: number };
+  targets: TargetRunSummary[];
+  offerIcs: boolean;
 };
 
 /**
- * One-tap: fetch configurable month window, optionally Google-sync.
+ * One-tap: fetch configurable month window, then run enabled oauth export targets.
  */
 export async function runQuickUpdate(opts: {
   username: string;
@@ -79,40 +86,30 @@ export async function runQuickUpdate(opts: {
   const snap = getSnapshot();
   merged.entries = snap.entries;
 
-  const google: QuickUpdateResult['google'] = { skipped: true, reason: 'aus' };
-  if (!prefs.syncGoogle) {
-    google.reason = 'in Einstellungen aus';
-  } else {
-    const calId = await getGoogleCalendarId();
-    if (!calId) {
-      google.reason = 'kein Kalender gewählt (Setup/Export)';
-    } else {
-      try {
-        opts.onStatus?.('Google verbinden…');
-        await ensureGoogleSession();
-        opts.onStatus?.('Google Calendar sync…');
-        const mapping =
-          snap.hospitalId && snap.groupId && snap.areaId
-            ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
-            : undefined;
-        const entries = resolveStoredEntries(snap.entries, {
-          preset: snap.preset || undefined,
-          mapping,
-          userMappings: snap.userMappings,
-        });
-        const { created, deleted } = await syncEntriesToGoogle(entries, calId, {
-          richDetails: snap.richDetails,
-        });
-        google.skipped = false;
-        google.created = created;
-        google.deleted = deleted;
-        google.reason = undefined;
-      } catch (e) {
-        google.skipped = true;
-        google.reason = e instanceof Error ? e.message : String(e);
-      }
-    }
-  }
+  const mapping =
+    snap.hospitalId && snap.groupId && snap.areaId
+      ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+      : undefined;
+  const entries = resolveStoredEntries(snap.entries, {
+    preset: snap.preset || undefined,
+    mapping,
+    userMappings: snap.userMappings,
+  });
 
-  return { window, windowLabel, fetch: merged, google };
+  const targets = await runEnabledOauthTargets(entries, {
+    richDetails: snap.richDetails,
+    onStatus: opts.onStatus,
+  });
+
+  const googleRow = targets.find((r) => r.id === 'google');
+  const google = {
+    skipped: googleRow?.skipped ?? true,
+    reason: googleRow?.reason ?? '—',
+    created: googleRow?.created,
+    deleted: googleRow?.deleted,
+  };
+
+  const offerIcs = prefs.offerIcsAfterFetch && shouldOfferIcs(targets) && entries.length > 0;
+
+  return { window, windowLabel, fetch: merged, google, targets, offerIcs };
 }

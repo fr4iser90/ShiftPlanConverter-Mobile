@@ -1,5 +1,5 @@
 /**
- * Prefs for one-tap „Aktualisieren“ (current ± N months → fetch → optional Google).
+ * Prefs for one-tap „Aktualisieren“ (current ± N months → fetch → optional oauth targets).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -12,12 +12,15 @@ export type QuickUpdatePrefs = {
   nextMonths: number;
   /** After fetch, sync to Google if calendar configured. Default true. */
   syncGoogle: boolean;
+  /** After fetch, offer ICS share when no oauth sync ran. Default true. */
+  offerIcsAfterFetch: boolean;
 };
 
 export const DEFAULT_QUICK_PREFS: QuickUpdatePrefs = {
   prevMonths: 0,
   nextMonths: 2,
   syncGoogle: true,
+  offerIcsAfterFetch: true,
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(6, Math.round(Number(n) || 0)));
@@ -27,6 +30,7 @@ export function normalizeQuickPrefs(raw: Partial<QuickUpdatePrefs> | null | unde
     prevMonths: clamp(raw?.prevMonths ?? DEFAULT_QUICK_PREFS.prevMonths),
     nextMonths: clamp(raw?.nextMonths ?? DEFAULT_QUICK_PREFS.nextMonths),
     syncGoogle: raw?.syncGoogle !== false,
+    offerIcsAfterFetch: raw?.offerIcsAfterFetch !== false,
   };
 }
 

@@ -1,0 +1,56 @@
+{
+  "description": "Gängige Phone- + Tablet-Auflösungen. Erstes Profil = Moto G73 (1080x2400). Exakte wm-Größe Pflicht — kein Height-Clamp als PASS.",
+  "rule": "Never force 1280x800 only to make GWT pass. Each profile must reach exact target size (wm). Screenshots only under /tmp/loga3-shots/matrix/<id>/.",
+  "shots": "/tmp/loga3-shots/matrix/",
+  "profiles": [
+    {
+      "id": "moto_g73",
+      "label": "Moto G73 (1080×2400)",
+      "width": 1080,
+      "height": 2400,
+      "density": 400
+    },
+    {
+      "id": "compact",
+      "label": "kleines Phone 720×1280",
+      "width": 720,
+      "height": 1280,
+      "density": 320
+    },
+    {
+      "id": "common",
+      "label": "Mittelklasse 1080×2400",
+      "width": 1080,
+      "height": 2400,
+      "density": 420
+    },
+    {
+      "id": "tall",
+      "label": "modern 19.5:9 1080×2340",
+      "width": 1080,
+      "height": 2340,
+      "density": 400
+    },
+    {
+      "id": "large",
+      "label": "High-end 1440×3200",
+      "width": 1440,
+      "height": 3200,
+      "density": 560
+    },
+    {
+      "id": "tablet",
+      "label": "7–8″ Tablet 1200×1920",
+      "width": 1200,
+      "height": 1920,
+      "density": 240
+    },
+    {
+      "id": "tablet_10",
+      "label": "~10″ Tablet 1600×2560",
+      "width": 1600,
+      "height": 2560,
+      "density": 320
+    }
+  ]
+}

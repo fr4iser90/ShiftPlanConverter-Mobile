@@ -131,34 +131,65 @@ let
     exec npx expo run:android "$@"
   '';
 
+  # Stable AVD home — NEVER use nixpkgs run-test-emulator (mktemp → broken 320×640).
+  # Prefer pixel_6_phone (1080×2400@400 = Moto G73 class).
   runEmu = pkgs.writeShellScriptBin "loga3-emu" ''
     set -euo pipefail
     if [ ! -e /dev/kvm ]; then
       echo "Warnung: /dev/kvm fehlt — Emulator wird sehr langsam (oder scheitert)." >&2
     fi
-    export ANDROID_USER_HOME="''${ANDROID_USER_HOME:-$PWD/.android-nix}"
+    # Prefer pre-seeded phone AVD; fall back to project-local dir
+    if [ -z "''${ANDROID_USER_HOME:-}" ]; then
+      if [ -d "$HOME/.loga3-android/project-android-nix/avd/pixel_6_phone.avd" ]; then
+        export ANDROID_USER_HOME="$HOME/.loga3-android/project-android-nix"
+      else
+        export ANDROID_USER_HOME="$PWD/.android-nix"
+      fi
+    fi
     export ANDROID_AVD_HOME="''${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
     mkdir -p "$ANDROID_USER_HOME" "$ANDROID_AVD_HOME"
-    echo "→ Emulator starten (ANDROID_USER_HOME=$ANDROID_USER_HOME)"
-    # emulateApp liefert run-test-emulator
-    if command -v run-test-emulator >/dev/null 2>&1; then
-      nohup run-test-emulator >/tmp/loga3-emulator.log 2>&1 &
-      echo "Emulator im Hintergrund (PID $!). Log: /tmp/loga3-emulator.log"
-      echo "Warte auf adb…"
-      adb wait-for-device
-      adb devices
-    else
-      echo "run-test-emulator nicht im PATH (Plattform ohne Emulator-Support?)." >&2
+    AVD_NAME="''${LOGA3_AVD_NAME:-pixel_6_phone}"
+    if [ ! -d "$ANDROID_AVD_HOME/''${AVD_NAME}.avd" ]; then
+      AVD_NAME="pixel_6"
+    fi
+    if [ ! -d "$ANDROID_AVD_HOME/''${AVD_NAME}.avd" ]; then
+      echo "Kein AVD unter $ANDROID_AVD_HOME (erwartet pixel_6_phone oder pixel_6)." >&2
+      echo "Nicht run-test-emulator nutzen — das erzeugt Temp-AVDs mit 320×640." >&2
       exit 1
     fi
+    # Keep .ini path coherent
+    printf '%s\n' \
+      "avd.ini.encoding=UTF-8" \
+      "path=$ANDROID_AVD_HOME/''${AVD_NAME}.avd" \
+      "path.rel=avd/''${AVD_NAME}.avd" \
+      "target=android-34" >"$ANDROID_AVD_HOME/''${AVD_NAME}.ini"
+    if pgrep -f "qemu-system-x86_64.*-avd ''${AVD_NAME}" >/dev/null 2>&1; then
+      echo "→ Emulator @''${AVD_NAME} läuft schon"
+      adb devices || true
+      exit 0
+    fi
+    echo "→ Emulator @''${AVD_NAME} (ANDROID_USER_HOME=$ANDROID_USER_HOME)"
+    nohup "$ANDROID_SDK_ROOT/emulator/emulator" -avd "$AVD_NAME" -no-boot-anim -port 5554 \
+      >/tmp/loga3-emulator.log 2>&1 &
+    echo "PID $!  log=/tmp/loga3-emulator.log"
+    adb wait-for-device
+    adb devices
   '';
 
   runEmuFg = pkgs.writeShellScriptBin "loga3-emu-fg" ''
     set -euo pipefail
-    export ANDROID_USER_HOME="''${ANDROID_USER_HOME:-$PWD/.android-nix}"
+    if [ -z "''${ANDROID_USER_HOME:-}" ]; then
+      if [ -d "$HOME/.loga3-android/project-android-nix/avd/pixel_6_phone.avd" ]; then
+        export ANDROID_USER_HOME="$HOME/.loga3-android/project-android-nix"
+      else
+        export ANDROID_USER_HOME="$PWD/.android-nix"
+      fi
+    fi
     export ANDROID_AVD_HOME="''${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
     mkdir -p "$ANDROID_USER_HOME" "$ANDROID_AVD_HOME"
-    exec run-test-emulator "$@"
+    AVD_NAME="''${LOGA3_AVD_NAME:-pixel_6_phone}"
+    [ -d "$ANDROID_AVD_HOME/''${AVD_NAME}.avd" ] || AVD_NAME="pixel_6"
+    exec "$ANDROID_SDK_ROOT/emulator/emulator" -avd "$AVD_NAME" -no-boot-anim "$@"
   '';
 
 in

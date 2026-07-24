@@ -27,13 +27,17 @@ import { WorkplacePicker } from '@/src/ui/WorkplacePicker';
 import { getSetupStatus } from '@/src/setup/status';
 import {
   connectGoogle,
+  getGoogleAccountEmail,
+  hasGoogleSession,
   isPrimaryCalendar,
   listCalendars,
   preferredCalendarId,
+  restoreGoogleSession,
   type GoogleCalendar,
 } from '@/src/sync/google';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
 import { theme } from '@/src/ui/theme';
 
 type Step = 0 | 1 | 2 | 3;
@@ -48,9 +52,35 @@ export default function SetupScreen() {
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [primaryWarn, setPrimaryWarn] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const snap = getSnapshot();
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
+
+  const hydrateGoogleUi = useCallback(async () => {
+    const storedCal = await getGoogleCalendarId();
+    if (storedCal) setCalendarId(storedCal);
+
+    const restored = hasGoogleSession() || (await restoreGoogleSession());
+    setGoogleEmail(getGoogleAccountEmail());
+    if (!restored) {
+      setCalendars([]);
+      return;
+    }
+    try {
+      const list = await listCalendars();
+      setCalendars(list);
+      const preferred = storedCal || (await preferredCalendarId(list));
+      if (preferred) {
+        setCalendarId(preferred);
+        if (!storedCal) await setGoogleCalendarId(preferred);
+      }
+      const selected = list.find((c) => c.id === preferred);
+      setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
+    } catch {
+      // session ok but Calendar API failed — keep stored id
+    }
+  }, []);
 
   const hydrateFields = useCallback(async () => {
     await hydrateLoga3Env();
@@ -60,14 +90,13 @@ export default function SetupScreen() {
       setUsername(c.username);
       setPassword(c.password);
     }
-    const storedCal = await getGoogleCalendarId();
-    if (storedCal) setCalendarId(storedCal);
+    await hydrateGoogleUi();
     const st = await getSetupStatus();
     if (!st.urlOk) setStep(0);
     else if (!st.credentialsOk) setStep(1);
     else if (!st.workplaceOk) setStep(2);
     else setStep(3);
-  }, []);
+  }, [hydrateGoogleUi]);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,6 +135,7 @@ export default function SetupScreen() {
     try {
       setBusyGoogle(true);
       await connectGoogle();
+      setGoogleEmail(getGoogleAccountEmail());
       const list = await listCalendars();
       setCalendars(list);
       const preferred = await preferredCalendarId(list);
@@ -213,32 +243,35 @@ export default function SetupScreen() {
           <SectionTitle>{t('setupGoogle')}</SectionTitle>
           <Meta>{t('setupGoogleHint')}</Meta>
           <Text style={styles.optional}>{t('setupGoogleOptional')}</Text>
+          {googleEmail ? (
+            <Text style={styles.connected}>{t('googleConnectedAs', { email: googleEmail })}</Text>
+          ) : null}
+          {calendarId && calendars.length === 0 ? (
+            <Text style={styles.connected}>
+              {t('googleCalendarSaved', {
+                name: calendarId.includes('@') ? calendarId.split('@')[0]! : calendarId,
+              })}
+            </Text>
+          ) : null}
           <AppButton
-            title={t('googleConnect')}
+            title={googleEmail || calendarId ? t('googleReconnect') : t('googleConnect')}
             onPress={() => void onGoogleConnect()}
             disabled={busyGoogle}
             busy={busyGoogle}
           />
           {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
-          {calendars.length > 0 && (
-            <View style={styles.calList}>
-              <SectionTitle>{t('setupGooglePickCalendar')}</SectionTitle>
-              {calendars.map((c) => (
-                <AppButton
-                  key={c.id}
-                  variant={calendarId === c.id ? 'soft' : 'secondary'}
-                  compact
-                  title={`${c.summary}${c.primary ? ' (primary)' : ''}${
-                    calendarId === c.id ? ' ✓' : ''
-                  }`}
-                  onPress={() => {
-                    setCalendarId(c.id);
-                    setPrimaryWarn(isPrimaryCalendar(c));
-                    void setGoogleCalendarId(c.id);
-                  }}
-                />
-              ))}
-            </View>
+          {(calendars.length > 0 || googleEmail) && (
+            <GoogleCalendarPicker
+              calendars={calendars}
+              calendarId={calendarId}
+              title={t('setupGooglePickCalendar')}
+              onChange={(list, id) => {
+                setCalendars(list);
+                setCalendarId(id);
+                const selected = list.find((c) => c.id === id);
+                setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
+              }}
+            />
           )}
           <View style={styles.row}>
             <AppButton title={t('setupBack')} variant="secondary" onPress={() => setStep(2)} style={styles.flexBtn} />
@@ -308,6 +341,10 @@ const styles = StyleSheet.create({
     color: theme.color.primary,
     fontSize: 12,
     fontWeight: '600',
+  },
+  connected: {
+    color: theme.color.inkSecondary,
+    fontSize: 13,
   },
   warn: {
     color: theme.color.warn,

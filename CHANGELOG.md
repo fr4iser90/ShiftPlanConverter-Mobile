@@ -1,14 +1,26 @@
 # Changelog
 
+## 0.1.2 — 2026-07-23
+
+### Added
+- Export targets module (`src/sync/targets`) — Google (oauth) + ICS (file); one-tap runs enabled oauth targets
+- In-app calendar views: week / month / list (pack colors, persisted mode)
+- Android home-screen widget **LOGA3 nächste Schicht** (`react-native-android-widget`)
+- After one-tap fetch: optional ICS share when no oauth sync ran
+
+### Changed
+- One-tap button labels: „Dienstplan holen“ vs „Holen + Google“ depending on configured target
+- Settings: toggle „ICS anbieten, wenn kein Sync“
+
 ## 0.1.1 — 2026-07-22
 
 ### Fixed
-- Live-Fetch Emulator-Smoke: Juli 2026 → PDF + 14 Schichten (Viewport ≥1280 nötig; Tiny-AVD bricht GWT-Dialog)
+- Live-Fetch Emulator-Smoke: Juli 2026 → PDF + 14 Schichten (historisch mit `wm size` — inzwischen verboten; natural AVD = Phone)
 - Android PDF-Capture: Viewer-Scrape + nur `%PDF`-Blobs; Hermes-taugliche Text-Extraktion (`fflate` / Tj) statt pdfjs-Worker
 
 ### Changed
 - PLAN / `docs/webview-fetch.md`: Live-Fetch DoD erfüllt
-- README: Viewport-Hinweis (≥1280 / `wm size 1280x800`) für Live-Fetch
+- README: kein `wm size`-Cheat; Emulator = natürliche Phone-Größe
 - Multi-Month-Smoke 06+07/2026 → 28 Schichten / 2 PDFs
 - Google Sync wie Desktop: Builtin-Client-ID (keine `EXPO_PUBLIC_GOOGLE_*`), Wipe im Datumsbereich; optional `GOOGLE_CLIENT_ID` in `.env`
 - Kalender-Tab näher an Desktop: Tabelle Datum/Code/Start/Ende, Blau-Highlight heute/Woche/Monat, AZK-Monatsübersicht, Auto-Scroll zum Fokus

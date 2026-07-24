@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { t } from '@/src/i18n';
 import {
@@ -10,51 +19,22 @@ import {
 import type { MonthSummary, ShiftEntry } from '@/src/convert/types';
 import { getMappingForScope } from '@/src/packs';
 import {
+  formatDeDate,
+  highlightKind,
+} from '@/src/calendar/dates';
+import {
   getSnapshot,
   setEntries,
   setUserMappings,
   subscribe,
 } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
+import { ShiftWeekView } from '@/src/ui/ShiftWeekView';
+import { ShiftMonthView } from '@/src/ui/ShiftMonthView';
 import { theme } from '@/src/ui/theme';
 
-function startOfWeek(d: Date): Date {
-  const x = new Date(d);
-  const day = (x.getDay() + 6) % 7; // Monday=0
-  x.setHours(0, 0, 0, 0);
-  x.setDate(x.getDate() - day);
-  return x;
-}
-
-function startOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function parseEntryDate(dateStr: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-}
-
-function formatDeDate(dateStr: string): string {
-  const d = parseEntryDate(dateStr);
-  if (!d) return dateStr;
-  return d.toLocaleDateString('de-DE');
-}
-
-function highlightKind(dateStr: string, now = new Date()): 'today' | 'week' | 'month' | null {
-  const d = parseEntryDate(dateStr);
-  if (!d) return null;
-  const today = startOfLocalDay(now);
-  if (d.getTime() === today.getTime()) return 'today';
-  const sow = startOfWeek(now);
-  const eow = new Date(sow);
-  eow.setDate(sow.getDate() + 6);
-  eow.setHours(23, 59, 59, 999);
-  if (d >= sow && d <= eow) return 'week';
-  if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()) return 'month';
-  return null;
-}
+type CalMode = 'week' | 'month' | 'list';
+const MODE_KEY = 'loga3.calendarViewMode';
 
 function usefulSummary(s: MonthSummary | null | undefined): boolean {
   if (!s) return false;
@@ -108,10 +88,34 @@ function SummaryCard({ summaries }: { summaries: MonthSummary[] }) {
   );
 }
 
+function ModeSwitch({ mode, onChange }: { mode: CalMode; onChange: (m: CalMode) => void }) {
+  const modes: { id: CalMode; label: string }[] = [
+    { id: 'week', label: t('calWeek') },
+    { id: 'month', label: t('calMonth') },
+    { id: 'list', label: t('calList') },
+  ];
+  return (
+    <View style={styles.modeRow}>
+      {modes.map((m) => (
+        <Pressable
+          key={m.id}
+          onPress={() => onChange(m.id)}
+          style={[styles.modeChip, mode === m.id && styles.modeChipOn]}>
+          <Text style={[styles.modeChipText, mode === m.id && styles.modeChipTextOn]}>
+            {m.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function PreviewScreen() {
   const [, setTick] = useState(0);
   const snap = getSnapshot();
   const [draftMappings, setDraftMappings] = useState<Record<string, string>>({});
+  const [mode, setMode] = useState<CalMode>('week');
+  const [anchor, setAnchor] = useState(() => new Date());
   const listRef = useRef<FlatList<ShiftEntry>>(null);
   const scrolledRef = useRef(false);
 
@@ -119,27 +123,30 @@ export default function PreviewScreen() {
   useEffect(() => {
     setDraftMappings({ ...snap.userMappings });
   }, [snap.userMappings]);
+  useEffect(() => {
+    void AsyncStorage.getItem(MODE_KEY).then((v) => {
+      if (v === 'week' || v === 'month' || v === 'list') setMode(v);
+    });
+  }, []);
+
+  const setModePersist = (m: CalMode) => {
+    setMode(m);
+    void AsyncStorage.setItem(MODE_KEY, m);
+  };
+
+  const packMapping = useMemo(() => {
+    if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
+    return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
+  }, [snap.hospitalId, snap.groupId, snap.areaId]);
 
   const entries = useMemo(() => {
-    const mapping =
-      snap.hospitalId && snap.groupId && snap.areaId
-        ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
-        : undefined;
     return resolveStoredEntries(snap.entries, {
       preset: snap.preset || undefined,
-      mapping,
+      mapping: packMapping || undefined,
       userMappings: snap.userMappings,
     });
-  }, [
-    snap.entries,
-    snap.preset,
-    snap.userMappings,
-    snap.hospitalId,
-    snap.groupId,
-    snap.areaId,
-  ]);
+  }, [snap.entries, snap.preset, snap.userMappings, packMapping]);
 
-  // Persist soft-resolved early-leave codes so Export/ICS match Kalender
   useEffect(() => {
     if (!snap.entries.length) return;
     let changed = false;
@@ -171,17 +178,17 @@ export default function PreviewScreen() {
   }, [entries.length]);
 
   useEffect(() => {
-    if (!entries.length || scrolledRef.current) return;
+    if (mode !== 'list' || !entries.length || scrolledRef.current) return;
     const timer = setTimeout(() => {
       try {
         listRef.current?.scrollToIndex({ index: focusIndex, animated: true, viewPosition: 0.15 });
         scrolledRef.current = true;
       } catch {
-        // ignore if not measured yet
+        // ignore
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [entries, focusIndex]);
+  }, [entries, focusIndex, mode]);
 
   const onSaveMappings = async () => {
     const next = { ...snap.userMappings, ...draftMappings };
@@ -196,6 +203,69 @@ export default function PreviewScreen() {
       : snap.summary
         ? [snap.summary]
         : [];
+
+  const packColors = packMapping?.colors || null;
+
+  const header = (
+    <View>
+      <Text style={styles.h1}>{t('tabPreview')}</Text>
+      <Text style={styles.hint}>{t('previewHint')}</Text>
+      <ModeSwitch mode={mode} onChange={setModePersist} />
+      <SummaryCard summaries={summaries} />
+      {missing.length > 0 && (
+        <View style={styles.mappingBox}>
+          <Text style={styles.mappingTitle}>{t('missingMappings')}</Text>
+          <Text style={styles.mappingHint}>{t('missingMappingsHint')}</Text>
+          {missing.map((key) => (
+            <View key={key} style={styles.mapRow}>
+              <Text style={styles.mapKey}>{key}</Text>
+              <TextInput
+                style={styles.mapInput}
+                placeholder="Code"
+                value={draftMappings[key] || ''}
+                onChangeText={(v) => setDraftMappings((m) => ({ ...m, [key]: v }))}
+              />
+            </View>
+          ))}
+          <AppButton title={t('saveMapping')} onPress={onSaveMappings} />
+        </View>
+      )}
+    </View>
+  );
+
+  if (!entries.length) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>{t('previewEmpty')}</Text>
+      </View>
+    );
+  }
+
+  if (mode === 'week' || mode === 'month') {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 28 }}>
+        {header}
+        {mode === 'week' ? (
+          <ShiftWeekView
+            entries={entries}
+            anchor={anchor}
+            onAnchorChange={setAnchor}
+            packColors={packColors}
+          />
+        ) : (
+          <ShiftMonthView
+            entries={entries}
+            anchor={anchor}
+            onAnchorChange={setAnchor}
+            packColors={packColors}
+          />
+        )}
+        <Text style={styles.footer}>
+          {entries.length} {t('entriesCount')}
+        </Text>
+      </ScrollView>
+    );
+  }
 
   const renderItem = ({ item, index }: { item: ShiftEntry; index: number }) => {
     const kind = highlightKind(item.date);
@@ -228,49 +298,6 @@ export default function PreviewScreen() {
     );
   };
 
-  if (!entries.length) {
-    return (
-      <View style={styles.empty}>
-        <Text style={styles.emptyText}>{t('previewEmpty')}</Text>
-      </View>
-    );
-  }
-
-  const ListHeader = (
-    <View>
-      <Text style={styles.h1}>{t('tabPreview')}</Text>
-      <Text style={styles.hint}>{t('previewHint')}</Text>
-
-      <SummaryCard summaries={summaries} />
-
-      {missing.length > 0 && (
-        <View style={styles.mappingBox}>
-          <Text style={styles.mappingTitle}>{t('missingMappings')}</Text>
-          <Text style={styles.mappingHint}>{t('missingMappingsHint')}</Text>
-          {missing.map((key) => (
-            <View key={key} style={styles.mapRow}>
-              <Text style={styles.mapKey}>{key}</Text>
-              <TextInput
-                style={styles.mapInput}
-                placeholder="Code"
-                value={draftMappings[key] || ''}
-                onChangeText={(v) => setDraftMappings((m) => ({ ...m, [key]: v }))}
-              />
-            </View>
-          ))}
-          <AppButton title={t('saveMapping')} onPress={onSaveMappings} />
-        </View>
-      )}
-
-      <View style={styles.tableHead}>
-        <Text style={[styles.colDate, styles.headCell]}>{t('colDate')}</Text>
-        <Text style={[styles.colCode, styles.headCell]}>{t('colCode')}</Text>
-        <Text style={[styles.colTime, styles.headCell]}>{t('colStart')}</Text>
-        <Text style={[styles.colTime, styles.headCell]}>{t('colEnd')}</Text>
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.container}>
       <FlatList
@@ -278,7 +305,17 @@ export default function PreviewScreen() {
         data={entries}
         keyExtractor={(item, i) => `${item.date}-${item.type}-${item.start}-${i}`}
         renderItem={renderItem}
-        ListHeaderComponent={ListHeader}
+        ListHeaderComponent={
+          <View>
+            {header}
+            <View style={styles.tableHead}>
+              <Text style={[styles.colDate, styles.headCell]}>{t('colDate')}</Text>
+              <Text style={[styles.colCode, styles.headCell]}>{t('colCode')}</Text>
+              <Text style={[styles.colTime, styles.headCell]}>{t('colStart')}</Text>
+              <Text style={[styles.colTime, styles.headCell]}>{t('colEnd')}</Text>
+            </View>
+          </View>
+        }
         ListFooterComponent={
           <Text style={styles.footer}>
             {entries.length} {t('entriesCount')} · {t('previewHighlightHint')}
@@ -299,12 +336,45 @@ export default function PreviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F1F5F9' },
+  container: { flex: 1, backgroundColor: theme.color.canvas },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  emptyText: { color: '#64748B', textAlign: 'center', fontSize: 15, lineHeight: 22 },
-  h1: { fontSize: 24, fontWeight: '700', letterSpacing: -0.3, paddingHorizontal: 16, paddingTop: 16, color: '#0F172A' },
-  hint: { color: '#64748B', fontSize: 13, paddingHorizontal: 16, marginBottom: 10, marginTop: 4 },
-  sectionTitle: { fontWeight: '700', fontSize: 15, marginBottom: 8, color: '#0F172A' },
+  emptyText: { color: theme.color.inkMuted, textAlign: 'center', fontSize: 15, lineHeight: 22 },
+  h1: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    color: theme.color.ink,
+  },
+  hint: {
+    color: theme.color.inkMuted,
+    fontSize: 13,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  modeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.color.surface,
+    borderWidth: 1,
+    borderColor: theme.color.borderStrong,
+  },
+  modeChipOn: {
+    backgroundColor: theme.color.primary,
+    borderColor: theme.color.primary,
+  },
+  modeChipText: { fontSize: 13, fontWeight: '600', color: theme.color.inkSecondary },
+  modeChipTextOn: { color: '#fff' },
+  sectionTitle: { fontWeight: '700', fontSize: 15, marginBottom: 8, color: theme.color.ink },
   summaryWrap: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -312,31 +382,31 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: theme.color.border,
   },
   summaryBlock: { marginBottom: 10 },
-  summaryTitle: { fontWeight: '600', marginBottom: 8, color: '#0F172A' },
+  summaryTitle: { fontWeight: '600', marginBottom: 8, color: theme.color.ink },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   stat: {
     minWidth: '45%',
     flexGrow: 1,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: theme.color.primaryTint,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  statValue: { fontWeight: '700', fontSize: 16, color: '#0F766E' },
-  statLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  statValue: { fontWeight: '700', fontSize: 16, color: theme.color.primary },
+  statLabel: { fontSize: 11, color: theme.color.inkMuted, marginTop: 2 },
   mappingBox: {
     marginHorizontal: 16,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: '#FFFBEB',
+    backgroundColor: theme.color.warnSoft,
     marginBottom: 10,
     gap: 6,
   },
-  mappingTitle: { fontWeight: '700', color: '#0F172A' },
-  mappingHint: { fontSize: 12, color: '#B45309', marginBottom: 4 },
+  mappingTitle: { fontWeight: '700', color: theme.color.ink },
+  mappingHint: { fontSize: 12, color: theme.color.warn, marginBottom: 4 },
   mapRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   mapKey: { width: 110, fontFamily: 'SpaceMono' },
   mapInput: {
@@ -352,32 +422,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.color.border,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: '#CBD5E1',
+    borderColor: theme.color.borderStrong,
   },
-  headCell: { fontWeight: '700', fontSize: 12, color: '#334155' },
+  headCell: { fontWeight: '700', fontSize: 12, color: theme.color.inkSecondary },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: theme.color.border,
     backgroundColor: '#fff',
   },
-  focusRow: { borderLeftWidth: 3, borderLeftColor: '#0F766E' },
-  today: { backgroundColor: 'rgba(15, 118, 110, 0.18)' },
-  week: { backgroundColor: 'rgba(15, 118, 110, 0.10)' },
-  month: { backgroundColor: 'rgba(15, 118, 110, 0.05)' },
-  cell: { fontSize: 13, color: '#0F172A' },
+  focusRow: { borderLeftWidth: 3, borderLeftColor: theme.color.primary },
+  today: { backgroundColor: theme.color.today },
+  week: { backgroundColor: theme.color.week },
+  month: { backgroundColor: theme.color.month },
+  cell: { fontSize: 13, color: theme.color.ink },
   code: { fontWeight: '700' },
   colDate: { width: '28%' },
   colCode: { width: '28%' },
   colTime: { width: '22%' },
   footer: {
     padding: 14,
-    color: '#64748B',
+    color: theme.color.inkMuted,
     fontSize: 12,
     textAlign: 'center',
   },

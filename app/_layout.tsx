@@ -46,6 +46,7 @@ export default function RootLayout() {
         const initial = await Linking.getInitialURL();
         if (isSmokeSetupUrl(initial)) {
           await applySmokeSetupFromUrl(initial!);
+          router.replace('/(tabs)');
         }
       } catch (e) {
         console.warn('smoke-setup initial failed', e);

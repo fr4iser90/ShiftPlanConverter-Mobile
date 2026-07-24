@@ -133,6 +133,15 @@ export default function SettingsScreen() {
             thumbColor="#fff"
           />
         </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{t('quickPrefsOfferIcs')}</Text>
+          <Switch
+            value={quick.offerIcsAfterFetch}
+            onValueChange={(v) => void patchQuick({ offerIcsAfterFetch: v })}
+            trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+            thumbColor="#fff"
+          />
+        </View>
       </AppCard>
 
       <AppCard>

@@ -60,6 +60,10 @@ export type AutomationCommand =
   | { type: 'scrapePdfViewer' }
   | { type: 'closeDialog' }
   | { type: 'closePopups' }
+  /** Picker/mask ready for PDF export path */
+  | { type: 'assertExportContext' }
+  /** Live dump: data-uin / aria / SmartThings / calendar titles (for parity) */
+  | { type: 'dumpLiveSelectors' }
   | { type: 'stubStatus' };
 
 export type AutomationMessage = {
@@ -76,7 +80,15 @@ export type AutomationMessage = {
   /** LOGA3 boot splash / loading tiles still visible */
   splash?: boolean;
   zeitenFound?: boolean;
+  /** Desktop entry: div.LG-Button[aria-label="öffnen"] */
+  oeffnenFound?: boolean;
   pickerFound?: boolean;
+  /** [data-uin="mask-LZWZEITD"] personal Zeitdaten mask */
+  maskFound?: boolean;
+  /** SmartThings Export menu item visible */
+  exportPanel?: boolean;
+  /** Zeitprotokoll generieren tile (LAGSDZPG) visible */
+  lagsdzpg?: boolean;
   target?: string;
   month?: string | null;
   year?: string | null;
@@ -925,21 +937,56 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       return true;
     }
 
+    function findOeffnenControl() {
+      // Prefer Zeiten/Kalendarium widget — never Private-Cloud "öffnen"
+      function nearZeiten(el) {
+        var p = el;
+        for (var i = 0; i < 8 && p; i++) {
+          var blob = ((p.innerText || '') + ' ' + (p.className || '')).slice(0, 400);
+          if (/Private\\s*Cloud|Verdienstnachweis|personal-cloud/i.test(blob) && !/Zeiten|Kalendarium|Buchungen/i.test(blob)) {
+            return false;
+          }
+          if (/\\bZeiten\\b|Kalendarium|Zeitdaten/i.test(blob)) return true;
+          p = p.parentElement;
+        }
+        return null;
+      }
+      var buttons = qa('div.LG-Button[aria-label="öffnen"], div.LG-Button[aria-label="Öffnen"], button, a, [role="button"], div.LG-Button, span.LG-Button').filter(function(el) {
+        var t = textOf(el);
+        var aria = (el.getAttribute && (el.getAttribute('aria-label') || '')) || '';
+        return (/^öffnen$/i.test(t) || /^öffnen$/i.test(aria)) && visible(el);
+      });
+      var preferred = buttons.find(function(el) { return nearZeiten(el) === true; });
+      if (preferred) return preferred;
+      return buttons.find(function(el) { return nearZeiten(el) !== false; }) || buttons[0] || null;
+    }
+
     function findZeitenControl() {
+      // Desktop does not use this — keep extremely narrow (Zeiten label only).
       return (
         qa('button, a, [role="button"], div, span, td, li, [data-uin]').find(function(el) {
           var t = textOf(el);
-          return /^zeiten$/i.test(t) && visible(el);
+          return /^zeiten$/i.test(t) && visible(el) && t.length < 16;
         }) ||
         qa('a, button, div, span, [role="button"]').find(function(el) {
           var t = textOf(el);
-          return /\\bzeiten\\b/i.test(t) && visible(el) && t.length < 24;
-        }) ||
-        qa('a, button, div').find(function(el) {
-          return /Zeitdaten|Dienstplan|Zeitwirtschaft/i.test(textOf(el)) && visible(el) && textOf(el).length < 40;
+          return /^zeitdaten$/i.test(t) && visible(el) && t.length < 20;
         }) ||
         null
       );
+    }
+
+    /** Only Abrechnung/wrong-export dialogs. Never inspect or navigate team UI. */
+    function detectWrongExportDialog() {
+      var body = ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ');
+      if (
+        /keine\\s+(Abrechnungen?|Zeitprotokolle?)\\s+(verfügbar|gefunden|erstellt)/i.test(body) ||
+        /Abrechnung(en)?\\s+.*(nicht|keine)\\s+verfügbar/i.test(body) ||
+        /Es wurden keine Abrechnungen/i.test(body)
+      ) {
+        return { blocked: true, code: 'WRONG_EXPORT', sample: body.slice(0, 220) };
+      }
+      return { blocked: false, code: '', sample: body.slice(0, 120) };
     }
 
     function isBootSplash() {
@@ -959,7 +1006,13 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       }
       var raw = ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ').trim();
       // Classic LOGA3 boot: almost only "LOGA3" + loading tiles, no nav yet
-      if (/^LOGA3\\b/i.test(raw) && raw.length < 120 && !findZeitenControl() && !q('#ZeitdatenMonthPicker')) {
+      if (
+        /^LOGA3\\b/i.test(raw) &&
+        raw.length < 120 &&
+        !findZeitenControl() &&
+        !findOeffnenControl() &&
+        !q('#ZeitdatenMonthPicker')
+      ) {
         return true;
       }
       return false;
@@ -972,14 +1025,22 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       var stillLogin2 = !!kennung2 || (!!kennwort2 && /Anmelden/i.test(body2));
       var splash = !stillLogin2 && isBootSplash();
       var zCtrl = findZeitenControl();
+      var oCtrl = findOeffnenControl();
       var picker2 = q('#ZeitdatenMonthPicker');
-      var ready = !stillLogin2 && !splash && (!!zCtrl || !!picker2);
+      // Desktop: post-login shell shows "öffnen" long before a "Zeiten" tab exists.
+      var ready = !stillLogin2 && !splash && (!!picker2 || !!oCtrl || !!zCtrl);
+      var noteBits = [];
+      if (picker2) noteBits.push('picker');
+      if (oCtrl) noteBits.push('oeffnen');
+      if (zCtrl) noteBits.push('zeiten:' + textOf(zCtrl).slice(0, 24));
+      if (!noteBits.length) noteBits.push('no_entry');
       post({
         ok: ready,
         type: 'assertShellReady',
         stillLogin: stillLogin2,
         splash: splash,
         zeitenFound: !!zCtrl,
+        oeffnenFound: !!oCtrl,
         pickerFound: !!picker2,
         error: stillLogin2
           ? 'still_on_login'
@@ -987,7 +1048,7 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         code: stillLogin2 ? 'STILL_LOGIN' : (splash ? 'SHELL_LOADING' : (ready ? undefined : 'SHELL_NOT_READY')),
         sample: body2.slice(0, 200),
         href: location.href,
-        note: splash ? 'LOGA3 splash / loading' : (zCtrl ? textOf(zCtrl).slice(0, 40) : 'no_zeiten')
+        note: splash ? 'LOGA3 splash / loading' : noteBits.join(',')
       });
       return true;
     }
@@ -1029,11 +1090,13 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     }
 
     if (cmd.type === 'clickOeffnen') {
-      var oeffnen = qa('button, a, [role="button"], div.LG-Button, span.LG-Button').find(function(el) {
-        return /^öffnen$/i.test(textOf(el)) && visible(el);
-      });
-      if (oeffnen) { oeffnen.click(); post({ ok: true, type: 'clickOeffnen' }); }
-      else post({ ok: false, type: 'clickOeffnen', error: 'oeffnen_not_found' });
+      var oeffnen = findOeffnenControl();
+      if (oeffnen) {
+        oeffnen.click();
+        post({ ok: true, type: 'clickOeffnen', note: textOf(oeffnen).slice(0, 40) || 'aria-öffnen' });
+      } else {
+        post({ ok: false, type: 'clickOeffnen', error: 'oeffnen_not_found', oeffnenFound: false });
+      }
       return true;
     }
 
@@ -1162,13 +1225,26 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     }
 
     if (cmd.type === 'isZeitprotokollDialogVisible') {
+      var badDlg = detectWrongExportDialog();
+      if (badDlg.blocked) {
+        post({
+          ok: false,
+          type: 'isZeitprotokollDialogVisible',
+          dialogVisible: false,
+          code: badDlg.code,
+          error: badDlg.code,
+          note: 'blocked',
+          sample: badDlg.sample
+        });
+        return true;
+      }
       var herunter = qa('button, a, [role="button"], span.PrimaryButton, span, div, input').some(function(el) {
-        return /herunterladen/i.test(textOf(el)) && visible(el) && textOf(el).length < 60;
+        return /^Herunterladen$/i.test(textOf(el).trim()) && visible(el) && textOf(el).length < 40;
       });
       var visibleDlg = qa('.gwt-DialogBox, [class*="Dialog"], .popupContent').some(function(el) {
         if (!visible(el)) return false;
         var t = textOf(el);
-        return /Herunterladen|Zeitprotokoll|Abrechnungsmonat/i.test(t);
+        return /Herunterladen|Zeitprotokoll|Abrechnungsmonat/i.test(t) && !/keine\\s+Abrechnung/i.test(t);
       });
       if (!visibleDlg) visibleDlg = herunter;
       post({
@@ -1198,34 +1274,143 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       return true;
     }
 
+    if (cmd.type === 'dumpLiveSelectors') {
+      function brief(el) {
+        if (!el) return null;
+        var r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName,
+          uin: el.getAttribute('data-uin') || '',
+          aria: el.getAttribute('aria-label') || '',
+          title: el.getAttribute('title') || '',
+          cls: String(el.className || '').slice(0, 80),
+          text: textOf(el).replace(/\\s+/g, ' ').trim().slice(0, 80),
+          vis: visible(el),
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height)
+        };
+      }
+      var uins = [];
+      qa('[data-uin]').forEach(function(el) {
+        if (!visible(el)) return;
+        var u = el.getAttribute('data-uin') || '';
+        if (!u) return;
+        uins.push(brief(el));
+      });
+      var smart = qa('div.LGSmartThingContentItem, div.MenuItem').map(brief).filter(function(x) {
+        return x && x.vis;
+      });
+      var oeffnen = qa('div.LG-Button[aria-label="öffnen"], div.LG-Button[aria-label="Öffnen"]').map(brief);
+      var titles = [];
+      qa('div, span, h1, h2, label').forEach(function(el) {
+        var t = textOf(el).replace(/\\s+/g, ' ').trim();
+        if (!t || t.length > 60 || !visible(el)) return;
+        if (/Zeitdaten|öffnen|Export|Zeitprotokoll|Abrechnung|Herunterladen|Buchungen/i.test(t)) {
+          titles.push(brief(el));
+        }
+      });
+      var body = ((document.body && document.body.innerText) || '').replace(/\\s+/g, ' ').trim();
+      var payload = {
+        href: String(location.href || ''),
+        title: document.title || '',
+        picker: !!q('#ZeitdatenMonthPicker'),
+        mask: !!q('[data-uin="mask-LZWZEITD"]'),
+        oeffnenCount: oeffnen.length,
+        oeffnen: oeffnen.slice(0, 10),
+        smart: smart.slice(0, 40),
+        titles: titles.slice(0, 40),
+        uins: uins.slice(0, 80),
+        bodySample: body.slice(0, 500),
+        zpHint: /Zeitprotokoll/i.test(body)
+      };
+      var json = JSON.stringify(payload);
+      try { console.log('LOGA3_LIVE_SELECTORS ' + json); } catch (e) {}
+      post({
+        ok: true,
+        type: 'dumpLiveSelectors',
+        note: 'uins=' + uins.length + ' smart=' + smart.length + ' titles=' + titles.length,
+        sample: json.slice(0, 12000),
+        pickerFound: payload.picker,
+        maskFound: payload.mask,
+        oeffnenFound: oeffnen.length > 0
+      });
+      return true;
+    }
+
+    if (cmd.type === 'assertExportContext') {
+      var bad = detectWrongExportDialog();
+      var mask = q('[data-uin="mask-LZWZEITD"]');
+      var picker = q('#ZeitdatenMonthPicker');
+      var exportPanel = q('div.MenuItem[data-uin="smartthing-cat-exports"]') ||
+        q('div.MenuItem.selected[data-uin="smartthing-cat-exports"]');
+      var lags = q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+      // Ready = month picker present. Never navigate/inspect team UI.
+      var ok = !!picker && !bad.blocked;
+      if (picker) {
+        try { picker.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {}
+      }
+      post({
+        ok: ok,
+        type: 'assertExportContext',
+        maskFound: !!(mask && visible(mask)),
+        pickerFound: !!(picker && visible(picker)),
+        exportPanel: !!(exportPanel && visible(exportPanel)),
+        lagsdzpg: !!(lags && visible(lags)),
+        code: bad.blocked ? bad.code : (picker ? undefined : 'PICKER_MISSING'),
+        error: bad.blocked ? bad.code : (picker ? undefined : 'PICKER_MISSING'),
+        sample: bad.sample,
+        note: [
+          picker ? 'picker' : 'no_picker',
+          mask && visible(mask) ? 'mask' : 'no_mask',
+          bad.blocked ? bad.code : 'ctx_ok'
+        ].join(',')
+      });
+      return true;
+    }
+
     if (cmd.type === 'clickSmartEdin') {
       var icon = q('span.LG-Icon.ic-smartedingeborder[data-uin="ic-smartedingeborder"]') ||
         q('[data-uin="ic-smartedingeborder"]');
       if (icon && visible(icon)) {
         try { icon.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
         icon.click();
-        post({ ok: true, type: 'clickSmartEdin' });
+        var panel = q('div.MenuItem[data-uin="smartthing-cat-exports"]') ||
+          q('div.MenuItem.selected[data-uin="smartthing-cat-exports"]');
+        post({
+          ok: true,
+          type: 'clickSmartEdin',
+          exportPanel: !!(panel && visible(panel)),
+          note: panel && visible(panel) ? 'export_panel' : 'clicked_wait_panel'
+        });
       } else post({ ok: false, type: 'clickSmartEdin', error: 'smartedin_not_found' });
       return true;
     }
 
     if (cmd.type === 'clickExport') {
+      // Desktop: UIN first — text "Export" only as last resort
       var exportBtn =
         q('div.MenuItem[data-uin="smartthing-cat-exports"]') ||
-        q('div.MenuItem.selected[data-uin="smartthing-cat-exports"]') ||
-        qa('div.MenuItem, div.gwt-Label, button, div.LG-Button, span').find(function(el) {
+        q('div.MenuItem.selected[data-uin="smartthing-cat-exports"]');
+      if (!exportBtn || !visible(exportBtn)) {
+        exportBtn = qa('div.MenuItem').find(function(el) {
           return /^Export$/i.test(textOf(el)) && visible(el);
-        });
-      if (exportBtn) {
+        }) || null;
+      }
+      if (exportBtn && visible(exportBtn)) {
         try { exportBtn.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
         exportBtn.click();
-        var zpReady = !!q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+        var zpReady = q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
+        var ready = !!(zpReady && visible(zpReady));
         post({
           ok: true,
           type: 'clickExport',
-          note: zpReady ? 'lagsdzpg_visible' : 'export_clicked'
+          lagsdzpg: ready,
+          exportPanel: true,
+          note: ready ? 'lagsdzpg_visible' : 'export_clicked'
         });
-      } else post({ ok: false, type: 'clickExport', error: 'export_not_found' });
+      } else post({ ok: false, type: 'clickExport', error: 'export_not_found', exportPanel: false });
       return true;
     }
 
@@ -1267,11 +1452,22 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
     }
 
     if (cmd.type === 'openZeitprotokoll') {
-      // Prefer Desktop selector — text match can hit wrong widgets
+      var badZp = detectWrongExportDialog();
+      if (badZp.blocked) {
+        post({
+          ok: false,
+          type: 'openZeitprotokoll',
+          error: badZp.code,
+          code: badZp.code,
+          sample: badZp.sample
+        });
+        return true;
+      }
+      // Desktop: only smartthing-LAGSDZPG (+ exact label on same widget class)
       var zp = q('div.LGSmartThingContentItem[data-uin="smartthing-LAGSDZPG"]');
       if (!zp || !visible(zp)) {
         zp = qa('div.LGSmartThingContentItem').find(function(el) {
-          return /Zeitprotokoll\\s*generieren/i.test(textOf(el)) && visible(el);
+          return /^Zeitprotokoll\\s*generieren$/i.test(textOf(el).replace(/\\s+/g, ' ').trim()) && visible(el);
         }) || null;
       }
       if (!zp) {
@@ -1280,13 +1476,14 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
           type: 'openZeitprotokoll',
           error: 'button_not_found',
           sample: (document.body && document.body.innerText || '').slice(0, 240),
-          note: q('[data-uin="smartthing-cat-exports"]') ? 'export_present' : 'export_missing'
+          note: q('[data-uin="smartthing-cat-exports"]') ? 'export_present' : 'export_missing',
+          lagsdzpg: false
         });
         return true;
       }
       try { zp.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
       var clickTarget = zp.querySelector('.gwt-Label, .LG-Label, span, a, div') || zp;
-      // Desktop: click, wait 1s, then click-and-hold ~1s
+      // Desktop: click, wait 1s, then click-and-hold ~1s — NO Enter spam (hits wrong widgets)
       try { clickTarget.click(); } catch (e) { try { zp.click(); } catch (e2) {} }
       waitMs(1000).then(function() {
         var r = zp.getBoundingClientRect();
@@ -1298,17 +1495,10 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         return waitMs(1100).then(function() {
           try { clickTarget.dispatchEvent(new MouseEvent('mouseup', up)); } catch (e) {}
           try { clickTarget.click(); } catch (e) { try { zp.click(); } catch (e2) {} }
-          try {
-            clickTarget.focus && clickTarget.focus();
-            ['keydown', 'keypress', 'keyup'].forEach(function(type) {
-              clickTarget.dispatchEvent(new KeyboardEvent(type, {
-                key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true
-              }));
-            });
-          } catch (e) {}
           post({
             ok: true,
             type: 'openZeitprotokoll',
+            lagsdzpg: true,
             note: 'hold:' + textOf(zp).slice(0, 40) + ' @' + cx + ',' + cy,
             href: zp.getAttribute('data-uin') || ''
           });
@@ -1448,9 +1638,11 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         }
         armWin(window);
       } catch (e) {}
-      var dl = qa('button, a, [role="button"], span.PrimaryButton, span, div, input').find(function(el) {
-        var t = textOf(el) + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.value || '');
-        return /herunterladen|download|speichern|pdf/i.test(t) && visible(el) && textOf(el).length < 60;
+      var dl = qa('button, a, [role="button"], span.PrimaryButton, span').find(function(el) {
+        // Desktop: exact "Herunterladen" only — never pdf/speichern/download wildcards
+        var t = textOf(el).replace(/\\s+/g, ' ').trim();
+        var aria = ((el.getAttribute && el.getAttribute('aria-label')) || '').trim();
+        return (/^Herunterladen$/i.test(t) || /^Herunterladen$/i.test(aria)) && visible(el) && t.length < 40;
       });
       if (dl) {
         // Prefer direct href capture over native DownloadManager

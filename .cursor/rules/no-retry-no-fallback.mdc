@@ -1,0 +1,21 @@
+---
+description: Never use retries or fallbacks in automation/fetch/e2e — fail once, fix root cause
+alwaysApply: true
+---
+
+# No retries / no fallbacks
+
+**Never** add retry loops, second attempts, “fallback” click paths, or silent recoveries in:
+
+- `src/loga3/fetchJob.ts`, `src/loga3/automation.ts`
+- `tests/e2e/*` (matrix, smoke, gate)
+- Install/launch shell scripts under `scripts/dev/`
+
+## Rules
+
+1. **One path.** If the step fails → **FAIL** with a clear error. Do not try Zeiten after Öffnen, do not re-seed, do not `for attempt in 1..N`.
+2. **No “soft” recoveries** that hide the real bug (ANR tap spam, second deep-link, pm install ×5).
+3. **Waits are not retries.** Waiting for a postcondition once (with a deadline) is OK. Running the same action again after failure is not.
+4. If the environment is broken (emulator ANR, missing APK) → **stop and fix the environment**, don’t paper over it in code.
+
+User has repeated this; violating it is a regression.

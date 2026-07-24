@@ -1,5 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import {
@@ -10,16 +18,36 @@ import {
 } from './automation';
 import { getLoga3BaseUrl } from './env';
 
+/** LOGA3/GWT desktop layout width — keep in sync with automation expectations */
+export const LOGA3_DESKTOP_WIDTH = 1280;
+
+/** Fit desktop CSS width into the WebView host width (dp). */
+export function scaleForLayoutWidth(layoutWidth: number): number {
+  if (!layoutWidth || layoutWidth < 1) return 0.4;
+  return Math.max(0.22, Math.min(1, layoutWidth / LOGA3_DESKTOP_WIDTH));
+}
+
+export function buildViewportInject(layoutWidth: number): string {
+  const scale = scaleForLayoutWidth(layoutWidth).toFixed(3);
+  return (
+    `(function(){try{var m=document.querySelector('meta[name=viewport]');` +
+    `if(!m){m=document.createElement('meta');m.name='viewport';document.head&&document.head.appendChild(m);}` +
+    `m.content='width=${LOGA3_DESKTOP_WIDTH}, initial-scale=${scale}, maximum-scale=4, user-scalable=yes';` +
+    `}catch(e){}})();`
+  );
+}
+
 type Props = {
   visible?: boolean;
   initialUrl?: string;
   onMessage?: (msg: AutomationMessage) => void;
   onReady?: () => void;
+  /** Measured WebView host width (dp) — drives dynamic initial-scale */
+  layoutWidth?: number;
 };
 
 async function urlToPdfMessage(url: string, filename?: string): Promise<AutomationMessage> {
   try {
-    // blob:/data: URLs are not readable from the RN side — only http(s) download URLs
     if (url.startsWith('blob:') || url.startsWith('data:')) {
       return {
         ok: false,
@@ -32,7 +60,6 @@ async function urlToPdfMessage(url: string, filename?: string): Promise<Automati
     const buf = await res.arrayBuffer();
     const bytes = new Uint8Array(buf);
     if (bytes.length < 4 || bytes[0] !== 0x25 || bytes[1] !== 0x50) {
-      // not %PDF — still return if content-type says pdf
       const ct = (res.headers.get('content-type') || '').toLowerCase();
       if (!ct.includes('pdf') && bytes.length < 64) {
         return { ok: false, type: 'pdfBlob', error: 'not_pdf_bytes', size: bytes.length };
@@ -68,12 +95,15 @@ async function urlToPdfMessage(url: string, filename?: string): Promise<Automati
 export const Loga3WebView = React.forwardRef<
   { run: (cmd: AutomationCommand) => void; reload: () => void },
   Props
->(function Loga3WebView({ initialUrl, onMessage, onReady }, ref) {
+>(function Loga3WebView({ initialUrl, onMessage, onReady, layoutWidth }, ref) {
   const resolvedUrl = (initialUrl || getLoga3BaseUrl()).trim();
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  const { width: windowWidth } = useWindowDimensions();
+  const effectiveWidth = layoutWidth && layoutWidth > 0 ? layoutWidth : windowWidth;
+  const viewportInject = useMemo(() => buildViewportInject(effectiveWidth), [effectiveWidth]);
 
   React.useImperativeHandle(ref, () => ({
     run(cmd: AutomationCommand) {
@@ -100,7 +130,6 @@ export const Loga3WebView = React.forwardRef<
     [emit]
   );
 
-  /** iOS onFileDownload / nav intercept — Android onFileDownload is a no-op in RN WebView. */
   const captureDownloadUrl = useCallback(
     async (url: string, filename?: string) => {
       if (!url) return;
@@ -121,9 +150,6 @@ export const Loga3WebView = React.forwardRef<
   const onShouldStartLoadWithRequest = useCallback(
     (req: ShouldStartLoadRequest) => {
       const url = req.url || '';
-      // Android: never block PDF/blob navigation — RN cannot read blob: URLs, and
-      // blocking prevents Chromium PDF.js from loading (our scrape target).
-      // Instead, ask the page to capture while allowing the load.
       if (Platform.OS === 'android') {
         if (
           url.startsWith('blob:') ||
@@ -162,11 +188,14 @@ export const Loga3WebView = React.forwardRef<
       const url = event.nativeEvent?.targetUrl || '';
       emit({ ok: true, type: 'pdfCaptureProbe', note: `openWindow:${url.slice(0, 140)}` });
       if (!url) return;
-      if (url.startsWith('blob:') || /\.pdf($|\?)/i.test(url) || /export|download|zeitprotokoll|pdf/i.test(url)) {
+      if (
+        url.startsWith('blob:') ||
+        /\.pdf($|\?)/i.test(url) ||
+        /export|download|zeitprotokoll|pdf/i.test(url)
+      ) {
         void captureDownloadUrl(url);
         return;
       }
-      // Keep popup content in the same WebView (LOGA3 dialogs / reports)
       webRef.current?.injectJavaScript(
         `try{window.location.href=${JSON.stringify(url)};}catch(e){};true;`
       );
@@ -183,70 +212,68 @@ export const Loga3WebView = React.forwardRef<
     return () => sub.remove();
   }, [captureDownloadUrl]);
 
+  // Re-apply scale when host width changes (warm → visible, rotation)
+  useEffect(() => {
+    webRef.current?.injectJavaScript(`${viewportInject}true;`);
+  }, [viewportInject]);
+
+  if (!resolvedUrl) {
+    return (
+      <View style={styles.missing}>
+        <Text style={styles.missingText}>
+          LOGA3-URL fehlt. In Settings (pro Installation) eintragen — nicht im App-Build.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
-      {!resolvedUrl ? (
-        <View style={styles.missing}>
-          <Text style={styles.missingText}>
-            LOGA3_BASE_URL fehlt. In Settings oder .env setzen, dann App neu starten.
-          </Text>
+      {loading && (
+        <View style={styles.loader} pointerEvents="none">
+          <ActivityIndicator color="#0f766e" />
+          <Text style={styles.loaderText}>LOGA3…</Text>
         </View>
-      ) : (
-        <>
-          {loading && (
-            <View style={styles.loader}>
-              <ActivityIndicator />
-              <Text style={styles.loaderText}>WebView…</Text>
-            </View>
-          )}
-          <WebView
-            ref={webRef}
-            source={{ uri: resolvedUrl }}
-            onLoadEnd={() => {
-              setLoading(false);
-              // Re-install capture after navigation (all same-origin frames via inject script)
-              webRef.current?.injectJavaScript(PDF_CAPTURE_INJECT);
-              onReady?.();
-            }}
-            onMessage={onMsg}
-            onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-            onOpenWindow={onOpenWindow}
-            {...(Platform.OS === 'ios'
-              ? {
-                  onFileDownload: onFileDownload as (e: {
-                    nativeEvent: { downloadUrl: string };
-                  }) => void,
-                }
-              : {})}
-            // Critical: LOGA3 may download from iframes — hooks must install there too
-            injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
-            injectedJavaScriptForMainFrameOnly={false}
-            javaScriptEnabled
-            javaScriptCanOpenWindowsAutomatically
-            domStorageEnabled
-            sharedCookiesEnabled
-            thirdPartyCookiesEnabled
-            setSupportMultipleWindows
-            // LOGA3/GWT is a desktop SPA — mobile UA + 320px width breaks SmartThings actions
-            userAgent="Mozilla/5.0 (Linux; X11; x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            scalesPageToFit={false}
-            setBuiltInZoomControls
-            setDisplayZoomControls={false}
-            allowFileAccess
-            allowFileAccessFromFileURLs
-            allowingReadAccessToURL={resolvedUrl}
-            mixedContentMode="always"
-            originWhitelist={['*']}
-            injectedJavaScriptBeforeContentLoaded={
-              `(function(){try{var m=document.querySelector('meta[name=viewport]');` +
-              `if(!m){m=document.createElement('meta');m.name='viewport';document.head&&document.head.appendChild(m);}` +
-              `m.content='width=1280, initial-scale=0.4, maximum-scale=4, user-scalable=yes';}catch(e){}})();` +
-              PDF_CAPTURE_INJECT
-            }
-            style={styles.web}
-          />
-        </>
       )}
+      <WebView
+        ref={webRef}
+        source={{ uri: resolvedUrl }}
+        onLoadEnd={() => {
+          setLoading(false);
+          webRef.current?.injectJavaScript(`${viewportInject}${PDF_CAPTURE_INJECT}true;`);
+          onReady?.();
+        }}
+        onMessage={onMsg}
+        onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onOpenWindow={onOpenWindow}
+        {...(Platform.OS === 'ios'
+          ? {
+              onFileDownload: onFileDownload as (e: {
+                nativeEvent: { downloadUrl: string };
+              }) => void,
+            }
+          : {})}
+        injectedJavaScriptBeforeContentLoadedForMainFrameOnly={false}
+        injectedJavaScriptForMainFrameOnly={false}
+        javaScriptEnabled
+        javaScriptCanOpenWindowsAutomatically
+        domStorageEnabled
+        sharedCookiesEnabled
+        thirdPartyCookiesEnabled
+        setSupportMultipleWindows
+        userAgent="Mozilla/5.0 (Linux; X11; x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        scalesPageToFit={false}
+        setBuiltInZoomControls
+        setDisplayZoomControls={false}
+        allowFileAccess
+        allowFileAccessFromFileURLs
+        allowingReadAccessToURL={resolvedUrl}
+        mixedContentMode="always"
+        originWhitelist={['*']}
+        webviewDebuggingEnabled
+        injectedJavaScriptBeforeContentLoaded={`${viewportInject}${PDF_CAPTURE_INJECT}`}
+        style={styles.web}
+      />
     </View>
   );
 });
@@ -255,10 +282,8 @@ const styles = StyleSheet.create({
   wrap: {
     flex: 1,
     minHeight: 280,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+    overflow: 'visible',
+    backgroundColor: '#fff',
   },
   web: { flex: 1, backgroundColor: '#fff' },
   missing: { flex: 1, padding: 16, justifyContent: 'center' },
