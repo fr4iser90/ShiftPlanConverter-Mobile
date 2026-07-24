@@ -151,6 +151,7 @@ export default function ExportScreen() {
       }
       const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
         richDetails: snap.richDetails,
+        source: 'export',
         onCalendarMissing: async (oldId) => {
           const next = await askRecreateGoogleCalendar(oldId);
           if (next) {

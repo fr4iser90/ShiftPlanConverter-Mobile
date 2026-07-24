@@ -44,6 +44,7 @@ export const googleExportTarget: ExportTarget = {
       const { created, deleted } = await syncEntriesToGoogle(resolved, calId, {
         richDetails: opts.richDetails ?? snap.richDetails,
         onCalendarMissing: opts.onCalendarMissing ?? askRecreateGoogleCalendar,
+        source: 'holen',
       });
       return { skipped: false, created, deleted };
     } catch (e) {
