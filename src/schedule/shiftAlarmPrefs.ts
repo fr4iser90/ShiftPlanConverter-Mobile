@@ -1,6 +1,6 @@
 /**
  * Shift reminders: clock times per Dienst code from the active mapping
- * (e.g. F → 06:00), not “minutes before start”.
+ * (e.g. F → 06:00 same day, or 22:00 evening before).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -12,15 +12,21 @@ const KEY = 'loga3.shiftAlarmPrefs';
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const MAX_TIMES = 7;
 
+/** One reminder: clock time, optionally on the evening before the shift day. */
+export type ShiftRemind = {
+  time: string;
+  eve: boolean;
+};
+
 export type ShiftAlarmPrefs = {
   enabled: boolean;
   /**
-   * Default clock times (HH:MM) when a code has no entry in codeTimes.
+   * Default reminds when a code has no entry in codeTimes.
    * Empty = only codes with explicit times get reminders.
    */
-  times: string[];
-  /** Per shift code reminder times. Empty array = no reminders for that code (overrides default). */
-  codeTimes: Record<string, string[]>;
+  times: ShiftRemind[];
+  /** Per shift code. Explicit empty array = no reminders for that code. */
+  codeTimes: Record<string, ShiftRemind[]>;
   /** How many days ahead to schedule (1–21). */
   horizonDays: number;
 };
@@ -82,35 +88,70 @@ export function parseLooseTime(raw: unknown): string | null {
   return formatHHMM(h, m);
 }
 
-export function normalizeTimes(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const x of raw) {
-    const t = normalizeTime(x);
-    if (!t || seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= MAX_TIMES) break;
-  }
-  return out.sort();
+export function remindKey(r: ShiftRemind): string {
+  return r.eve ? `${r.time}|eve` : r.time;
 }
 
-export function normalizeCodeTimes(raw: unknown): Record<string, string[]> {
+/** Persist token: `06:00` or `22:00|eve`. */
+export function remindToken(r: ShiftRemind): string {
+  return remindKey(r);
+}
+
+export function parseRemindToken(raw: unknown): ShiftRemind | null {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const o = raw as { time?: unknown; eve?: unknown };
+    const time = normalizeTime(o.time);
+    if (!time) return null;
+    return { time, eve: o.eve === true };
+  }
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const eve = /\|eve$/i.test(s);
+  const time = normalizeTime(s.replace(/\|eve$/i, ''));
+  if (!time) return null;
+  return { time, eve };
+}
+
+export function normalizeReminds(raw: unknown): ShiftRemind[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ShiftRemind[] = [];
+  const seen = new Set<string>();
+  for (const x of raw) {
+    const r = parseRemindToken(x);
+    if (!r) continue;
+    const k = remindKey(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+    if (out.length >= MAX_TIMES) break;
+  }
+  return out.sort((a, b) => {
+    if (a.eve !== b.eve) return a.eve ? 1 : -1;
+    return a.time.localeCompare(b.time);
+  });
+}
+
+/** @deprecated alias — plain HH:MM list (same-day only). */
+export function normalizeTimes(raw: unknown): string[] {
+  return normalizeReminds(raw)
+    .filter((r) => !r.eve)
+    .map((r) => r.time);
+}
+
+export function normalizeCodeTimes(raw: unknown): Record<string, ShiftRemind[]> {
   if (!raw || typeof raw !== 'object') return {};
-  const out: Record<string, string[]> = {};
+  const out: Record<string, ShiftRemind[]> = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     const code = String(k || '')
       .trim()
       .toUpperCase();
     if (!code) continue;
-    // Explicit empty array = “off for this code” (blocks default times).
     if (Array.isArray(v) && v.length === 0) {
       out[code] = [];
       continue;
     }
-    const times = normalizeTimes(v);
-    if (times.length) out[code] = times;
+    const reminds = normalizeReminds(v);
+    if (reminds.length) out[code] = reminds;
   }
   return out;
 }
@@ -123,7 +164,7 @@ function fromLegacy(raw: Record<string, unknown>): Partial<ShiftAlarmPrefs> {
   if (hasNew) {
     return {
       enabled: raw.enabled === true,
-      times: normalizeTimes(raw.times),
+      times: normalizeReminds(raw.times),
       codeTimes: normalizeCodeTimes(raw.codeTimes),
       horizonDays: Number(raw.horizonDays),
     };
@@ -143,13 +184,16 @@ export function normalizeShiftAlarmPrefs(
   const horizon = Math.max(1, Math.min(21, Math.round(Number(base.horizonDays) || 14)));
   return {
     enabled: base.enabled === true,
-    times: normalizeTimes(base.times),
+    times: normalizeReminds(base.times),
     codeTimes: normalizeCodeTimes(base.codeTimes),
     horizonDays: horizon,
   };
 }
 
-export function timesForCode(prefs: ShiftAlarmPrefs, code: string | null | undefined): string[] {
+export function remindsForCode(
+  prefs: ShiftAlarmPrefs,
+  code: string | null | undefined
+): ShiftRemind[] {
   const c = String(code || '')
     .trim()
     .toUpperCase();
@@ -159,8 +203,18 @@ export function timesForCode(prefs: ShiftAlarmPrefs, code: string | null | undef
   return prefs.times;
 }
 
-export function formatTimesList(times: string[]): string {
-  return times.length ? times.join(', ') : '—';
+/** @deprecated use remindsForCode */
+export function timesForCode(prefs: ShiftAlarmPrefs, code: string | null | undefined): string[] {
+  return remindsForCode(prefs, code).map((r) => (r.eve ? `${r.time}·V` : r.time));
+}
+
+export function formatRemindLabel(r: ShiftRemind, eveLabel: string): string {
+  return r.eve ? `${r.time} · ${eveLabel}` : r.time;
+}
+
+export function formatRemindsList(reminds: ShiftRemind[], eveLabel: string): string {
+  if (!reminds.length) return '—';
+  return reminds.map((r) => formatRemindLabel(r, eveLabel)).join(', ');
 }
 
 export function formatHHMM(hour: number, minute: number): string {
@@ -214,7 +268,15 @@ export async function saveShiftAlarmPrefs(
   patch: Partial<ShiftAlarmPrefs>
 ): Promise<ShiftAlarmPrefs> {
   const next = normalizeShiftAlarmPrefs({ ...(await loadShiftAlarmPrefs()), ...patch });
-  await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  // Persist encoded tokens so JSON stays compact and readable.
+  const serializable = {
+    ...next,
+    times: next.times.map(remindToken),
+    codeTimes: Object.fromEntries(
+      Object.entries(next.codeTimes).map(([k, v]) => [k, v.map(remindToken)])
+    ),
+  };
+  await AsyncStorage.setItem(KEY, JSON.stringify(serializable));
   try {
     const { rescheduleShiftAlarms } = await import('./shiftAlarms');
     await rescheduleShiftAlarms(next);

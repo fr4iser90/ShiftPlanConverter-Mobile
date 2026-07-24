@@ -15,17 +15,21 @@ import {
 } from '@/src/schedule/prefs';
 import {
   DEFAULT_SHIFT_ALARM_PREFS,
-  formatTimesList,
+  formatRemindLabel,
+  formatRemindsList,
   listMappingShiftOptions,
   loadShiftAlarmPrefs,
-  normalizeTimes,
+  normalizeReminds,
   parseLooseTime,
+  remindKey,
+  remindsForCode,
   saveShiftAlarmPrefs,
-  timesForCode,
   type MappingShiftOption,
   type ShiftAlarmPrefs,
+  type ShiftRemind,
 } from '@/src/schedule/shiftAlarmPrefs';
 import { openNextWakeInClockApp, rescheduleShiftAlarms } from '@/src/schedule/shiftAlarms';
+import { isRemindBeforeShiftStart } from '@/src/schedule/shiftAlarmPlan';
 import { refreshHomeWidgets } from '@/src/widget/refresh';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
@@ -78,22 +82,17 @@ export default function SettingsRemindersScreen() {
     setShiftAlarm(next);
   };
 
-  const setCodeTimes = async (code: string, times: string[]) => {
-    const nextMap = { ...shiftAlarm.codeTimes, [code]: normalizeTimes(times) };
+  const setCodeReminds = async (code: string, reminds: ShiftRemind[]) => {
+    const nextMap = { ...shiftAlarm.codeTimes, [code]: normalizeReminds(reminds) };
     await patchShiftAlarm({ codeTimes: nextMap });
   };
 
-  const addTimeToCode = async (code: string, raw: string) => {
-    const time = parseLooseTime(raw);
-    if (!time) {
-      Alert.alert(t('shiftAlarmSection'), t('shiftAlarmTimeInvalid'));
-      return;
-    }
-    const current = timesForCode(shiftAlarm, code);
+  const commitRemind = async (code: string, remind: ShiftRemind) => {
+    const current = remindsForCode(shiftAlarm, code);
     const base = Object.prototype.hasOwnProperty.call(shiftAlarm.codeTimes, code)
       ? shiftAlarm.codeTimes[code]
       : current;
-    if (base.includes(time)) {
+    if (base.some((r) => remindKey(r) === remindKey(remind))) {
       setDraftTime('');
       return;
     }
@@ -101,17 +100,42 @@ export default function SettingsRemindersScreen() {
       Alert.alert(t('shiftAlarmSection'), t('shiftAlarmMaxTimes'));
       return;
     }
-    await setCodeTimes(code, [...base, time]);
+    await setCodeReminds(code, [...base, remind]);
     setDraftTime('');
   };
 
-  const removeTimeFromCode = async (code: string, time: string) => {
+  const addTimeToCode = async (code: string, raw: string, shiftStart: string) => {
+    const time = parseLooseTime(raw);
+    if (!time) {
+      Alert.alert(t('shiftAlarmSection'), t('shiftAlarmTimeInvalid'));
+      return;
+    }
+    if (isRemindBeforeShiftStart(time, shiftStart)) {
+      await commitRemind(code, { time, eve: false });
+      return;
+    }
+    Alert.alert(
+      t('shiftAlarmEveTitle'),
+      t('shiftAlarmEveBody', { time, start: shiftStart }),
+      [
+        { text: t('shiftAlarmEveNo'), style: 'cancel' },
+        {
+          text: t('shiftAlarmEveYes'),
+          onPress: () => {
+            void commitRemind(code, { time, eve: true });
+          },
+        },
+      ]
+    );
+  };
+
+  const removeRemindFromCode = async (code: string, remind: ShiftRemind) => {
     const base = Object.prototype.hasOwnProperty.call(shiftAlarm.codeTimes, code)
       ? shiftAlarm.codeTimes[code]
-      : timesForCode(shiftAlarm, code);
-    await setCodeTimes(
+      : remindsForCode(shiftAlarm, code);
+    await setCodeReminds(
       code,
-      base.filter((x) => x !== time)
+      base.filter((r) => remindKey(r) !== remindKey(remind))
     );
   };
 
@@ -206,9 +230,13 @@ export default function SettingsRemindersScreen() {
               </Text>
               <View style={styles.dienstList}>
                 {shifts.map((opt, i) => {
-                  const times = timesForCode(shiftAlarm, opt.code);
+                  const reminds = remindsForCode(shiftAlarm, opt.code);
                   const open = selectedCode === opt.code;
                   const last = i === shifts.length - 1 && !open;
+                  const shiftStart = opt.window.slice(0, 5);
+                  const draftNeedsEve =
+                    !!parsedDraft && !isRemindBeforeShiftStart(parsedDraft, shiftStart);
+                  const eveShort = t('shiftAlarmEveShort');
                   return (
                     <View key={opt.code}>
                       <Pressable
@@ -229,26 +257,33 @@ export default function SettingsRemindersScreen() {
                           </Text>
                           <Text style={styles.dienstMeta}>{opt.window}</Text>
                         </View>
-                        <Text style={styles.dienstTimes}>{formatTimesList(times)}</Text>
+                        <Text style={styles.dienstTimes}>
+                          {formatRemindsList(reminds, eveShort)}
+                        </Text>
                       </Pressable>
                       {open ? (
                         <View style={styles.dienstEditor}>
                           <View style={styles.chipRow}>
-                            {times.length === 0 ? (
+                            {reminds.length === 0 ? (
                               <Text style={styles.stepperLabel}>{t('shiftAlarmNoTimes')}</Text>
                             ) : (
-                              times.map((time) => (
-                                <Pressable
-                                  key={time}
-                                  onPress={() => void removeTimeFromCode(opt.code, time)}
-                                  style={styles.timeChip}
-                                  accessibilityRole="button"
-                                  accessibilityLabel={t('shiftAlarmRemoveTime', { time })}
-                                >
-                                  <Text style={styles.timeChipText}>{time}</Text>
-                                  <Text style={styles.timeChipX}>×</Text>
-                                </Pressable>
-                              ))
+                              reminds.map((remind) => {
+                                const label = formatRemindLabel(remind, eveShort);
+                                return (
+                                  <Pressable
+                                    key={remindKey(remind)}
+                                    onPress={() => void removeRemindFromCode(opt.code, remind)}
+                                    style={styles.timeChip}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('shiftAlarmRemoveTime', {
+                                      time: label,
+                                    })}
+                                  >
+                                    <Text style={styles.timeChipText}>{label}</Text>
+                                    <Text style={styles.timeChipX}>×</Text>
+                                  </Pressable>
+                                );
+                              })
                             )}
                           </View>
                           <Text style={styles.stepperLabel}>{t('shiftAlarmTimeInput')}</Text>
@@ -261,25 +296,37 @@ export default function SettingsRemindersScreen() {
                               placeholderTextColor={theme.color.inkFaint}
                               keyboardType="number-pad"
                               returnKeyType="done"
-                              onSubmitEditing={() => void addTimeToCode(opt.code, draftTime)}
+                              onSubmitEditing={() =>
+                                void addTimeToCode(opt.code, draftTime, shiftStart)
+                              }
                               autoCorrect={false}
                             />
                             <AppButton
                               compact
                               title={
                                 parsedDraft
-                                  ? t('shiftAlarmAddTime', { time: parsedDraft })
+                                  ? draftNeedsEve
+                                    ? t('shiftAlarmAddEve', { time: parsedDraft })
+                                    : t('shiftAlarmAddTime', { time: parsedDraft })
                                   : t('shiftAlarmAdd')
                               }
                               variant="secondary"
-                              onPress={() => void addTimeToCode(opt.code, draftTime)}
+                              onPress={() => void addTimeToCode(opt.code, draftTime, shiftStart)}
                             />
                           </View>
-                          {draftTime.trim() && parsedDraft ? (
+                          {draftTime.trim() && parsedDraft && !draftNeedsEve ? (
                             <Text style={styles.window}>→ {parsedDraft}</Text>
                           ) : null}
                           {draftTime.trim() && !parsedDraft ? (
                             <Text style={styles.stepperLabel}>{t('shiftAlarmTimeInvalid')}</Text>
+                          ) : null}
+                          {draftNeedsEve ? (
+                            <Text style={styles.stepperLabel}>
+                              {t('shiftAlarmEveHint', {
+                                time: parsedDraft!,
+                                start: shiftStart,
+                              })}
+                            </Text>
                           ) : null}
                         </View>
                       ) : null}

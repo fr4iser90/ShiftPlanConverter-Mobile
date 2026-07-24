@@ -233,7 +233,7 @@ export const de = {
 
   shiftAlarmSection: 'Schicht-Erinnerungen',
   shiftAlarmHint:
-    'Laute Erinnerungen vor dem Dienst. Tippe einen Mapping-Dienst an und füge Uhrzeiten hinzu (z. B. 06:00) — nicht „Minuten vorher“. Liegt die Uhrzeit nach dem Schichtstart, gilt der Vortag.',
+    'Laute Erinnerungen vor dem Dienst. Uhrzeit am Schichttag vor dem Start — oder Vorabend (mit Bestätigung), z. B. 22:00 vor dem Frühdienst.',
   shiftAlarmEnable: 'Erinnerungen vor Schicht',
   shiftAlarmHorizon: 'Tage voraus planen',
   shiftAlarmPickShift: 'Dienst aus Mapping',
@@ -242,8 +242,17 @@ export const de = {
   shiftAlarmTimeInput: 'Uhrzeit tippen',
   shiftAlarmTimePlaceholder: 'z. B. 630 oder 6 30',
   shiftAlarmTimeInvalid: 'Uhrzeit nicht erkannt — z. B. 630, 6:30 oder 6 30',
+  shiftAlarmEveShort: 'Vorabend',
+  shiftAlarmEveHint:
+    '{time} liegt nicht vor Start {start}. Kann als Vorabend-Erinnerung gespeichert werden.',
+  shiftAlarmEveTitle: 'Vorabend-Erinnerung?',
+  shiftAlarmEveBody:
+    '{time} liegt nicht vor Schichtstart {start}. Als Erinnerung am Vorabend speichern?',
+  shiftAlarmEveYes: 'Ja, Vorabend',
+  shiftAlarmEveNo: 'Abbrechen',
   shiftAlarmAdd: 'Hinzufügen',
   shiftAlarmAddTime: '{time} hinzufügen',
+  shiftAlarmAddEve: '{time} Vorabend…',
   shiftAlarmRemoveTime: '{time} entfernen',
   shiftAlarmMaxTimes: 'Maximal 7 Uhrzeiten pro Dienst.',
   shiftAlarmReschedule: 'Erinnerungen neu planen',

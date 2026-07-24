@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -13,7 +14,10 @@ function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['nam
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const [, setTick] = useState(0);
+  const dark = colorScheme === 'dark';
+  const bottomGap = Math.max(insets.bottom, 8) + 6;
 
   useEffect(() => {
     hydrateStore();
@@ -26,15 +30,27 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         tabBarInactiveTintColor: Colors[colorScheme ?? 'light'].tabIconDefault,
         tabBarStyle: {
-          backgroundColor: colorScheme === 'dark' ? '#0F172A' : '#FFFFFF',
-          borderTopColor: colorScheme === 'dark' ? '#1E293B' : '#E2E8F0',
+          position: 'absolute',
+          left: 12,
+          right: 12,
+          bottom: bottomGap,
           height: 58,
           paddingBottom: 6,
           paddingTop: 4,
+          borderRadius: 16,
+          borderTopWidth: 0,
+          backgroundColor: dark ? '#0F172A' : '#FFFFFF',
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOpacity: dark ? 0.35 : 0.12,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerShown: false,
-      }}>
+        sceneStyle: { paddingBottom: 58 + bottomGap + 8 },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
