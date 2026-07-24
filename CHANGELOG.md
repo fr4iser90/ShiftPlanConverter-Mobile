@@ -23,8 +23,10 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
 ### Behoben
 - Holen: Android öffnet PDFs nicht mehr im WebView-Viewer (Capture und weiter); Status zeigt Holen-Schritte statt „PDF erfasst“-Spam
-- Sync-Erinnerung: Standard **aus** (kein Prompt beim Öffnen); nur nach bewusster Einstellung
-- Holen: kompakte Statuszeile statt großer „Fetch läuft“-Karte
+- Holen: Servlet-/Download-URL-Blockade lud Login-HTML statt echter PDFs — nur noch `.pdf`/`blob:` blockieren
+- Holen: PDF-Capture verlangt `%PDF`/`JVBERi`; Servlet-Klicks nicht mehr per preventDefault abfangen (DownloadManager ohne Cookies = Login-HTML); Status mit Schrittzeiten
+- Holen: kein `clickOnceOrWait`-Retry; Content-Gate ohne Grid-Reload-Fallback; kurze Soft-Probes in Waits; Step-Metriken (`▶/✓` + Summary); GATE-Dumps nur still (kein Status-Spam)
+- PDF-Text-Parse: kein Regex über ganze PDF-als-String (das war ~30–40 s/Monat, UI blieb auf „savePdf“) — Byte-Scan `stream`/`endstream`
 - Widgets: feste Größe (~4×2) und kein Resize — WeekPlan jetzt **4×1**, resizebar; NextShift **2×1**; lesbare Schrift; kurze Dienstcodes; breites Preview-Bild (kein aufgeblasenes App-Icon)
 - Changelog: Deutsch und Englisch getrennt (`CHANGELOG.md` / `CHANGELOG.en.md`)
 

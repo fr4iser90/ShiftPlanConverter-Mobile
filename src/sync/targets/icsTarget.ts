@@ -1,6 +1,7 @@
 import { getSnapshot } from '../../state/store';
 import { shareIcsFile } from '../shareIcs';
 import type { ExportTarget, ExportTargetResult, ExportTargetSyncOpts } from './types';
+import { t } from '../../i18n';
 
 /** File-based target — always “configured”; sync opens the system share sheet. */
 export const icsExportTarget: ExportTarget = {
@@ -18,10 +19,10 @@ export const icsExportTarget: ExportTarget = {
 
   async sync(entries, opts: ExportTargetSyncOpts = {}): Promise<ExportTargetResult> {
     if (!entries.length) {
-      return { skipped: true, reason: 'keine Schichten' };
+      return { skipped: true, reason: t('fjSkipNoShifts') };
     }
     if (opts.interactive === false) {
-      return { skipped: true, reason: 'ICS nur manuell / nach Nachfrage' };
+      return { skipped: true, reason: t('fjSkipIcsManual') };
     }
     try {
       const snap = getSnapshot();

@@ -63,11 +63,15 @@ async function urlToPdfMessage(url: string, filename?: string): Promise<Automati
     const res = await fetch(url);
     const buf = await res.arrayBuffer();
     const bytes = new Uint8Array(buf);
-    if (bytes.length < 4 || bytes[0] !== 0x25 || bytes[1] !== 0x50) {
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
-      if (!ct.includes('pdf') && bytes.length < 64) {
-        return { ok: false, type: 'pdfBlob', error: 'not_pdf_bytes', size: bytes.length };
-      }
+    // Strict %PDF — never Login-HTML (DownloadManager / bare fetch without WebView cookies)
+    if (bytes.length < 5 || bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46) {
+      return {
+        ok: false,
+        type: 'pdfBlob',
+        error: 'not_pdf_bytes',
+        size: bytes.length,
+        note: (res.headers.get('content-type') || '').slice(0, 40),
+      };
     }
     let binary = '';
     const chunk = 0x8000;
@@ -78,11 +82,14 @@ async function urlToPdfMessage(url: string, filename?: string): Promise<Automati
       return { ok: false, type: 'pdfBlob', error: 'btoa_unavailable' };
     }
     const base64 = globalThis.btoa(binary);
+    if (!base64.startsWith('JVBERi')) {
+      return { ok: false, type: 'pdfBlob', error: 'not_pdf_b64', size: bytes.length };
+    }
     return {
       ok: true,
       type: 'pdfBlob',
       base64,
-      mime: res.headers.get('content-type') || 'application/pdf',
+      mime: 'application/pdf',
       size: bytes.length,
       filename: filename || '',
       note: 'rn-url-fetch',
@@ -159,20 +166,16 @@ export const Loga3WebView = React.forwardRef<
   const onShouldStartLoadWithRequest = useCallback(
     (req: ShouldStartLoadRequest) => {
       const url = req.url || '';
+      // Only block real PDF payloads — never GWT/servlet navigations.
+      // Broad servlet/export blocking fetched Login-HTML as "PDF" and broke Holen.
       const isPdfUrl =
         url.startsWith('blob:') ||
         /^data:application\/pdf/i.test(url) ||
         /\.pdf($|\?)/i.test(url);
-      // Top-level download endpoints (not normal LOGA3 GWT navigations).
-      const isDownloadNav =
-        /\/(export|download|zeitprotokoll|servlet|stream)\b/i.test(url) ||
-        /[?&](export|download|attachment|pdf)=/i.test(url) ||
-        /Content-Disposition/i.test(url);
 
-      if (isPdfUrl || isDownloadNav) {
-        emit({ ok: true, type: 'pdfCaptureProbe', note: `block-nav:${url.slice(0, 140)}` });
+      if (isPdfUrl) {
+        emit({ ok: true, type: 'pdfCaptureProbe', note: `block-pdf-nav:${url.slice(0, 140)}` });
         if (Platform.OS === 'android') {
-          // Capture in-page — never open Chromium PDF viewer (that stuck Holen ~1min).
           webRef.current?.injectJavaScript(
             `(function(){try{` +
               `if(window.__loga3ArmPdfCapture)window.__loga3ArmPdfCapture(120000);` +
@@ -202,11 +205,8 @@ export const Loga3WebView = React.forwardRef<
       const url = event.nativeEvent?.targetUrl || '';
       emit({ ok: true, type: 'pdfCaptureProbe', note: `openWindow:${url.slice(0, 140)}` });
       if (!url) return;
-      if (
-        url.startsWith('blob:') ||
-        /\.pdf($|\?)/i.test(url) ||
-        /export|download|zeitprotokoll|pdf/i.test(url)
-      ) {
+      // Only blob / *.pdf from RN — servlet URLs need WebView cookies (inject path).
+      if (url.startsWith('blob:') || /\.pdf($|\?)/i.test(url) || /^data:application\/pdf/i.test(url)) {
         void captureDownloadUrl(url);
         return;
       }
@@ -236,7 +236,7 @@ export const Loga3WebView = React.forwardRef<
     return (
       <View style={styles.missing}>
         <Text style={styles.missingText}>
-          LOGA3-URL fehlt. In Settings (pro Installation) eintragen — nicht im App-Build.
+          LOGA3 URL missing. Set it in Settings (per install) — not baked into the app build.
         </Text>
       </View>
     );

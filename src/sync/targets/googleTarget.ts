@@ -5,6 +5,7 @@ import { loadQuickPrefs } from '../../state/quickPrefs';
 import { askRecreateGoogleCalendar } from '../askRecreateGoogleCalendar';
 import { ensureGoogleSession, syncEntriesToGoogle } from '../google';
 import type { ExportTarget, ExportTargetResult, ExportTargetSyncOpts } from './types';
+import { t } from '../../i18n';
 
 export const googleExportTarget: ExportTarget = {
   id: 'google',
@@ -23,10 +24,10 @@ export const googleExportTarget: ExportTarget = {
   async sync(entries, opts: ExportTargetSyncOpts = {}): Promise<ExportTargetResult> {
     const calId = await getGoogleCalendarId();
     if (!calId) {
-      return { skipped: true, reason: 'kein Kalender gewählt (Setup/Export)' };
+      return { skipped: true, reason: t('fjSkipNoCalendar') };
     }
     if (!entries.length) {
-      return { skipped: true, reason: 'keine Schichten' };
+      return { skipped: true, reason: t('fjSkipNoShifts') };
     }
     try {
       await ensureGoogleSession();

@@ -80,28 +80,42 @@ function inflatePdfStream(data: Uint8Array): Uint8Array | null {
   }
 }
 
-function findStreams(pdf: Uint8Array): Uint8Array[] {
-  const out: Uint8Array[] = [];
-  const latin = bytesToLatin1(pdf);
-  // Prefer FlateDecode streams; fall back to any stream body.
-  const patterns = [
-    /\/FlateDecode\b[\s\S]{0,400}?stream\r?\n([\s\S]*?)endstream/g,
-    /stream\r?\n([\s\S]*?)endstream/g,
-  ];
-  const seen = new Set<number>();
-  for (const re of patterns) {
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(latin))) {
-      const start = m.index + m[0].indexOf(m[1]);
-      if (seen.has(start)) continue;
-      seen.add(start);
-      const body = pdf.subarray(start, start + m[1].length);
-      let end = body.length;
-      while (end > 0 && (body[end - 1] === 0x0a || body[end - 1] === 0x0d || body[end - 1] === 0x20)) {
-        end--;
-      }
-      out.push(body.subarray(0, end));
+function indexOfAscii(hay: Uint8Array, needle: string, from = 0): number {
+  const n = needle.length;
+  outer: for (let i = from; i <= hay.length - n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (hay[i + j] !== needle.charCodeAt(j)) continue outer;
     }
+    return i;
+  }
+  return -1;
+}
+
+/**
+ * Byte-scan stream bodies. Do NOT regex [\s\S]*? over a latin1 copy of the whole PDF —
+ * that burned ~30–40s per month on Hermes (UI still showed savePdf).
+ */
+function findStreams(pdf: Uint8Array): { body: Uint8Array; flate: boolean }[] {
+  const out: { body: Uint8Array; flate: boolean }[] = [];
+  let pos = 0;
+  while (pos < pdf.length) {
+    const s = indexOfAscii(pdf, 'stream', pos);
+    if (s < 0) break;
+    // dict window before "stream"
+    const dictFrom = Math.max(0, s - 400);
+    const dict = bytesToLatin1(pdf.subarray(dictFrom, s));
+    const flate = /\/FlateDecode\b/.test(dict);
+    let dataStart = s + 6;
+    if (pdf[dataStart] === 0x0d) dataStart++;
+    if (pdf[dataStart] === 0x0a) dataStart++;
+    const e = indexOfAscii(pdf, 'endstream', dataStart);
+    if (e < 0) break;
+    let end = e;
+    while (end > dataStart && (pdf[end - 1] === 0x0a || pdf[end - 1] === 0x0d || pdf[end - 1] === 0x20)) {
+      end--;
+    }
+    if (end > dataStart) out.push({ body: pdf.subarray(dataStart, end), flate });
+    pos = e + 9;
   }
   return out;
 }
@@ -212,15 +226,19 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
     const head = Array.from(pdf.subarray(0, 8))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join(' ');
-    throw new Error(`Nicht als PDF erkannt (head ${head || 'empty'}, ${pdf.length} B)`);
+    throw new Error(`Not a PDF (head ${head || 'empty'}, ${pdf.length} B)`);
   }
 
   const parts: string[] = [];
-  parts.push(...extractTjStrings(bytesToLatin1(pdf)));
-
-  for (const stream of findStreams(pdf)) {
-    if (stream.length < 8) continue;
-    const inflated = inflatePdfStream(stream);
+  // Prefer inflated FlateDecode content (LOGA3 text lives there). Skip raw full-PDF latin1 scan.
+  const streams = findStreams(pdf);
+  const ordered = [
+    ...streams.filter((s) => s.flate),
+    ...streams.filter((s) => !s.flate),
+  ];
+  for (const { body } of ordered) {
+    if (body.length < 8) continue;
+    const inflated = inflatePdfStream(body);
     if (!inflated) continue;
     const text = bytesToLatin1(inflated);
     if (!/Tj|TJ|BT|ET/.test(text)) continue;
@@ -235,7 +253,7 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
   // Fallback: flat join (gates still see Abrechnungsmonat)
   const flat = parts.join(' ').replace(/\s+Abrechnungsmonat\s+/gi, '\nAbrechnungsmonat ').trim();
   if (!flat) {
-    throw new Error('PDF-Text leer (kein FlateDecode/Tj)');
+    throw new Error('PDF text empty (no FlateDecode/Tj)');
   }
   return flat;
 }
