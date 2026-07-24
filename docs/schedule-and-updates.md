@@ -10,11 +10,13 @@ No auto-install — user downloads the APK from the release page ([releases.md](
 
 | Setting | Default | Effect |
 |---------|---------|--------|
-| Alle N Tage | 3 | Overdue after last successful Holen + N days (`0` = off) |
+| Alle N Tage | **0 (off)** | Overdue after last successful Holen + N days |
 | Reminder-Stunde | 3 | Local hour for the scheduled notification |
 | Benachrichtigung | off | `expo-notifications` when due (needs **native rebuild**) |
-| Beim Öffnen fragen | on | Alert on Holen tab if overdue |
-| Widget-Hinweis | on | “Sync fällig” on NextShift / WeekPlan widgets |
+| Beim Öffnen fragen | **off** | Alert on Holen tab if overdue (opt-in) |
+| Widget-Hinweis | **off** | “Sync fällig” on widgets (opt-in) |
+
+Nothing nags until you set an interval **and** enable prompt/notify/badge in Settings.
 
 Successful Holen calls `markSuccessfulFetch()` and reschedules the reminder.
 

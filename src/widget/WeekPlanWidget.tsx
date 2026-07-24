@@ -6,7 +6,16 @@ import { widgetChrome } from './theme';
 
 export const WEEK_PLAN_WIDGET = 'WeekPlan';
 
-export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: WeekPlanWidgetData) {
+/** Readable sizes for a 4×1 week strip — not tiny “compact” spam. */
+export function WeekPlanWidget({
+  empty,
+  eyebrow,
+  range,
+  days,
+  badge,
+  scheme,
+  showTimes,
+}: WeekPlanWidgetData) {
   const c = widgetChrome(scheme);
   return (
     <FlexWidget
@@ -15,9 +24,11 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
         height: 'match_parent',
         width: 'match_parent',
         backgroundColor: c.surface,
-        borderRadius: 18,
-        padding: 12,
+        borderRadius: 16,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
         flexDirection: 'column',
+        justifyContent: 'center',
         borderWidth: 1,
         borderColor: badge ? c.todayBorder : c.accentSoft,
       }}>
@@ -26,21 +37,21 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 8,
+          marginBottom: 4,
+          width: 'match_parent',
         }}>
         <TextWidget
           text={eyebrow}
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: c.accent,
             fontWeight: '700',
-            letterSpacing: 0.4,
           }}
         />
         <TextWidget
           text={badge ? badge : empty ? 'Keine Schichten' : range}
           style={{
-            fontSize: 11,
+            fontSize: 12,
             color: badge ? c.accent : c.inkMuted,
             fontWeight: badge ? '700' : '500',
           }}
@@ -50,8 +61,8 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
       <FlexWidget
         style={{
           flexDirection: 'row',
-          flex: 1,
           width: 'match_parent',
+          alignItems: 'stretch',
         }}>
         {days.map((d) => (
           <FlexWidget
@@ -59,7 +70,7 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
             style={{
               flex: 1,
               marginHorizontal: 2,
-              paddingVertical: 6,
+              paddingVertical: 4,
               paddingHorizontal: 2,
               borderRadius: 10,
               backgroundColor: d.isToday ? c.todayBg : c.canvas,
@@ -71,7 +82,7 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
             <TextWidget
               text={d.label}
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 color: d.isToday ? c.accent : c.inkMuted,
                 fontWeight: '700',
               }}
@@ -79,21 +90,32 @@ export function WeekPlanWidget({ empty, eyebrow, range, days, badge, scheme }: W
             <TextWidget
               text={String(d.dayNum)}
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 color: c.ink,
                 fontWeight: '700',
-                marginTop: 2,
+                marginTop: 1,
               }}
             />
             <TextWidget
               text={d.codes}
               style={{
-                fontSize: 9,
+                fontSize: 12,
                 color: d.codes === '—' ? c.dayEmpty : c.inkMuted,
                 fontWeight: '600',
-                marginTop: 4,
+                marginTop: 2,
               }}
             />
+            {showTimes && d.times ? (
+              <TextWidget
+                text={d.times}
+                style={{
+                  fontSize: 10,
+                  color: c.inkMuted,
+                  fontWeight: '500',
+                  marginTop: 1,
+                }}
+              />
+            ) : null}
           </FlexWidget>
         ))}
       </FlexWidget>

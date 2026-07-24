@@ -10,7 +10,7 @@ import {
 } from '../schedule/prefs';
 import { buildNextShiftData, buildWeekPlanData } from './data';
 import { NextShiftWidget, NEXT_SHIFT_WIDGET } from './NextShiftWidget';
-import { resolveWidgetScheme } from './prefs';
+import { loadWidgetPrefs, resolveWidgetScheme } from './prefs';
 import { WeekPlanWidget, WEEK_PLAN_WIDGET } from './WeekPlanWidget';
 
 const ENTRIES_KEY = 'loga3.entries';
@@ -45,13 +45,29 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
 
   const entries = await loadEntries();
   const scheme = await resolveWidgetScheme();
+  const wprefs = await loadWidgetPrefs();
   const badge = await syncBadge();
 
   if (widgetInfo.widgetName === NEXT_SHIFT_WIDGET) {
-    renderWidget(<NextShiftWidget {...buildNextShiftData(entries, scheme, new Date(), badge)} />);
+    renderWidget(
+      <NextShiftWidget
+        {...buildNextShiftData(entries, scheme, new Date(), badge, wprefs.density)}
+      />
+    );
     return;
   }
   if (widgetInfo.widgetName === WEEK_PLAN_WIDGET) {
-    renderWidget(<WeekPlanWidget {...buildWeekPlanData(entries, scheme, new Date(), badge)} />);
+    renderWidget(
+      <WeekPlanWidget
+        {...buildWeekPlanData(
+          entries,
+          scheme,
+          new Date(),
+          badge,
+          wprefs.density,
+          wprefs.showTimes
+        )}
+      />
+    );
   }
 }

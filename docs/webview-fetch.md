@@ -25,6 +25,7 @@ Mobile: WebView + injected JS + `fetchJob.ts`.
 4. Fallback: poll public `Download/` + periodic `scrapePdfViewer` (PDF.js)
 5. iOS: keep using `onFileDownload`; do not rely on it on Android
 6. Text extract: **no** pdfjs worker on Hermes — FlateDecode/`Tj` via `fflate` (`src/convert/pdfText.ts`)
+7. **Do not open Chromium PDF viewer** — `onShouldStartLoadWithRequest` returns `false` for PDF/download URLs, captures via in-page fetch, then `leavePdfViewer` + close dialog before next month
 
 ## Gates
 

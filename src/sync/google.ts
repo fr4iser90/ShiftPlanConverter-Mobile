@@ -329,21 +329,44 @@ function entryRange(entries: ShiftEntry[]): { startDate: string; endDate: string
 
 /**
  * Sync like Desktop: wipe date range, then create events.
+ * If `calendarId` was deleted in Google, calls `onCalendarMissing` (when provided).
  */
 export async function syncEntriesToGoogle(
   entries: ShiftEntry[],
   calendarId: string,
-  { richDetails = false }: { richDetails?: boolean } = {}
+  {
+    richDetails = false,
+    onCalendarMissing,
+  }: {
+    richDetails?: boolean;
+    onCalendarMissing?: (oldId: string) => Promise<string | null>;
+  } = {}
 ): Promise<{ created: number; deleted: number }> {
   if (!entries.length) return { created: 0, deleted: 0 };
-  await setGoogleCalendarId(calendarId);
+
+  let id = calendarId;
+  const list = await listCalendars();
+  if (!list.some((c) => c.id === id)) {
+    if (!onCalendarMissing) {
+      throw new Error(
+        'Google-Kalender fehlt (gelöscht?). Unter Export neu anlegen oder wählen.'
+      );
+    }
+    const next = await onCalendarMissing(id);
+    if (!next) {
+      throw new Error('Sync abgebrochen — kein Kalender.');
+    }
+    id = next;
+  }
+
+  await setGoogleCalendarId(id);
 
   let deleted = 0;
   const range = entryRange(entries);
   if (range) {
     const timeMin = `${range.startDate}T00:00:00+01:00`;
     const timeMax = `${range.endDate}T23:59:59+01:00`;
-    deleted = await deleteEventsInRange(calendarId, timeMin, timeMax);
+    deleted = await deleteEventsInRange(id, timeMin, timeMax);
   }
 
   let created = 0;
@@ -370,7 +393,7 @@ export async function syncEntriesToGoogle(
           end: { dateTime: `${endDate}T${entry.end}:00`, timeZone: 'Europe/Berlin' },
         };
 
-    await gfetch(`/calendars/${encodeURIComponent(calendarId)}/events`, {
+    await gfetch(`/calendars/${encodeURIComponent(id)}/events`, {
       method: 'POST',
       body: JSON.stringify(body),
     });

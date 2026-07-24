@@ -469,7 +469,11 @@ async function capturePdf(
     return pdf;
   } finally {
     scrapeStop = true;
-    void scrapeBg;
+    try {
+      await Promise.race([scrapeBg, ctx.sleep(50)]);
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -593,6 +597,23 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       await gate(ctx, `09-dialog-${label.replace('/', '-')}`);
 
       const pdf = await capturePdf(ctx, label);
+      // Stay on LOGA3 — do not linger in Chromium PDF viewer between months.
+      try {
+        await run(ctx, { type: 'leavePdfViewer' }, 5000);
+      } catch {
+        // ignore
+      }
+      try {
+        await run(ctx, { type: 'closeDialog' }, 8000);
+      } catch {
+        // ignore
+      }
+      try {
+        await run(ctx, { type: 'closePopups' }, 5000);
+      } catch {
+        // ignore
+      }
+
       const path = await savePdfBase64(pdf.base64, month, year);
       status(ctx, `${label}: PDF gespeichert (${pdf.size || '?'} B) — Validieren…`);
       await gate(ctx, `10-pdf-${label.replace('/', '-')}`);
@@ -636,12 +657,6 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         result.summaries.push(converted.summary);
       }
       status(ctx, `${label}: ${converted.entries.length} Schichten`);
-
-      try {
-        await run(ctx, { type: 'closeDialog' }, 8000);
-      } catch {
-        // ignore
-      }
     } catch (e) {
       const msg = `${label}: ${e instanceof Error ? e.message : String(e)}`;
       result.errors.push(msg);

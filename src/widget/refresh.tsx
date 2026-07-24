@@ -11,7 +11,7 @@ import {
 } from '../schedule/prefs';
 import { buildNextShiftData, buildWeekPlanData } from './data';
 import { NextShiftWidget, NEXT_SHIFT_WIDGET } from './NextShiftWidget';
-import { resolveWidgetScheme } from './prefs';
+import { loadWidgetPrefs, resolveWidgetScheme } from './prefs';
 import { WeekPlanWidget, WEEK_PLAN_WIDGET } from './WeekPlanWidget';
 
 const ENTRIES_KEY = 'loga3.entries';
@@ -40,9 +40,17 @@ export async function refreshHomeWidgets(entries?: ShiftEntry[]): Promise<void> 
   try {
     const list = await loadEntries(entries);
     const scheme = await resolveWidgetScheme();
+    const wprefs = await loadWidgetPrefs();
     const badge = await syncBadge();
-    const nextData = buildNextShiftData(list, scheme, new Date(), badge);
-    const weekData = buildWeekPlanData(list, scheme, new Date(), badge);
+    const nextData = buildNextShiftData(list, scheme, new Date(), badge, wprefs.density);
+    const weekData = buildWeekPlanData(
+      list,
+      scheme,
+      new Date(),
+      badge,
+      wprefs.density,
+      wprefs.showTimes
+    );
 
     await requestWidgetUpdate({
       widgetName: NEXT_SHIFT_WIDGET,

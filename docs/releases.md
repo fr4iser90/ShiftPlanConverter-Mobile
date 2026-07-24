@@ -2,7 +2,7 @@
 
 How we ship APKs via **GitHub Releases**, keep a user-visible **changelog**, and what the **Settings → Update** buttons do.
 
-Related: [CHANGELOG.md](../CHANGELOG.md) · [Nutzerhandbuch](./nutzerhandbuch.md)
+Related: [CHANGELOG.md](../CHANGELOG.md) (DE) · [CHANGELOG.en.md](../CHANGELOG.en.md) (EN) · [Nutzerhandbuch](./nutzerhandbuch.md)
 
 ---
 
@@ -21,13 +21,13 @@ Users install/update by downloading the APK from the release page (Android “un
 
 ## 2. Changelog rules (before every release)
 
-1. Edit [`CHANGELOG.md`](../CHANGELOG.md) **first** (Keep a Changelog style).
+1. Edit **both** [`CHANGELOG.md`](../CHANGELOG.md) (German) and [`CHANGELOG.en.md`](../CHANGELOG.en.md) (English) **first** — same version, same facts, **no mixed language** in either file.
 2. Bump `expo.version` in `app.json` (and native versionCode when using EAS autoIncrement).
-3. Top section = what **users** care about (Holen, Kalender, Export, Widgets, Sicherheit) — not only internal refactors.
-4. Copy the same bullet list into the **GitHub Release** description (German OK for local testers).
+3. Top section = what **users** care about (Holen, calendar, export, widgets, security) — not only internal refactors.
+4. Copy the German (or English) bullet list into the **GitHub Release** description to match the audience.
 5. Tag: `v0.1.5` matching the changelog heading.
 
-Example release notes block:
+Example release notes block (German):
 
 ```markdown
 ## Was ist neu (0.1.5)
@@ -73,7 +73,7 @@ Document secrets in the repo wiki or private notes: `EXPO_TOKEN`, signing keysto
 |---------|-----------|
 | Version line | Shows `Constants.expoConfig.version` |
 | **Nach Updates suchen** | Opens `{PROJECT_GITHUB}/releases` in the browser |
-| **Was ist neu?** | Opens `{PROJECT_GITHUB}/blob/main/CHANGELOG.md` |
+| **Was ist neu?** | Opens DE or EN changelog by app locale (`CHANGELOG.md` / `CHANGELOG.en.md`) |
 
 Phase 2 (implemented in Settings):
 
@@ -101,9 +101,9 @@ Documented for users in the handbook; summary for maintainers:
 
 ## 6. Checklist before publishing a release
 
-- [ ] `CHANGELOG.md` updated (user-facing bullets)
+- [ ] `CHANGELOG.md` (DE) and `CHANGELOG.en.md` (EN) updated — same version, no mixed language
 - [ ] `app.json` version bumped
 - [ ] Holen smoke on at least one real device / matrix subset
 - [ ] Security: no secrets in APK; scan policy reviewed if deps changed
 - [ ] GitHub Release created with APK + notes
-- [ ] Settings links still point at this repo’s `/releases` and `CHANGELOG.md`
+- [ ] Settings links still point at this repo’s `/releases` and locale changelog

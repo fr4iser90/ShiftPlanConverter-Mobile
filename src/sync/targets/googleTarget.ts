@@ -2,6 +2,7 @@ import { resolveStoredEntries } from '../../convert/pipeline';
 import { getMappingForScope } from '../../packs';
 import { getGoogleCalendarId, getSnapshot } from '../../state/store';
 import { loadQuickPrefs } from '../../state/quickPrefs';
+import { askRecreateGoogleCalendar } from '../askRecreateGoogleCalendar';
 import { ensureGoogleSession, syncEntriesToGoogle } from '../google';
 import type { ExportTarget, ExportTargetResult, ExportTargetSyncOpts } from './types';
 
@@ -41,6 +42,7 @@ export const googleExportTarget: ExportTarget = {
       });
       const { created, deleted } = await syncEntriesToGoogle(resolved, calId, {
         richDetails: opts.richDetails ?? snap.richDetails,
+        onCalendarMissing: opts.onCalendarMissing ?? askRecreateGoogleCalendar,
       });
       return { skipped: false, created, deleted };
     } catch (e) {

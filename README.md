@@ -186,7 +186,8 @@ docs/                # Architecture & handoff
 | [docs/architecture.md](./docs/architecture.md) | Architecture |
 | [docs/webview-fetch.md](./docs/webview-fetch.md) | WebView vs desktop |
 | [docs/google-oauth-android.md](./docs/google-oauth-android.md) | Android Google Sign-In |
-| [CHANGELOG.md](./CHANGELOG.md) | Versions |
+| [CHANGELOG.md](./CHANGELOG.md) | Versions (Deutsch) |
+| [CHANGELOG.en.md](./CHANGELOG.en.md) | Versions (English) |
 
 ## License
 

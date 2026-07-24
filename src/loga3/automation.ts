@@ -58,6 +58,8 @@ export type AutomationCommand =
   | { type: 'probeDialog' }
   | { type: 'clickDownload' }
   | { type: 'scrapePdfViewer' }
+  /** Leave Chromium/PDF.js viewer if download navigated the WebView away from LOGA3 */
+  | { type: 'leavePdfViewer' }
   | { type: 'closeDialog' }
   | { type: 'closePopups' }
   /** Picker/mask ready for PDF export path */
@@ -462,6 +464,7 @@ export const PDF_CAPTURE_INJECT = `
       } catch (e) {}
     }
     win.__loga3ScrapePdfViewer = scrapeViewerOnce;
+    win.__loga3CaptureUrl = captureUrl;
     try {
       if (!win.__loga3PdfViewerPoll) {
         win.__loga3PdfViewerPoll = setInterval(function() {
@@ -1672,6 +1675,26 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         error: 'download_not_found',
         sample: (document.body && document.body.innerText || '').slice(0, 240)
       });
+      return true;
+    }
+
+    if (cmd.type === 'leavePdfViewer') {
+      try {
+        var inPdf =
+          !!(window.PDFViewerApplication) ||
+          !!q('embed[type="application/pdf"], object[type="application/pdf"]') ||
+          /\\.pdf($|\\?)/i.test(String(location.href || '')) ||
+          /^blob:/i.test(String(location.href || '')) ||
+          /pdfjs|chrome-extension:\\/\\/|mime=application\\/pdf/i.test(String(location.href || ''));
+        if (inPdf && history.length > 1) {
+          history.back();
+          post({ ok: true, type: 'leavePdfViewer', note: 'history.back' });
+        } else {
+          post({ ok: true, type: 'leavePdfViewer', note: inPdf ? 'no_history' : 'not_in_viewer' });
+        }
+      } catch (e) {
+        post({ ok: false, type: 'leavePdfViewer', error: String(e && e.message || e) });
+      }
       return true;
     }
 

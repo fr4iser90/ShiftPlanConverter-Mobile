@@ -18,6 +18,14 @@ describe('compareVersions', () => {
 });
 
 describe('schedule overdue', () => {
+  it('defaults are opt-in (off)', () => {
+    const prefs = normalizeSchedulePrefs({});
+    expect(prefs.intervalDays).toBe(0);
+    expect(prefs.promptOnOpen).toBe(false);
+    expect(prefs.widgetBadge).toBe(false);
+    expect(isSyncOverdue(prefs, null, new Date())).toBe(false);
+  });
+
   it('marks overdue after interval', () => {
     const prefs = normalizeSchedulePrefs({ intervalDays: 3, widgetBadge: true });
     const last = new Date('2026-07-20T10:00:00');

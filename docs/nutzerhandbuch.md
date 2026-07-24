@@ -114,7 +114,7 @@ In **Einstellungen**:
 - bei neuer Version: **Release öffnen**  
 - **Was ist neu?** → Changelog  
 
-Vor jedem Release: `CHANGELOG.md` pflegen. Prozess: [releases.md](./releases.md).
+Vor jedem Release: `CHANGELOG.md` (DE) und `CHANGELOG.en.md` (EN) pflegen — gleiche Version, keine Sprachmischung. Prozess: [releases.md](./releases.md).
 
 ## 8b. Sync-Erinnerung (kein stiller Nacht-Fetch)
 

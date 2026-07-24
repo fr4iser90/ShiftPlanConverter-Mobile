@@ -159,32 +159,37 @@ export const Loga3WebView = React.forwardRef<
   const onShouldStartLoadWithRequest = useCallback(
     (req: ShouldStartLoadRequest) => {
       const url = req.url || '';
-      if (Platform.OS === 'android') {
-        if (
-          url.startsWith('blob:') ||
-          /\.pdf($|\?)/i.test(url) ||
-          /export|download|zeitprotokoll|pdf|servlet|stream/i.test(url)
-        ) {
-          emit({ ok: true, type: 'pdfCaptureProbe', note: `android-nav:${url.slice(0, 140)}` });
+      const isPdfUrl =
+        url.startsWith('blob:') ||
+        /^data:application\/pdf/i.test(url) ||
+        /\.pdf($|\?)/i.test(url);
+      // Top-level download endpoints (not normal LOGA3 GWT navigations).
+      const isDownloadNav =
+        /\/(export|download|zeitprotokoll|servlet|stream)\b/i.test(url) ||
+        /[?&](export|download|attachment|pdf)=/i.test(url) ||
+        /Content-Disposition/i.test(url);
+
+      if (isPdfUrl || isDownloadNav) {
+        emit({ ok: true, type: 'pdfCaptureProbe', note: `block-nav:${url.slice(0, 140)}` });
+        if (Platform.OS === 'android') {
+          // Capture in-page — never open Chromium PDF viewer (that stuck Holen ~1min).
           webRef.current?.injectJavaScript(
             `(function(){try{` +
               `if(window.__loga3ArmPdfCapture)window.__loga3ArmPdfCapture(120000);` +
               `var u=${JSON.stringify(url)};` +
-              `if(window.fetch&&u.indexOf('blob:')!==0){` +
+              `if(window.__loga3CaptureUrl)window.__loga3CaptureUrl(u,'');` +
+              `else if(window.fetch&&u.indexOf('blob:')!==0){` +
               `window.fetch(u,{credentials:'include'}).then(function(r){return r.blob()}).then(function(b){` +
               `var fr=new FileReader();fr.onloadend=function(){` +
               `var r=String(fr.result||'');var b64=r.indexOf(',')>=0?r.split(',')[1]:r;` +
               `if(b64&&b64.indexOf('JVBERi')===0&&window.ReactNativeWebView)` +
               `window.ReactNativeWebView.postMessage(JSON.stringify({ok:true,type:'pdfBlob',base64:b64,mime:'application/pdf',size:b.size||0,filename:u,note:'android-nav-fetch'}));` +
               `};fr.readAsDataURL(b);}).catch(function(){});}` +
-              `if(window.__loga3ScrapePdfViewer)window.__loga3ScrapePdfViewer();` +
               `}catch(e){}})();true;`
           );
+        } else {
+          void captureDownloadUrl(url);
         }
-        return true;
-      }
-      if (url.startsWith('blob:') || /\.pdf($|\?)/i.test(url)) {
-        void captureDownloadUrl(url);
         return false;
       }
       return true;

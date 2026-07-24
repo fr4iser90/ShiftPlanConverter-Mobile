@@ -9,20 +9,30 @@ import type { WidgetScheme } from './theme';
 const KEY = 'loga3.widgetPrefs';
 
 export type WidgetThemePref = 'system' | 'light' | 'dark';
+export type WidgetDensity = 'comfortable' | 'compact';
 
 export type WidgetPrefs = {
   /** Chrome for NextShift + WeekPlan widgets. */
   theme: WidgetThemePref;
+  /** Tighter padding/fonts for small / resized widgets. */
+  density: WidgetDensity;
+  /** WeekPlan: show start–end under codes when available. */
+  showTimes: boolean;
 };
 
 export const DEFAULT_WIDGET_PREFS: WidgetPrefs = {
   theme: 'system',
+  density: 'comfortable',
+  showTimes: false,
 };
 
 export function normalizeWidgetPrefs(raw: Partial<WidgetPrefs> | null | undefined): WidgetPrefs {
   const theme = raw?.theme;
+  const density = raw?.density;
   return {
     theme: theme === 'light' || theme === 'dark' || theme === 'system' ? theme : 'system',
+    density: density === 'compact' ? 'compact' : 'comfortable',
+    showTimes: raw?.showTimes === true,
   };
 }
 

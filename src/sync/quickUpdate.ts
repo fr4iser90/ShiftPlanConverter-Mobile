@@ -28,7 +28,7 @@ export type QuickUpdateResult = {
 };
 
 /**
- * One-tap: fetch configurable month window, then run enabled oauth export targets.
+ * Fetch a month window (Settings default or explicit selection), then run enabled oauth targets.
  */
 export async function runQuickUpdate(opts: {
   username: string;
@@ -38,9 +38,15 @@ export async function runQuickUpdate(opts: {
   onStatus?: (line: string) => void;
   prefs?: QuickUpdatePrefs;
   now?: Date;
+  /** If set, fetch these months instead of the Settings window. */
+  months?: YearMonth[];
+  onCalendarMissing?: NonNullable<Parameters<typeof runEnabledOauthTargets>[1]>['onCalendarMissing'];
 }): Promise<QuickUpdateResult> {
   const prefs = opts.prefs || (await loadQuickPrefs());
-  const window = buildMonthWindow(prefs.prevMonths, prefs.nextMonths, opts.now);
+  const window =
+    opts.months && opts.months.length
+      ? opts.months
+      : buildMonthWindow(prefs.prevMonths, prefs.nextMonths, opts.now);
   const windowLabel = formatMonthWindow(window);
   opts.onStatus?.(`Fenster: ${windowLabel}`);
 
@@ -99,6 +105,7 @@ export async function runQuickUpdate(opts: {
   const targets = await runEnabledOauthTargets(entries, {
     richDetails: snap.richDetails,
     onStatus: opts.onStatus,
+    onCalendarMissing: opts.onCalendarMissing,
   });
 
   const googleRow = targets.find((r) => r.id === 'google');

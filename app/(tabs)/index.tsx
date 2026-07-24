@@ -34,9 +34,10 @@ import {
   isSyncOverdue,
   loadSchedulePrefs,
 } from '@/src/schedule/prefs';
-import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
+import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
+import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -124,10 +125,36 @@ function makeFetchStyles(theme: AppTheme) {
       color: theme.color.ink,
       fontSize: 15,
     },
-    status: {
-      ...theme.type.caption,
+    statusBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.color.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.color.border,
+    },
+    statusBarBusy: {
+      backgroundColor: theme.color.primaryTint,
+      borderColor: theme.color.cardAccentBorder,
+    },
+    statusText: {
+      flex: 1,
+      fontSize: 11,
+      lineHeight: 14,
       color: theme.color.inkMuted,
-      marginTop: 4,
+      fontWeight: '500',
+    },
+    statusTextBusy: {
+      color: theme.color.inkSecondary,
+    },
+    status: {
+      fontSize: 11,
+      lineHeight: 14,
+      color: theme.color.inkFaint,
+      marginTop: 2,
     },
     advancedToggle: { paddingVertical: 4 },
     advancedToggleText: {
@@ -180,7 +207,9 @@ export default function FetchScreen() {
   const [busy, setBusy] = useState(false);
   const [webReady, setWebReady] = useState(false);
   const [webLayoutW, setWebLayoutW] = useState(windowWidth);
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]);
+  const [selected, setSelected] = useState<YearMonth[]>(() =>
+    buildMonthWindow(0, 0)
+  );
   const [year, setYear] = useState(new Date().getFullYear());
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
   const [googleConfigured, setGoogleConfigured] = useState(false);
@@ -188,6 +217,7 @@ export default function FetchScreen() {
   const bridgeRef = useRef(new AutomationBridge());
   const readyRef = useRef(false);
   const schedulePromptedRef = useRef(false);
+  const seededWindowRef = useRef(false);
   const snap = getSnapshot();
 
   useEffect(() => {
@@ -222,7 +252,13 @@ export default function FetchScreen() {
   const refreshSetup = useCallback(async () => {
     const st = await getSetupStatus();
     setSetup(st);
-    setQuickPrefs(await loadQuickPrefs());
+    const prefs = await loadQuickPrefs();
+    setQuickPrefs(prefs);
+    if (!seededWindowRef.current) {
+      seededWindowRef.current = true;
+      setSelected(buildMonthWindow(prefs.prevMonths, prefs.nextMonths));
+      setYear(new Date().getFullYear());
+    }
     setGoogleConfigured(!!(await getGoogleCalendarId()));
     if (st.complete) {
       const c = await loadCredentials();
@@ -235,6 +271,13 @@ export default function FetchScreen() {
     router.push(SETUP_HREF);
   }, []);
 
+  const applySettingsWindow = useCallback((prefs?: QuickUpdatePrefs | null) => {
+    const p = prefs || quickPrefs;
+    if (!p) return;
+    setSelected(buildMonthWindow(p.prevMonths, p.nextMonths));
+    setYear(new Date().getFullYear());
+  }, [quickPrefs]);
+
   const packMapping = useMemo(() => {
     if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
     return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
@@ -244,10 +287,7 @@ export default function FetchScreen() {
     quickPrefs?.syncGoogle && googleConfigured
   );
 
-  const quickWindowLabel = useMemo(() => {
-    const p = quickPrefs || { prevMonths: 0, nextMonths: 2, syncGoogle: true, offerIcsAfterFetch: true };
-    return formatMonthWindow(buildMonthWindow(p.prevMonths, p.nextMonths));
-  }, [quickPrefs]);
+  const selectionLabel = useMemo(() => formatMonthWindow(selected), [selected]);
 
   const shareIcsNow = () => {
     void (async () => {
@@ -360,26 +400,9 @@ export default function FetchScreen() {
 
   const onAutomationMessage = useCallback((msg: AutomationMessage) => {
     bridgeRef.current.handleMessage(msg);
-    if (msg.type === 'pdfBlob') {
-      setStatus(
-        msg.ok
-          ? t('pdfCaptured', {
-              size: msg.size || '?',
-              note: msg.note ? `, ${msg.note}` : '',
-            })
-          : t('pdfCaptureFailed', { error: msg.error || '?' })
-      );
-      return;
-    }
-    const detail = [msg.error, msg.code, msg.note].filter(Boolean).join(' · ');
-    if (msg.type) setStatus(`${msg.type}${detail ? `: ${detail}` : ''}`);
+    // Holen status is owned by fetchJob onStatus — probes/pdfBlob must not clobber it
+    // (stuck "PDF erfasst" while WebView flapped for ~1min between months).
   }, []);
-
-  const toggleMonth = (m: number) => {
-    setSelectedMonths((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m].sort((a, b) => a - b)
-    );
-  };
 
   const waitUntilReady = (): Promise<void> =>
     new Promise((resolve, reject) => {
@@ -413,10 +436,29 @@ export default function FetchScreen() {
     }
   };
 
-  const onQuickUpdate = async () => {
+  const toggleMonth = (m: number) => {
+    setSelected((prev) => {
+      const key = ymKey(m, year);
+      if (prev.some((x) => ymKey(x.month, x.year) === key)) {
+        return prev.filter((x) => ymKey(x.month, x.year) !== key);
+      }
+      return [...prev, { month: m, year }].sort(
+        (a, b) => a.year - b.year || a.month - b.month
+      );
+    });
+  };
+
+  const monthSelected = (m: number) =>
+    selected.some((x) => x.month === m && x.year === year);
+
+  const onHolen = async () => {
     if (!setup?.complete || !creds) {
       Alert.alert(t('setupTitle'), t('setupIncomplete'));
       router.push(SETUP_HREF);
+      return;
+    }
+    if (!selected.length) {
+      Alert.alert(t('selectMonths'), t('setupPickMonth'));
       return;
     }
     setBusy(true);
@@ -433,6 +475,8 @@ export default function FetchScreen() {
         inject: (cmd) => webRef.current?.run(cmd),
         onStatus: setStatus,
         prefs,
+        months: selected,
+        onCalendarMissing: askRecreateGoogleCalendar,
       });
       const parts = [
         result.windowLabel,
@@ -451,6 +495,7 @@ export default function FetchScreen() {
         ),
       ].filter(Boolean);
       setStatus(parts.join(' · '));
+      await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
       const buttons: {
         text: string;
         style?: 'cancel' | 'default';
@@ -469,6 +514,7 @@ export default function FetchScreen() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(`Fehler: ${msg}`);
+      await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
       Alert.alert(t('quickUpdate'), msg);
     } finally {
       setBusy(false);
@@ -490,70 +536,13 @@ export default function FetchScreen() {
           {
             text: t('schedulePromptYes'),
             onPress: () => {
-              void onQuickUpdate();
+              void onHolen();
             },
           },
         ]);
       })();
     }, [refreshSetup, busy, setup, creds, quickPrefs])
   );
-;
-
-  const onFetchSelected = async () => {
-    if (!setup?.complete || !creds) {
-      Alert.alert(t('setupTitle'), t('setupIncomplete'));
-      router.push(SETUP_HREF);
-      return;
-    }
-    if (!selectedMonths.length) {
-      Alert.alert(t('selectMonths'), t('setupPickMonth'));
-      return;
-    }
-
-    setBusy(true);
-    setShowWeb(true);
-    setStatus(t('webViewStarting'));
-    console.log(
-      `MATRIX_FETCH_START months=${selectedMonths.join(',')} year=${year} layoutW=${webHostWidth}`
-    );
-    try {
-      await waitUntilReady();
-      await warmBridge();
-      const result = await runFetchJob({
-        username: creds.username,
-        password: creds.password,
-        months: selectedMonths,
-        year,
-        bridge: bridgeRef.current,
-        inject: (cmd) => webRef.current?.run(cmd),
-        onStatus: setStatus,
-        replaceEntries: true,
-        gateTrace: true,
-      });
-      const parts = [
-        `${result.entries.length} Schichten`,
-        result.savedPdfs.length ? `${result.savedPdfs.length} PDF(s)` : null,
-        result.skippedNoPlan.length ? `NO_PLAN: ${result.skippedNoPlan.join(', ')}` : null,
-        result.errors.length
-          ? `Fehler:\n${result.errors.map((e) => `· ${e}`).join('\n')}`
-          : null,
-        result.gateTraces?.length ? `Gates: ${result.gateTraces.length}` : null,
-      ].filter(Boolean);
-      setStatus(parts.join(' · '));
-      await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
-      if (result.entries.length > 0) {
-        router.replace(CALENDAR_HREF);
-      }
-      Alert.alert(t('alertDone'), parts.join('\n'));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setStatus(`Fehler: ${msg}`);
-      await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
-      Alert.alert(t('alertFetchFailed'), msg);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   // Emulator matrix: deep-link smoke sets months + autofetch (AsyncStorage, polled)
   useEffect(() => {
@@ -579,7 +568,7 @@ export default function FetchScreen() {
       const intent = await takeSmokeFetchIntent();
       if (!intent?.autofetch) return;
       started = true;
-      setSelectedMonths(intent.months);
+      setSelected(intent.months.map((m) => ({ month: m, year: intent.year })));
       setYear(intent.year);
       const months = intent.months;
       const y = intent.year;
@@ -670,7 +659,7 @@ export default function FetchScreen() {
       >
         <View style={styles.headerRow}>
           <View style={{ flex: 1, gap: 4 }}>
-            <ScreenTitle>{t('tabFetch')} · WV</ScreenTitle>
+            <ScreenTitle>{`${t('tabFetch')} · WV`}</ScreenTitle>
             <Text style={styles.summary} numberOfLines={2}>
               {setup.summary || t('setupWorkplace')}
             </Text>
@@ -684,38 +673,30 @@ export default function FetchScreen() {
           />
         </View>
 
-        {busy ? (
-          <AppCard accent>
-            <SectionTitle>{t('fetchRunning')}</SectionTitle>
-            <Text style={styles.status}>Status: {status}</Text>
-            <ActivityIndicator color={theme.color.primary} style={{ marginTop: 8 }} />
-          </AppCard>
-        ) : (
+        <View style={[styles.statusBar, busy && styles.statusBarBusy]}>
+          {busy ? <ActivityIndicator size="small" color={theme.color.primary} /> : null}
+          <Text
+            style={[styles.statusText, busy && styles.statusTextBusy]}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {status}
+          </Text>
+        </View>
+
+        {!busy ? (
           <>
             <AppCard accent>
-              <SectionTitle>{t('quickUpdate')}</SectionTitle>
-              <Meta>{t('quickUpdateHint')}</Meta>
+              <SectionTitle>{t('selectMonths')}</SectionTitle>
+              <Meta>{t('fetchHint')}</Meta>
               <Text style={styles.windowLine}>
-                {t('quickUpdateWindow')}: {quickWindowLabel}
+                {selectionLabel || '—'}
                 {' · '}
                 {quickWillSyncGoogle ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
               </Text>
-              <AppButton
-                title={
-                  quickWillSyncGoogle ? t('quickUpdateGoSync') : t('quickUpdateGo')
-                }
-                onPress={() => void onQuickUpdate()}
-                disabled={busy}
-                busy={busy}
-              />
-            </AppCard>
-
-            <AppCard>
-              <SectionTitle>{t('selectMonths')}</SectionTitle>
-              <Meta>{t('fetchHint')}</Meta>
               <View style={styles.monthGrid}>
                 {MONTHS.map((m) => {
-                  const on = selectedMonths.includes(m);
+                  const on = monthSelected(m);
                   return (
                     <Pressable
                       key={m}
@@ -737,12 +718,20 @@ export default function FetchScreen() {
                 onChangeText={(v) => setYear(Number(v) || year)}
               />
               <AppButton
-                title={t('fetchSelected')}
-                variant="secondary"
-                onPress={() => void onFetchSelected()}
+                title={t('holenApplyWindow')}
+                variant="ghost"
+                compact
+                onPress={() => applySettingsWindow()}
                 disabled={busy}
               />
-              <Text style={styles.status}>Status: {status}</Text>
+              <AppButton
+                title={
+                  quickWillSyncGoogle ? t('quickUpdateGoSync') : t('quickUpdateGo')
+                }
+                onPress={() => void onHolen()}
+                disabled={busy}
+                busy={busy}
+              />
             </AppCard>
 
             <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.advancedToggle}>
@@ -767,7 +756,7 @@ export default function FetchScreen() {
               </AppCard>
             )}
           </>
-        )}
+        ) : null}
 
         {/* Erweitert ↑  ·  WebView-Leiste  ·  0 Schichten ↓ */}
         <Pressable style={styles.webToggle} onPress={toggleShowWeb} disabled={busy}>
@@ -801,9 +790,7 @@ export default function FetchScreen() {
 
         <Text style={styles.footerMeta}>
           {snap.entries.length} {t('entriesCount')}
-          {selectedMonths.length
-            ? ` · ${selectedMonths.map((m) => String(m).padStart(2, '0')).join(',')}/${year}`
-            : ''}
+          {selected.length ? ` · ${selectionLabel}` : ''}
         </Text>
       </ScrollView>
     </Screen>

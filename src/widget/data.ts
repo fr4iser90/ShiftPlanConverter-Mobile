@@ -9,12 +9,14 @@ import {
   weekTitle,
 } from '../calendar/dates';
 import { entriesByDate, findNextShift, formatShiftLine } from '../calendar/shifts';
+import type { WidgetDensity } from './prefs';
 import type { WidgetScheme } from './theme';
 
 export type WeekDayChip = {
   label: string;
   dayNum: number;
   codes: string;
+  times: string;
   isToday: boolean;
 };
 
@@ -26,6 +28,7 @@ export type NextShiftWidgetData = {
   /** Optional sync-due hint under subtitle */
   badge?: string | null;
   scheme: WidgetScheme;
+  density: WidgetDensity;
 };
 
 export type WeekPlanWidgetData = {
@@ -35,13 +38,16 @@ export type WeekPlanWidgetData = {
   days: WeekDayChip[];
   badge?: string | null;
   scheme: WidgetScheme;
+  density: WidgetDensity;
+  showTimes: boolean;
 };
 
 export function buildNextShiftData(
   entries: ShiftEntry[],
   scheme: WidgetScheme,
   now = new Date(),
-  badge?: string | null
+  badge?: string | null,
+  density: WidgetDensity = 'comfortable'
 ): NextShiftWidgetData {
   const next = findNextShift(entries, now);
   if (!next) {
@@ -52,6 +58,7 @@ export function buildNextShiftData(
       subtitle: 'In der App aktualisieren',
       badge: badge || null,
       scheme,
+      density,
     };
   }
   return {
@@ -61,14 +68,37 @@ export function buildNextShiftData(
     subtitle: formatDeDate(next.date),
     badge: badge || null,
     scheme,
+    density,
   };
+}
+
+function dayTimes(list: ShiftEntry[]): string {
+  const t = list
+    .map((e) => {
+      if (e.start && e.end) return `${e.start}–${e.end}`;
+      return e.start || e.end || '';
+    })
+    .filter(Boolean)
+    .slice(0, 1);
+  return t[0] || '';
+}
+
+/** Short duty label for week chips — never dump embedded times (BEREIT_00:00-…). */
+export function shortDutyCode(type: string): string {
+  let s = (type || '?').replace(/\s*⚠️.*$/u, '').trim();
+  s = s.replace(/[_\s]+(\d{1,2}:\d{2}).*$/u, '').trim();
+  s = s.replace(/\s+\d{1,2}:\d{2}.*$/u, '').trim();
+  if (s.length > 7) s = s.slice(0, 7);
+  return s || '?';
 }
 
 export function buildWeekPlanData(
   entries: ShiftEntry[],
   scheme: WidgetScheme,
   now = new Date(),
-  badge?: string | null
+  badge?: string | null,
+  density: WidgetDensity = 'comfortable',
+  showTimes = false
 ): WeekPlanWidgetData {
   const sow = startOfWeek(now);
   const byDate = entriesByDate(entries);
@@ -77,7 +107,7 @@ export function buildWeekPlanData(
     const iso = toIsoDate(day);
     const list = byDate.get(iso) || [];
     const codes = list
-      .map((e) => (e.type || '?').replace(/\s*⚠️.*$/, '').trim())
+      .map((e) => shortDutyCode(e.type || ''))
       .filter(Boolean)
       .slice(0, 2)
       .join('·');
@@ -85,6 +115,7 @@ export function buildWeekPlanData(
       label: weekdayShort(day),
       dayNum: day.getDate(),
       codes: codes || '—',
+      times: dayTimes(list),
       isToday: sameDay(day, now),
     };
   });
@@ -96,5 +127,7 @@ export function buildWeekPlanData(
     days,
     badge: badge || null,
     scheme,
+    density,
+    showTimes,
   };
 }

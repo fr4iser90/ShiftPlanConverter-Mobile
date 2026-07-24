@@ -25,11 +25,11 @@ import { clearCredentials } from '@/src/loga3/credentials';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   DESKTOP_GITHUB,
-  PROJECT_CHANGELOG,
   PROJECT_GITHUB,
   PROJECT_RELEASES,
   PROJECT_WEBSITE,
   SUPPORT_EMAIL,
+  changelogUrlForLocale,
 } from '@/src/support/legal';
 import { buildSupportMailBody, openSupportMail } from '@/src/support/mailto';
 import {
@@ -148,6 +148,12 @@ export default function SettingsScreen() {
 
   const patchWidgetTheme = async (themePref: WidgetThemePref) => {
     const next = await saveWidgetPrefs({ theme: themePref });
+    setWidgetPrefs(next);
+    void refreshHomeWidgets(snap.entries);
+  };
+
+  const patchWidget = async (patch: Partial<WidgetPrefs>) => {
+    const next = await saveWidgetPrefs(patch);
     setWidgetPrefs(next);
     void refreshHomeWidgets(snap.entries);
   };
@@ -330,6 +336,30 @@ export default function SettingsScreen() {
             />
           ))}
         </View>
+        <Text style={styles.stepperLabel}>{t('widgetDensity')}</Text>
+        <View style={styles.row}>
+          <AppButton
+            compact
+            title={t('widgetDensityComfortable')}
+            variant={widgetPrefs.density === 'comfortable' ? 'soft' : 'secondary'}
+            onPress={() => void patchWidget({ density: 'comfortable' })}
+          />
+          <AppButton
+            compact
+            title={t('widgetDensityCompact')}
+            variant={widgetPrefs.density === 'compact' ? 'soft' : 'secondary'}
+            onPress={() => void patchWidget({ density: 'compact' })}
+          />
+        </View>
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{t('widgetShowTimes')}</Text>
+          <Switch
+            value={widgetPrefs.showTimes}
+            onValueChange={(v) => void patchWidget({ showTimes: v })}
+            trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+            thumbColor="#fff"
+          />
+        </View>
       </AppCard>
 
       <AppCard>
@@ -353,7 +383,7 @@ export default function SettingsScreen() {
         <AppButton
           title={t('appUpdateChangelog')}
           variant="secondary"
-          onPress={() => void openUrl(PROJECT_CHANGELOG)}
+          onPress={() => void openUrl(changelogUrlForLocale(snap.locale))}
         />
         <AppButton
           title={t('legalGithub')}

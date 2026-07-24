@@ -14,6 +14,11 @@ export type ExportTargetSyncOpts = {
   richDetails?: boolean;
   /** When true, file targets open the share sheet; when false, they only report readiness. */
   interactive?: boolean;
+  /**
+   * Stored Google calendar id is gone (deleted). Return a new id to continue sync,
+   * or null to abort. Typically shows an Alert + createGoogleCalendar.
+   */
+  onCalendarMissing?: (oldId: string) => Promise<string | null>;
 };
 
 /**

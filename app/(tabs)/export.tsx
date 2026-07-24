@@ -23,6 +23,7 @@ import {
   syncEntriesToGoogle,
   type GoogleCalendar,
 } from '@/src/sync/google';
+import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
@@ -150,6 +151,18 @@ export default function ExportScreen() {
       }
       const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
         richDetails: snap.richDetails,
+        onCalendarMissing: async (oldId) => {
+          const next = await askRecreateGoogleCalendar(oldId);
+          if (next) {
+            setCalendarId(next);
+            try {
+              setCalendars(await listCalendars());
+            } catch {
+              // list optional
+            }
+          }
+          return next;
+        },
       });
       const body = deleted
         ? `${t('syncDone', { created })}\n${t('syncDeleted', { deleted })}`

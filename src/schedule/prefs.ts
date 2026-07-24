@@ -6,16 +6,20 @@
  * - overdue tracking + widget badge
  * - optional notification reminder (expo-notifications)
  * - optional prompt when opening the app if overdue
+ *
+ * All of the above are **opt-in**. Defaults: off (interval 0, no prompt).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PREFS_KEY = 'loga3.schedulePrefs';
 const LAST_FETCH_KEY = 'loga3.lastSuccessfulFetchAt';
+/** Bumped when defaults flipped to opt-in — migrates legacy auto-nag prefs once. */
+const PREFS_SCHEMA = 2;
 
 export type SchedulePrefs = {
-  /** Days between expected Holen. 0 = tracking off. Default 3. */
+  /** Days between expected Holen. 0 = tracking off. */
   intervalDays: number;
-  /** Preferred local hour (0–23) for the next reminder. Default 3. */
+  /** Preferred local hour (0–23) for the next reminder. */
   preferredHour: number;
   /** Schedule a local notification when a sync is due. */
   notifyEnabled: boolean;
@@ -26,11 +30,11 @@ export type SchedulePrefs = {
 };
 
 export const DEFAULT_SCHEDULE_PREFS: SchedulePrefs = {
-  intervalDays: 3,
+  intervalDays: 0,
   preferredHour: 3,
   notifyEnabled: false,
-  promptOnOpen: true,
-  widgetBadge: true,
+  promptOnOpen: false,
+  widgetBadge: false,
 };
 
 const clampDays = (n: number) => Math.max(0, Math.min(30, Math.round(Number(n) || 0)));
@@ -40,19 +44,50 @@ export function normalizeSchedulePrefs(
   raw: Partial<SchedulePrefs> | null | undefined
 ): SchedulePrefs {
   return {
-    intervalDays: clampDays(raw?.intervalDays ?? DEFAULT_SCHEDULE_PREFS.intervalDays),
+    intervalDays: clampDays(
+      raw?.intervalDays !== undefined && raw?.intervalDays !== null
+        ? raw.intervalDays
+        : DEFAULT_SCHEDULE_PREFS.intervalDays
+    ),
     preferredHour: clampHour(raw?.preferredHour ?? DEFAULT_SCHEDULE_PREFS.preferredHour),
     notifyEnabled: raw?.notifyEnabled === true,
-    promptOnOpen: raw?.promptOnOpen !== false,
-    widgetBadge: raw?.widgetBadge !== false,
+    promptOnOpen: raw?.promptOnOpen === true,
+    widgetBadge: raw?.widgetBadge === true,
   };
+}
+
+type StoredPrefs = Partial<SchedulePrefs> & { _schema?: number };
+
+/** Legacy 0.1.4 defaults auto-nagged every open — treat as unset. */
+function isLegacyAutoNag(raw: StoredPrefs): boolean {
+  if (raw._schema === PREFS_SCHEMA) return false;
+  const days = Number(raw.intervalDays);
+  const promptOn = raw.promptOnOpen !== false;
+  const notifyOff = raw.notifyEnabled !== true;
+  return (days === 3 || Number.isNaN(days) || raw.intervalDays == null) && promptOn && notifyOff;
 }
 
 export async function loadSchedulePrefs(): Promise<SchedulePrefs> {
   try {
     const raw = await AsyncStorage.getItem(PREFS_KEY);
     if (!raw) return { ...DEFAULT_SCHEDULE_PREFS };
-    return normalizeSchedulePrefs(JSON.parse(raw));
+    const parsed = JSON.parse(raw) as StoredPrefs;
+    if (isLegacyAutoNag(parsed)) {
+      const migrated = { ...DEFAULT_SCHEDULE_PREFS };
+      await AsyncStorage.setItem(
+        PREFS_KEY,
+        JSON.stringify({ ...migrated, _schema: PREFS_SCHEMA })
+      );
+      return migrated;
+    }
+    const next = normalizeSchedulePrefs(parsed);
+    if (parsed._schema !== PREFS_SCHEMA) {
+      await AsyncStorage.setItem(
+        PREFS_KEY,
+        JSON.stringify({ ...next, _schema: PREFS_SCHEMA })
+      );
+    }
+    return next;
   } catch {
     return { ...DEFAULT_SCHEDULE_PREFS };
   }
@@ -62,7 +97,7 @@ export async function saveSchedulePrefs(
   patch: Partial<SchedulePrefs>
 ): Promise<SchedulePrefs> {
   const next = normalizeSchedulePrefs({ ...(await loadSchedulePrefs()), ...patch });
-  await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next));
+  await AsyncStorage.setItem(PREFS_KEY, JSON.stringify({ ...next, _schema: PREFS_SCHEMA }));
   try {
     const { rescheduleSyncReminder } = await import('./reminders');
     await rescheduleSyncReminder(next);
@@ -126,7 +161,7 @@ export function nextReminderDate(
 
 export function formatScheduleSummary(prefs: SchedulePrefs, locale: 'de' | 'en' = 'de'): string {
   if (prefs.intervalDays <= 0) {
-    return locale === 'de' ? 'Kein Intervall' : 'No interval';
+    return locale === 'de' ? 'Aus (kein Intervall)' : 'Off (no interval)';
   }
   const hour = String(prefs.preferredHour).padStart(2, '0');
   if (locale === 'de') {
