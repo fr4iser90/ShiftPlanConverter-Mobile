@@ -304,11 +304,15 @@ async function deleteEventsInRange(
     singleEvents: 'true',
     maxResults: '2500',
   });
+  const listT0 = Date.now();
   const data = await gfetch(
     `/calendars/${encodeURIComponent(calendarId)}/events?${q.toString()}`
   );
   const items = (data.items || []) as { id: string }[];
+  // eslint-disable-next-line no-console
+  console.warn(`TIMING google listEvents n=${items.length} +${Date.now() - listT0}ms`);
   let deleted = 0;
+  const delT0 = Date.now();
   for (const ev of items) {
     if (!ev.id) continue;
     await gfetch(
@@ -316,7 +320,15 @@ async function deleteEventsInRange(
       { method: 'DELETE' }
     );
     deleted += 1;
+    if (deleted % 25 === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `TIMING google delete progress ${deleted}/${items.length} +${Date.now() - delT0}ms`
+      );
+    }
   }
+  // eslint-disable-next-line no-console
+  console.warn(`TIMING google delete done n=${deleted} +${Date.now() - delT0}ms`);
   return deleted;
 }
 
@@ -337,15 +349,28 @@ export async function syncEntriesToGoogle(
   {
     richDetails = false,
     onCalendarMissing,
+    source = 'sync',
   }: {
     richDetails?: boolean;
     onCalendarMissing?: (oldId: string) => Promise<string | null>;
+    /** Label for TIMING logs (export | holen). */
+    source?: string;
   } = {}
 ): Promise<{ created: number; deleted: number }> {
   if (!entries.length) return { created: 0, deleted: 0 };
 
+  const jobT0 = Date.now();
+  const range = entryRange(entries);
+  // eslint-disable-next-line no-console
+  console.warn(
+    `TIMING google ${source} start n=${entries.length} range=${range ? `${range.startDate}…${range.endDate}` : '?'}`
+  );
+
   let id = calendarId;
+  const listT0 = Date.now();
   const list = await listCalendars();
+  // eslint-disable-next-line no-console
+  console.warn(`TIMING google ${source} listCalendars +${Date.now() - listT0}ms`);
   if (!list.some((c) => c.id === id)) {
     if (!onCalendarMissing) {
       throw new Error(
@@ -362,7 +387,6 @@ export async function syncEntriesToGoogle(
   await setGoogleCalendarId(id);
 
   let deleted = 0;
-  const range = entryRange(entries);
   if (range) {
     const timeMin = `${range.startDate}T00:00:00+01:00`;
     const timeMax = `${range.endDate}T23:59:59+01:00`;
@@ -370,6 +394,7 @@ export async function syncEntriesToGoogle(
   }
 
   let created = 0;
+  const createT0 = Date.now();
   for (const entry of entries) {
     const description = buildEventDescription(entry, { richDetails });
     let endDate = entry.date;
@@ -398,7 +423,18 @@ export async function syncEntriesToGoogle(
       body: JSON.stringify(body),
     });
     created += 1;
+    if (created % 25 === 0 || created === entries.length) {
+      const ms = Date.now() - createT0;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `TIMING google ${source} create ${created}/${entries.length} +${ms}ms (~${Math.round(ms / created)}ms/ev)`
+      );
+    }
   }
+  // eslint-disable-next-line no-console
+  console.warn(
+    `TIMING google ${source} done created=${created} deleted=${deleted} total=+${Date.now() - jobT0}ms`
+  );
   return { created, deleted };
 }
 
