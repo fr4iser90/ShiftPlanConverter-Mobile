@@ -1,5 +1,6 @@
 import type { AutomationCommand, AutomationMessage } from './automation';
 import { AutomationBridge } from './bridge';
+import { anonymizeDienstplanText } from '../convert/anonymize';
 import { convertPdfText } from '../convert/pipeline';
 import { extractTextFromPdfBuffer } from '../convert/pdfText';
 import type { MonthSummary, ShiftEntry } from '../convert/types';
@@ -741,7 +742,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         ]
       : result.summaries;
     await setEntries(unique, {
-      rawText: result.texts.join('\n\n'),
+      rawText: anonymizeDienstplanText(result.texts.join('\n\n'), { maxChars: 80000 }),
       summaries,
       summary: summaries[summaries.length - 1] || null,
     });

@@ -1,5 +1,5 @@
 import { loadCredentials } from '../loga3/credentials';
-import { getLoga3BaseUrl, hydrateLoga3Env } from '../loga3/env';
+import { getLoga3BaseUrl, hydrateLoga3Env, isValidLoga3BaseUrl } from '../loga3/env';
 import { getSnapshot, hydrateStore, isWorkplaceConfigured } from '../state/store';
 import { getPackById } from '../packs';
 
@@ -14,7 +14,8 @@ export type SetupStatus = {
 
 export async function getSetupStatus(): Promise<SetupStatus> {
   await Promise.all([hydrateLoga3Env(), hydrateStore()]);
-  const urlOk = !!getLoga3BaseUrl().trim();
+  const url = getLoga3BaseUrl().trim();
+  const urlOk = isValidLoga3BaseUrl(url);
   const creds = await loadCredentials();
   const credentialsOk = !!(creds?.username && creds?.password);
   const snap = getSnapshot();

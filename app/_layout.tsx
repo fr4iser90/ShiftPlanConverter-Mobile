@@ -53,9 +53,11 @@ export default function RootLayout() {
           router.replace('/(tabs)');
         }
       } catch (e) {
+        // Release: credential smoke deep-links are rejected by design.
         console.warn('smoke-setup initial failed', e);
       }
       setBootstrapped(true);
+      // Deep-link listener always registered; applySmokeSetupFromUrl enforces __DEV__ for creds.
       sub = Linking.addEventListener('url', (e) => {
         if (!isSmokeSetupUrl(e.url)) return;
         void applySmokeSetupFromUrl(e.url)

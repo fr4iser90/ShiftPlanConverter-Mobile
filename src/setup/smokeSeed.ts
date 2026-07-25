@@ -1,11 +1,13 @@
 /**
  * QA / emulator smoke: apply setup via deep link (Unicode-safe).
- * loga3mobile://smoke-setup?url=...&user=...&pass=...&hospital=...&group=...&area=...&preset=...
+ * shiftplan://smoke-setup?url=...&user=...&pass=...&hospital=...&group=...&area=...&preset=...
+ *
+ * Credential seeding is __DEV__-only — release/preview APKs ignore pass= deep links.
  */
 import * as Linking from 'expo-linking';
 
 import { saveCredentials } from '../loga3/credentials';
-import { setLoga3BaseUrl } from '../loga3/env';
+import { isValidLoga3BaseUrl, setLoga3BaseUrl } from '../loga3/env';
 import { setWorkplace } from '../state/store';
 import {
   BUILTIN_AREA_ID,
@@ -14,6 +16,11 @@ import {
   BUILTIN_PRESET,
 } from '../packs';
 import { setSmokeFetchIntent, clearMatrixStatus, setMatrixStatus } from './smokeFetchIntent';
+
+/** Release builds never accept credential deep-links. */
+export function isSmokeCredentialSeedAllowed(): boolean {
+  return typeof __DEV__ !== 'undefined' && __DEV__;
+}
 
 export function isSmokeSetupUrl(url: string | null | undefined): boolean {
   if (!url) return false;
@@ -43,9 +50,10 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
   const monthsRaw = String(one('months') || '').trim();
   const yearRaw = String(one('year') || '').trim();
   const autofetch = /^(1|true)$/i.test(String(one('autofetch') || ''));
+  const wantsCreds = !!(baseUrl || user || pass);
 
   // Intent-only: months/autofetch without overwriting credentials
-  if ((!baseUrl || !user || !pass) && (monthsRaw || autofetch)) {
+  if (!wantsCreds && (monthsRaw || autofetch)) {
     const months = monthsRaw
       ? monthsRaw
           .split(/[,;\s]+/)
@@ -66,8 +74,15 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
     return true;
   }
 
+  if (!isSmokeCredentialSeedAllowed()) {
+    throw new Error('smoke-setup credentials disabled in release builds');
+  }
+
   if (!baseUrl || !user || !pass) {
     throw new Error('smoke-setup: url, user, pass required');
+  }
+  if (!isValidLoga3BaseUrl(baseUrl)) {
+    throw new Error('smoke-setup: url must be https://…');
   }
   await setLoga3BaseUrl(baseUrl);
   await saveCredentials({ username: user, password: pass });

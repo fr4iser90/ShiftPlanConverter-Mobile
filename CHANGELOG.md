@@ -4,13 +4,29 @@ Deutsch. Englische Fassung: [CHANGELOG.en.md](./CHANGELOG.en.md)
 
 Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## 0.1.5 — 2026-07-25
+
+### Hinzugefügt
+- Verschlüsselung at-rest (AES-GCM) für Schichten, Rohtext, Summaries und PDFs; Schlüssel im Secure Store
+- Optionale Biometrie-/PIN-Sperre vor Holen und Passwort-Anzeige (Einstellungen → Sicherheit)
+- Datenschutzerklärung auf shift.fr4iser.com/privacy (ShiftPlanConverter) und Link in About; Play-Store-Launch-Docs
+- „Alle lokalen Daten löschen“ und HTTPS-only Tenant-URL
+
+### Geändert
+- WebView-Debug und Smoke-Credential-Deep-Links nur noch in Dev-Builds
+- Downloads-PDF nach Android-Poll löschen; Advanced/Fixture nur in `__DEV__`
+- Update-Check kann später auf Play Store umschalten (`PROJECT_PLAY_STORE`)
+
+### Sicherheit
+- Kein „security audited“-Claim in Store-Texten; Peer-Review-Paket unter `docs/dev/peer-review-packet.md`
+
 ## 0.1.4 — 2026-07-24
 
 ### Hinzugefügt
 - Nutzerhandbuch und [docs/releases.md](./docs/releases.md) (GitHub-APK, Changelog-Pflicht vor Release)
 - Einstellungen: GitHub-Update-Prüfung (`releases/latest`) und Changelog-Links
 - Einstellungen: Sync-Erinnerung (Intervall, Stunde, Benachrichtigung, Nachfrage beim Öffnen, Widget-Hinweis)
-- [docs/schedule-and-updates.md](./docs/schedule-and-updates.md) — Grenzen von Hintergrund-Holen
+- [docs/dev/schedule-and-updates.md](./docs/dev/schedule-and-updates.md) — Grenzen von Hintergrund-Holen
 - System-Hell-/Dunkelmodus für die Produkt-UI; Statusleiste folgt dem Hintergrund
 - Kalender: Umschalter Woche / Monat / Liste; AZK-Monatsübersicht darunter einklappbar
 - Android-Widgets: „Nächste Schicht“ und „Diese Woche“; Theme in den Einstellungen
@@ -49,7 +65,7 @@ Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 - Android-PDF-Capture: Viewer-Auslesen und nur echte PDF-Bytes; Text-Extraktion ohne Worker auf Hermes
 
 ### Geändert
-- PLAN / `docs/webview-fetch.md`: Live-Holen-DoD erfüllt
+- PLAN / `docs/dev/webview-fetch.md`: Live-Holen-DoD erfüllt
 - README: kein Displaygrößen-Cheat; Emulator = natürliche Phone-Größe
 - Mehrere Monate Smoke 06+07/2026 → 28 Schichten / 2 PDFs
 - Google-Sync wie Desktop: eingebaute Client-ID (keine `EXPO_PUBLIC_GOOGLE_*`), Löschen im Datumsbereich; optional `GOOGLE_CLIENT_ID` in `.env`

@@ -13,13 +13,13 @@ if [[ ! -f "$KS" ]]; then
 fi
 
 echo "keystore: $KS"
-echo "package:  com.fr4iser.loga3mobile"
+echo "package:  com.fr4iser.shiftplan"
 echo "---"
 keytool -list -v -keystore "$KS" -alias "$ALIAS" -storepass "$STOREPASS" -keypass "$KEYPASS" \
   | grep -E 'Alias name:|SHA1:|SHA256:'
 echo "---"
 echo "Google Cloud Console → Credentials → Create OAuth client → Android"
-echo "  Package name: com.fr4iser.loga3mobile"
+echo "  Package name: com.fr4iser.shiftplan"
 echo "  SHA-1:        (line above, keep the colons)"
 echo "No redirect URIs. Keep the existing Web client for token minting."
-echo "See docs/google-oauth-android.md"
+echo "See docs/dev/google-oauth-android.md"

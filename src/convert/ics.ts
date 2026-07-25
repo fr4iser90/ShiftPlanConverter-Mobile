@@ -30,7 +30,7 @@ export function generateIcs(
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//LOGA3-Automation-Mobile//DE',
+    'PRODID:-//ShiftPlanConverter-Mobile//DE',
     'CALSCALE:GREGORIAN',
   ];
 

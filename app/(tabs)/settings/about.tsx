@@ -10,13 +10,16 @@ import { getSnapshot, subscribe } from '@/src/state/store';
 import {
   DESKTOP_GITHUB,
   PROJECT_GITHUB,
+  PROJECT_PLAY_STORE,
+  PROJECT_PRIVACY,
   PROJECT_RELEASES,
   PROJECT_WEBSITE,
   SUPPORT_EMAIL,
   changelogUrlForLocale,
+  isPlayStoreListed,
 } from '@/src/support/legal';
 import { buildSupportMailBody, openSupportMail } from '@/src/support/mailto';
-import { checkGithubLatestRelease } from '@/src/update/githubRelease';
+import { checkForAppUpdate } from '@/src/update/githubRelease';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -53,7 +56,7 @@ export default function SettingsAboutScreen() {
     setUpdateLine(t('appUpdateChecking'));
     setUpdateUrl(null);
     try {
-      const r = await checkGithubLatestRelease();
+      const r = await checkForAppUpdate();
       if (r.status === 'up_to_date') {
         setUpdateLine(t('appUpdateLatest', { latest: r.latest }));
       } else if (r.status === 'update_available') {
@@ -61,6 +64,9 @@ export default function SettingsAboutScreen() {
         setUpdateUrl(r.htmlUrl);
       } else if (r.status === 'no_release') {
         setUpdateLine(t('appUpdateNone'));
+      } else if (r.status === 'play_store') {
+        setUpdateLine(t('appUpdatePlayStore'));
+        setUpdateUrl(r.htmlUrl);
       } else {
         setUpdateLine(t('appUpdateError', { error: r.message }));
       }
@@ -78,7 +84,7 @@ export default function SettingsAboutScreen() {
         sample: snap.rawText ? supportText : undefined,
       });
       await openSupportMail({
-        subject: 'LOGA3 Mobile — Support / Pack-Anfrage',
+        subject: 'ShiftPlan Converter — Support / Pack-Anfrage',
         body,
       });
     } catch (e) {
@@ -102,7 +108,11 @@ export default function SettingsAboutScreen() {
           />
           {updateUrl ? (
             <AppButton
-              title={t('appUpdateOpenRelease')}
+              title={
+                isPlayStoreListed() && updateUrl === PROJECT_PLAY_STORE
+                  ? t('appUpdateOpenPlay')
+                  : t('appUpdateOpenRelease')
+              }
               variant="soft"
               onPress={() => void openUrl(updateUrl)}
             />
@@ -112,11 +122,13 @@ export default function SettingsAboutScreen() {
             variant="secondary"
             onPress={() => void openUrl(changelogUrlForLocale(snap.locale))}
           />
-          <AppButton
-            title={t('legalGithub')}
-            variant="ghost"
-            onPress={() => void openUrl(PROJECT_RELEASES)}
-          />
+          {!isPlayStoreListed() ? (
+            <AppButton
+              title={t('legalGithub')}
+              variant="ghost"
+              onPress={() => void openUrl(PROJECT_RELEASES)}
+            />
+          ) : null}
         </AppCard>
 
         <AppCard>
@@ -145,7 +157,11 @@ export default function SettingsAboutScreen() {
           <Meta>{t('legalPrivacyBody')}</Meta>
           <Meta>{t('legalDisclaimerBody')}</Meta>
           <Text style={styles.contact}>{SUPPORT_EMAIL}</Text>
-          <Meta>LOGA3 Automation Mobile v{version}</Meta>
+          <Meta>ShiftPlan Converter v{version}</Meta>
+          <AppButton
+            title={t('legalPrivacy')}
+            onPress={() => void openUrl(PROJECT_PRIVACY)}
+          />
           <AppButton
             title={t('legalHandbook')}
             onPress={() => router.push('/(tabs)/settings/handbook' as Href)}

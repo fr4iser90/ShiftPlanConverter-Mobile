@@ -1,5 +1,7 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { decryptBytes, encryptBytes } from '../state/securePayload';
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -14,12 +16,19 @@ function pdfsDir(): Directory {
   return dir;
 }
 
-/** Write raw PDF bytes (avoid legacy base64 writeAsStringAsync — ~40s+/file on device). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return globalThis.btoa(binary);
+}
+
+/** Write PDF bytes encrypted at rest (AES-GCM, key in Secure Store). */
 export async function savePdfBytes(bytes: Uint8Array, month: number, year: number): Promise<string> {
   const dir = pdfsDir();
   const file = new File(dir, `${periodFilename(month, year)}.pdf`);
   file.create({ intermediates: true, overwrite: true });
-  file.write(bytes);
+  const sealed = await encryptBytes(bytes);
+  file.write(sealed);
   return file.uri;
 }
 
@@ -40,9 +49,21 @@ export async function deletePdfFile(path: string): Promise<void> {
   }
 }
 
+/** Delete all PDFs under app-private documentDirectory/pdfs/. */
+export async function deleteAllPdfFiles(): Promise<void> {
+  try {
+    const dir = new Directory(Paths.document, 'pdfs');
+    if (dir.exists) dir.delete();
+  } catch {
+    // ignore
+  }
+}
+
 export async function readPdfBase64(path: string): Promise<string> {
   const file = new File(path);
-  return file.base64();
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const plain = await decryptBytes(buf);
+  return bytesToBase64(plain);
 }
 
 /** Decode base64 → ArrayBuffer for PDF text extract */

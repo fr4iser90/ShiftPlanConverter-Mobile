@@ -1,7 +1,7 @@
 /**
  * Phone WebView layout fixes for LOGA3 Zeitdaten → Zeitprotokoll PDF.
  *
- * Proven live 2026-07-24 (Moto G73). See docs/pdf-path-checklist.md.
+ * Proven live 2026-07-24 (Moto G73). See docs/dev/layout-fix-pdf.md.
  * Do NOT hide SmartEdin / LGSMartThing*. Do NOT pointer-events:none the whole header
  * (month arrows #ZeitdatenMonthPicker / ic-previous / ic-next must stay clickable).
  */

@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 PORT="${LOGA3_METRO_PORT:-8091}"
-PKG="com.fr4iser.loga3mobile"
+PKG="com.fr4iser.shiftplan"
 HOST_URL="http://10.0.2.2:${PORT}"
 
 # Global aliases (z.B. PIDEA node-wrapper in ~/.bashrc) dürfen hier nicht greifen
@@ -85,15 +85,15 @@ ensure_emulator() {
     "$ADB" devices -l | sed -n '1,5p'
     return 0
   fi
-  if command -v loga3-emu >/dev/null 2>&1; then
-    echo "→ loga3-emu …"
-    loga3-emu
+  if command -v shiftplan-emu >/dev/null 2>&1; then
+    echo "→ shiftplan-emu …"
+    shiftplan-emu
   elif command -v emulator >/dev/null 2>&1; then
     echo "→ emulator @pixel_6 (Hintergrund)…"
     nohup emulator -avd pixel_6 -no-boot-anim >/tmp/loga3-emulator.log 2>&1 &
     echo "Log: /tmp/loga3-emulator.log"
   else
-    echo "Kein Emulator. In nix-shell: loga3-emu   oder AVD manuell starten." >&2
+    echo "Kein Emulator. In nix-shell: shiftplan-emu   oder AVD manuell starten." >&2
     exit 1
   fi
   echo "→ warte auf adb…"
@@ -114,7 +114,7 @@ open_app() {
   "$ADB" shell wm density reset >/dev/null 2>&1 || true
   ENCODED="$(python3 -c "import urllib.parse; print(urllib.parse.quote('${HOST_URL}', safe=''))")"
   "$ADB" shell am start -a android.intent.action.VIEW \
-    -d "loga3mobile://expo-development-client/?url=${ENCODED}" \
+    -d "shiftplan://expo-development-client/?url=${ENCODED}" \
     "$PKG" >/dev/null 2>&1 || true
   echo "→ App-Deep-Link gesendet (${HOST_URL}, natural AVD size)"
 }

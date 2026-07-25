@@ -54,6 +54,12 @@
         "reason": "Accepted residual risk (transitive). uuid@7 comes via xcode → @expo/config-plugins (EAS/prebuild tooling). App source does not import uuid. GHSA/CVE concerns v3/v5/v6 with caller-supplied buffers; that API is not used by our runtime. Revisit when Expo bumps xcode/uuid."
       },
       {
+        "rule_id": "brace-expansion",
+        "path_regex": "node_modules/brace-expansion",
+        "message_regex": ".*",
+        "reason": "Mitigated via package.json overrides → brace-expansion@5.0.8 (GHSA-mh99-v99m-4gvg). Keep override until jest/minimatch/expo pull a fixed tree without force."
+      },
+      {
         "rule_id": "xcode",
         "path_regex": "node_modules/xcode",
         "message_regex": ".*",

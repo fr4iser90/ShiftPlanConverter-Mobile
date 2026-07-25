@@ -1,5 +1,5 @@
 /**
- * LOGA3 Mobile design tokens — product UI (not marketing).
+ * ShiftPlan Converter design tokens — product UI (not marketing).
  *
  * Light + dark tokens. Active scheme = Settings themePref, or system when set to „System“.
  */

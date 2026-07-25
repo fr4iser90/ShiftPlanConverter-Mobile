@@ -58,6 +58,12 @@ export async function pollAndroidDownloadsForPdf(opts: {
             seen.add(path);
             continue;
           }
+          // Remove public copy ASAP — keep only app-private pdfs/ after ingest.
+          try {
+            await FileSystem.deleteAsync(path, { idempotent: true });
+          } catch {
+            // scoped storage may deny delete; still return bytes for private save
+          }
           return {
             base64,
             filename: name,

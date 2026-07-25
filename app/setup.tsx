@@ -15,7 +15,12 @@ import {
   loadCredentials,
   saveCredentials,
 } from '@/src/loga3/credentials';
-import { getLoga3BaseUrl, hydrateLoga3Env, setLoga3BaseUrl } from '@/src/loga3/env';
+import {
+  getLoga3BaseUrl,
+  hydrateLoga3Env,
+  isValidLoga3BaseUrl,
+  setLoga3BaseUrl,
+} from '@/src/loga3/env';
 import {
   getGoogleCalendarId,
   getSnapshot,
@@ -35,6 +40,7 @@ import {
   restoreGoogleSession,
   type GoogleCalendar,
 } from '@/src/sync/google';
+import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
@@ -88,7 +94,11 @@ export default function SetupScreen() {
     const c = await loadCredentials();
     if (c) {
       setUsername(c.username);
-      setPassword(c.password);
+      const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptSetup'));
+      setPassword(unlocked ? c.password : '');
+    } else {
+      setUsername('');
+      setPassword('');
     }
     await hydrateGoogleUi();
     const st = await getSetupStatus();
@@ -106,11 +116,16 @@ export default function SetupScreen() {
 
   const saveStepUrl = async () => {
     const next = url.trim();
-    if (!next || !/^https?:\/\//i.test(next)) {
+    if (!isValidLoga3BaseUrl(next)) {
       Alert.alert(t('setupTenant'), t('setupUrlInvalid'));
       return;
     }
-    await setLoga3BaseUrl(next);
+    try {
+      await setLoga3BaseUrl(next);
+    } catch {
+      Alert.alert(t('setupTenant'), t('setupUrlInvalid'));
+      return;
+    }
     setStep(1);
   };
 

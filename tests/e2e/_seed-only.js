@@ -2,7 +2,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const SERIAL = process.env.ANDROID_SERIAL || 'ZY22J3RHFC';
-const PKG = 'com.fr4iser.loga3mobile';
+const PKG = 'com.fr4iser.shiftplan';
 const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const vals = {};
 for (const line of fs.readFileSync('.env', 'utf8').split('\n')) {
@@ -20,7 +20,7 @@ const qs = new URLSearchParams({
   area: 'op-bereich',
   preset: 'Anästhesie',
 }).toString();
-const deep = `loga3mobile:///?${qs}`;
+const deep = `shiftplan:///?${qs}`;
 const r = spawnSync(
   'adb',
   ['-s', SERIAL, 'shell', `am start -a android.intent.action.VIEW -d ${q(deep)} ${PKG}`],

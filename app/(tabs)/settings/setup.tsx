@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { t } from '@/src/i18n';
 import { clearCredentials } from '@/src/loga3/credentials';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
+import { wipeAllLocalData } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -41,6 +42,27 @@ export default function SettingsSetupScreen() {
             await clearCredentials();
             setSetup(await getSetupStatus());
             Alert.alert('OK', t('setupCredsCleared'));
+          }}
+        />
+        <AppButton
+          title={t('wipeAllData')}
+          variant="danger"
+          onPress={() => {
+            Alert.alert(t('wipeAllData'), t('wipeAllDataConfirm'), [
+              { text: t('wipeAllDataCancel'), style: 'cancel' },
+              {
+                text: t('wipeAllData'),
+                style: 'destructive',
+                onPress: () => {
+                  void (async () => {
+                    await wipeAllLocalData();
+                    setSetup(await getSetupStatus());
+                    Alert.alert('OK', t('wipeAllDataDone'));
+                    router.replace(SETUP_HREF);
+                  })();
+                },
+              },
+            ]);
           }}
         />
       </ScrollView>

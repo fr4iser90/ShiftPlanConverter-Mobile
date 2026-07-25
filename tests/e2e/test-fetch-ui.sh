@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 mkdir -p /tmp/loga3-shots
 
 adb reverse tcp:8091 tcp:8091 || true
-adb shell am force-stop com.fr4iser.loga3mobile || true
+adb shell am force-stop com.fr4iser.shiftplan || true
 sleep 1
 
 # Clear any stale packager preference pointing at old host:8088
 # Requires LOGA3_ALLOW_PM_CLEAR=1 (+ LOGA3_ALLOW_PM_CLEAR_ON_DEVICE=1 on phones)
-ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 # shellcheck source=tests/e2e/_pm_clear_guard.sh
 source "$ROOT/tests/e2e/_pm_clear_guard.sh"
 loga3_pm_clear_guard
-adb shell pm clear com.fr4iser.loga3mobile
+adb shell pm clear com.fr4iser.shiftplan
 sleep 1
 
 ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('http://10.0.2.2:8091', safe=''))")
 adb shell am start -a android.intent.action.VIEW \
-  -d "loga3mobile://expo-development-client/?url=${ENCODED}" \
-  com.fr4iser.loga3mobile
+  -d "shiftplan://expo-development-client/?url=${ENCODED}" \
+  com.fr4iser.shiftplan
 echo STARTED
 
 UI_READY=0

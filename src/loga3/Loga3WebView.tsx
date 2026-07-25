@@ -283,9 +283,9 @@ export const Loga3WebView = React.forwardRef<
         allowFileAccess
         allowFileAccessFromFileURLs
         allowingReadAccessToURL={resolvedUrl}
-        mixedContentMode="always"
-        originWhitelist={['*']}
-        webviewDebuggingEnabled
+        mixedContentMode="never"
+        originWhitelist={['https://*', 'about:blank', 'blob:*']}
+        webviewDebuggingEnabled={__DEV__}
         injectedJavaScriptBeforeContentLoaded={bootInject}
         style={styles.web}
       />

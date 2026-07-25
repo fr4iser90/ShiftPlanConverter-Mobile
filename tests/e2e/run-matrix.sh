@@ -4,7 +4,8 @@
 # Months: auto = current + 2 random (override LOGA3_MATRIX_MONTHS=07,03,11)
 # First profile only: LOGA3_MATRIX_PROFILES=moto_g73
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 export NIXPKGS_ALLOW_UNFREE=1
 export ANDROID_USER_HOME="${ANDROID_USER_HOME:-$HOME/.loga3-android/project-android-nix}"
 export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
@@ -49,7 +50,7 @@ for i in \$(seq 1 40); do
   fi
   sleep 2
 done
-adb shell pm path com.fr4iser.loga3mobile
+adb shell pm path com.fr4iser.shiftplan
 echo '=== matrix sequential ==='
 if [ -n \"$PROFILES\" ]; then
   python3 -u tests/e2e/live-smoke-matrix.py --months '$MONTHS_ARG' --profiles '$PROFILES'

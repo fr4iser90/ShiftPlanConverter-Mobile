@@ -20,7 +20,9 @@ import type { AutomationCommand, AutomationMessage } from '@/src/loga3/automatio
 import { AutomationBridge } from '@/src/loga3/bridge';
 import { runFetchJob } from '@/src/loga3/fetchJob';
 import { convertPdfText, resolveStoredEntries } from '@/src/convert/pipeline';
+import { anonymizeDienstplanText } from '@/src/convert/anonymize';
 import { getMappingForScope } from '@/src/packs';
+import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { getGoogleCalendarId, getSnapshot, setEntries, subscribe } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
@@ -344,7 +346,7 @@ export default function FetchScreen() {
         userMappings: snap.userMappings,
       });
       await setEntries(result.entries, {
-        rawText: FIXTURE_TEXT,
+        rawText: anonymizeDienstplanText(FIXTURE_TEXT, { maxChars: 80000 }),
         summary: result.summary,
         summaries: result.summaries,
       });
@@ -477,6 +479,11 @@ export default function FetchScreen() {
     }
     if (!selected.length) {
       Alert.alert(t('selectMonths'), t('setupPickMonth'));
+      return;
+    }
+    const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptHolen'));
+    if (!unlocked) {
+      Alert.alert(t('securityBiometric'), t('securityBiometricDenied'));
       return;
     }
     setBusy(true);
@@ -767,27 +774,31 @@ export default function FetchScreen() {
               />
             </AppCard>
 
-            <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.advancedToggle}>
-              <Text style={styles.advancedToggleText}>
-                {showAdvanced ? `▾ ${t('advanced')}` : `▸ ${t('advanced')}`}
-              </Text>
-            </Pressable>
-            {showAdvanced && (
-              <AppCard>
-                <AppButton
-                  title={t('convertFixture')}
-                  variant="ghost"
-                  onPress={() => void onConvertFixture()}
-                  disabled={busy}
-                />
-                <AppButton
-                  title="Live-Selektoren dump (Login only)"
-                  variant="ghost"
-                  onPress={() => void onDumpLiveSelectors()}
-                  disabled={busy}
-                />
-              </AppCard>
-            )}
+            {__DEV__ ? (
+              <>
+                <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.advancedToggle}>
+                  <Text style={styles.advancedToggleText}>
+                    {showAdvanced ? `▾ ${t('advanced')}` : `▸ ${t('advanced')}`}
+                  </Text>
+                </Pressable>
+                {showAdvanced && (
+                  <AppCard>
+                    <AppButton
+                      title={t('convertFixture')}
+                      variant="ghost"
+                      onPress={() => void onConvertFixture()}
+                      disabled={busy}
+                    />
+                    <AppButton
+                      title="Live-Selektoren dump (Login only)"
+                      variant="ghost"
+                      onPress={() => void onDumpLiveSelectors()}
+                      disabled={busy}
+                    />
+                  </AppCard>
+                )}
+              </>
+            ) : null}
           </>
         ) : null}
 

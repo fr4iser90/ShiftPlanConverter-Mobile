@@ -3,7 +3,7 @@
  * Public API — unauthenticated, rate-limited (~60/h); fine for Settings taps.
  */
 import Constants from 'expo-constants';
-import { PROJECT_GITHUB } from '@/src/support/legal';
+import { PROJECT_GITHUB, PROJECT_PLAY_STORE, isPlayStoreListed } from '@/src/support/legal';
 import { compareVersions } from '@/src/update/versionCompare';
 
 export type UpdateCheckResult =
@@ -16,6 +16,7 @@ export type UpdateCheckResult =
       name?: string;
     }
   | { status: 'no_release'; installed: string }
+  | { status: 'play_store'; installed: string; htmlUrl: string }
   | { status: 'error'; installed: string; message: string };
 
 function githubApiReleasesLatest(): string {
@@ -36,7 +37,7 @@ export async function checkGithubLatestRelease(): Promise<UpdateCheckResult> {
     const res = await fetch(githubApiReleasesLatest(), {
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': 'LOGA3-Automation-Mobile',
+        'User-Agent': 'ShiftPlanConverter-Mobile',
       },
     });
     if (res.status === 404) {
@@ -80,4 +81,19 @@ export async function checkGithubLatestRelease(): Promise<UpdateCheckResult> {
       message: e instanceof Error ? e.message : String(e),
     };
   }
+}
+
+/**
+ * Prefer Play Store when `PROJECT_PLAY_STORE` is set; otherwise GitHub Releases.
+ */
+export async function checkForAppUpdate(): Promise<UpdateCheckResult> {
+  const installed = installedAppVersion();
+  if (isPlayStoreListed()) {
+    return {
+      status: 'play_store',
+      installed,
+      htmlUrl: PROJECT_PLAY_STORE.trim(),
+    };
+  }
+  return checkGithubLatestRelease();
 }

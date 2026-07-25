@@ -1,6 +1,6 @@
 # Nutzerhandbuch
 
-LOGA3 Automation Mobile lädt deine **Zeitprotokolle aus LOGA3**, speichert alles **nur auf dem Gerät**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
+ShiftPlan Converter lädt deine **Zeitprotokolle aus LOGA3**, speichert alles **nur auf dem Gerät**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
 
 Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Berufsgruppe** (Pack) ausgelegt. Anderer Arbeitgeber oder Bereich kann fehlschlagen, bis ein passendes Pack existiert.
 
