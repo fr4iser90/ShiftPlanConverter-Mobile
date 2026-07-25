@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { buildEventDescription, buildEventSummary } from '../convert/eventDescription';
 import type { ShiftEntry } from '../convert/types';
+import { t } from '../i18n';
 import { getGoogleCalendarId, setGoogleCalendarId } from '../state/store';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -88,7 +89,7 @@ function rememberUserFromNative(): void {
 async function takeNativeAccessToken(): Promise<string> {
   const tokens = await GoogleSignin.getTokens();
   if (!tokens.accessToken) {
-    throw new Error('Google Sign-In: kein Access-Token (Calendar-Scopes prüfen).');
+    throw new Error(t('googleOauthNoToken'));
   }
   accessToken = tokens.accessToken;
   rememberUserFromNative();
@@ -165,7 +166,7 @@ async function connectGoogleNative(): Promise<string> {
 
   const result = await GoogleSignin.signIn();
   if (result.type !== 'success') {
-    throw new Error('Google OAuth abgebrochen oder fehlgeschlagen.');
+    throw new Error(t('googleOauthCancelled'));
   }
 
   // Ensure Calendar scopes (may prompt again)
@@ -198,7 +199,7 @@ async function connectGoogleWebBrowser(): Promise<string> {
 
   const result = await request.promptAsync(discovery);
   if (result.type !== 'success' || !result.params.code) {
-    throw new Error('Google OAuth abgebrochen oder fehlgeschlagen.');
+    throw new Error(t('googleOauthCancelled'));
   }
 
   const tokenResult = await AuthSession.exchangeCodeAsync(
@@ -214,7 +215,7 @@ async function connectGoogleWebBrowser(): Promise<string> {
   );
 
   if (!tokenResult.accessToken) {
-    throw new Error('Google OAuth: Token-Austausch fehlgeschlagen.');
+    throw new Error(t('googleOauthTokenExchangeFailed'));
   }
   accessToken = tokenResult.accessToken;
   return accessToken;
@@ -241,7 +242,7 @@ export async function disconnectGoogle(): Promise<void> {
 }
 
 async function gfetch(path: string, init?: RequestInit) {
-  if (!accessToken) throw new Error('Nicht mit Google verbunden.');
+  if (!accessToken) throw new Error(t('googleNotConnected'));
   const res = await fetch(`https://www.googleapis.com/calendar/v3${path}`, {
     ...init,
     headers: {
@@ -276,7 +277,7 @@ export function isPrimaryCalendar(cal: GoogleCalendar): boolean {
 /** Create a secondary calendar (never the primary) — for shift sync. */
 export async function createGoogleCalendar(summary: string): Promise<GoogleCalendar> {
   const name = summary.trim();
-  if (!name) throw new Error('Kalendername fehlt.');
+  if (!name) throw new Error(t('googleCalendarNameMissing'));
   const created = await gfetch('/calendars', {
     method: 'POST',
     body: JSON.stringify({
@@ -284,7 +285,7 @@ export async function createGoogleCalendar(summary: string): Promise<GoogleCalen
       timeZone: 'Europe/Berlin',
     }),
   });
-  if (!created?.id) throw new Error('Kalender konnte nicht angelegt werden.');
+  if (!created?.id) throw new Error(t('googleCalendarCreateFailed'));
   return {
     id: String(created.id),
     summary: String(created.summary || name),
@@ -353,7 +354,7 @@ export async function syncEntriesToGoogle(
   }: {
     richDetails?: boolean;
     onCalendarMissing?: (oldId: string) => Promise<string | null>;
-    /** Label for TIMING logs (export | holen). */
+    /** Label for TIMING logs (export | fetch). */
     source?: string;
   } = {}
 ): Promise<{ created: number; deleted: number }> {
@@ -373,13 +374,11 @@ export async function syncEntriesToGoogle(
   console.warn(`TIMING google ${source} listCalendars +${Date.now() - listT0}ms`);
   if (!list.some((c) => c.id === id)) {
     if (!onCalendarMissing) {
-      throw new Error(
-        'Google-Kalender fehlt (gelöscht?). Unter Export neu anlegen oder wählen.'
-      );
+      throw new Error(t('googleCalendarMissing'));
     }
     const next = await onCalendarMissing(id);
     if (!next) {
-      throw new Error('Sync abgebrochen — kein Kalender.');
+      throw new Error(t('googleSyncCancelledNoCalendar'));
     }
     id = next;
   }

@@ -208,7 +208,7 @@ def main() -> None:
         shot("01-setup-gate.png")
         raise SystemExit("SMOKE_SEED_FAILED")
 
-    tap(xml, "Holen") or tap(xml, "Fetch")
+    tap(xml, "Abrufen") or tap(xml, "Fetch")
     time.sleep(0.8)
     select_all_months(YEAR)
     shot("02-months.png")
@@ -299,7 +299,7 @@ def main() -> None:
     time.sleep(6)
     # Dismiss setup if somehow reopened (should not — secure store + async storage survive force-stop)
     xml = dump()
-    tap(xml, "Holen") or tap(xml, "Fetch") or tap(xml, "Kalender") or tap(xml, "Preview")
+    tap(xml, "Abrufen") or tap(xml, "Fetch") or tap(xml, "Kalender") or tap(xml, "Preview")
     time.sleep(1.5)
     # Open Kalender tab
     xml = dump()
@@ -318,8 +318,8 @@ def main() -> None:
         elif "previewEmpty" in blob or "Keine Schichten" in blob:
             persist_ok = False
         else:
-            # Holen status footer may still show count
-            tap(dump(), "Holen") or tap(dump(), "Fetch")
+            # Fetch status footer may still show count
+            tap(dump(), "Abrufen") or tap(dump(), "Fetch")
             time.sleep(1)
             blob2 = " ".join(texts(dump()))
             print(f"PERSIST_HOLEN {blob2[:300]}", flush=True)

@@ -9,7 +9,7 @@ export type Loga3Credentials = {
 };
 
 /**
- * LOGA3 login — only from Secure Store (Holen → speichern).
+ * LOGA3 login — only from Secure Store (saved in Setup).
  * Never from compiled app config / .env (that would leak into APKs).
  */
 export async function loadCredentials(): Promise<Loga3Credentials | null> {

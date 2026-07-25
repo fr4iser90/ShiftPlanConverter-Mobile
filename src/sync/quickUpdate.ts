@@ -1,10 +1,10 @@
-import type { AutomationCommand } from '../loga3/automation';
-import { AutomationBridge } from '../loga3/bridge';
-import { runFetchJob, type FetchJobResult } from '../loga3/fetchJob';
+import type { AutomationCommand } from '../sources/loga3/automation';
+import { AutomationBridge } from '../sources/webview/bridge';
 import { resolveStoredEntries } from '../convert/pipeline';
 import { getMappingForScope } from '../packs';
 import { getSnapshot } from '../state/store';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '../state/quickPrefs';
+import { runSourceAndIngest } from '../sources/runSourceAndIngest';
 import {
   runEnabledOauthTargets,
   shouldOfferIcs,
@@ -17,11 +17,21 @@ import {
   type YearMonth,
 } from './monthWindow';
 import { t } from '../i18n';
+import type { ShiftEntry } from '../convert/types';
+
+export type QuickUpdateFetchResult = {
+  entries: ShiftEntry[];
+  texts: string[];
+  savedPdfs: string[];
+  skippedNoPlan: string[];
+  errors: string[];
+  artifactsCount: number;
+};
 
 export type QuickUpdateResult = {
   window: YearMonth[];
   windowLabel: string;
-  fetch: FetchJobResult;
+  fetch: QuickUpdateFetchResult;
   /** @deprecated use targets — kept for older UI strings */
   google: { skipped: boolean; reason?: string; created?: number; deleted?: number };
   targets: TargetRunSummary[];
@@ -52,13 +62,13 @@ export async function runQuickUpdate(opts: {
   opts.onStatus?.(t('fjQuickWindow', { label: windowLabel }));
 
   const groups = groupMonthsByYear(window);
-  const merged: FetchJobResult = {
+  const merged: QuickUpdateFetchResult = {
     entries: [],
     texts: [],
     savedPdfs: [],
     skippedNoPlan: [],
     errors: [],
-    summaries: [],
+    artifactsCount: 0,
   };
 
   for (let i = 0; i < groups.length; i++) {
@@ -70,13 +80,11 @@ export async function runQuickUpdate(opts: {
       })
     );
     try {
-      const part = await runFetchJob({
-        username: opts.username,
-        password: opts.password,
-        months: g.months,
-        year: g.year,
-        bridge: opts.bridge,
-        inject: opts.inject,
+      const part = await runSourceAndIngest({
+        sourceId: 'loga3-webview',
+        credentials: { username: opts.username, password: opts.password },
+        period: { months: g.months, year: g.year },
+        host: { bridge: opts.bridge, inject: opts.inject },
         onStatus: opts.onStatus,
         preserveOutsideMonths: true,
         replaceEntries: false,
@@ -85,7 +93,7 @@ export async function runQuickUpdate(opts: {
       merged.savedPdfs.push(...part.savedPdfs);
       merged.skippedNoPlan.push(...part.skippedNoPlan);
       merged.errors.push(...part.errors);
-      merged.summaries.push(...part.summaries);
+      merged.artifactsCount += part.artifacts.length;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       merged.errors.push(`${g.year}: ${msg}`);

@@ -1,5 +1,5 @@
 /**
- * Per-gate DOM dumps for Holen / PDF-fetch debug.
+ * Per-gate DOM dumps for Fetch / PDF-fetch debug.
  * Files: FileSystem.cacheDirectory + gate-trace/<nn>-<name>.json
  */
 import * as FileSystem from 'expo-file-system/legacy';

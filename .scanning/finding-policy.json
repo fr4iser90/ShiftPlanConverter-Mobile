@@ -63,7 +63,7 @@
         "rule_id": "xcode",
         "path_regex": "node_modules/xcode",
         "message_regex": ".*",
-        "reason": "Accepted residual risk. Build-time iOS project helper; advisory is inherited from uuid. Not present in the Android/iOS app runtime JS bundle path for Holen/sync."
+        "reason": "Accepted residual risk. Build-time iOS project helper; advisory is inherited from uuid. Not present in the Android/iOS app runtime JS bundle path for Fetch/sync."
       },
       {
         "rule_id": "@expo/config-plugins",

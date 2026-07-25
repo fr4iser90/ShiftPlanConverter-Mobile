@@ -100,8 +100,8 @@ def main() -> None:
     xml = dump()
     print("HEADER TEXTS:", texts(xml)[:35], flush=True)
 
-    # Go Holen, find fixture
-    tap_label(dump(), "Holen") or tap_label(dump(), "Fetch")
+    # Go Fetch, find fixture
+    tap_label(dump(), "Abrufen") or tap_label(dump(), "Fetch")
     time.sleep(0.8)
     found = False
     for i in range(16):

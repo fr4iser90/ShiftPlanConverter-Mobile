@@ -1,6 +1,6 @@
 /**
  * Expo config — no tenant URL, username, or password in the binary.
- * Setup happens on-device: Settings/Holen → Secure Store + AsyncStorage.
+ * Setup happens on-device: Settings/Fetch → Secure Store + AsyncStorage.
  * Packs (Arbeitgeber) ship as code; selection is per installation.
  */
 const appJson = require('./app.json');

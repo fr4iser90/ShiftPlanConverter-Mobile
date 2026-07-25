@@ -1,5 +1,7 @@
 /**
  * Desktop content-gate helpers (loga3-workflow.js) — pure TS, no WebView.
+ *
+ * Month labels / body regexes match LOGA3 content — not app i18n.
  */
 
 export const MONTH_LABELS_DE = [

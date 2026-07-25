@@ -1,4 +1,4 @@
-import { waitForCondition, WaitTimeoutError } from '../../src/loga3/wait';
+import { waitForCondition, WaitTimeoutError } from '../../src/sources/webview/wait';
 
 describe('waitForCondition', () => {
   it('resolves when probe succeeds', async () => {

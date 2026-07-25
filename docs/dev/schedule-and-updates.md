@@ -10,25 +10,25 @@ No auto-install — user downloads the APK from the release page ([releases.md](
 
 | Setting | Default | Effect |
 |---------|---------|--------|
-| Alle N Tage | **0 (off)** | Overdue after last successful Holen + N days |
+| Alle N Tage | **0 (off)** | Overdue after last successful Fetch + N days |
 | Reminder-Stunde | 3 | Local hour for the scheduled notification |
 | Benachrichtigung | off | `expo-notifications` when due (needs **native rebuild**) |
-| Beim Öffnen fragen | **off** | Alert on Holen tab if overdue (opt-in) |
+| Beim Öffnen fragen | **off** | Alert on Fetch tab if overdue (opt-in) |
 | Widget-Hinweis | **off** | “Sync fällig” on widgets (opt-in) |
 
 Nothing nags until you set an interval **and** enable prompt/notify/badge in Settings.
 
-Successful Holen calls `markSuccessfulFetch()` and reschedules the reminder.
+Successful Fetch calls `markSuccessfulFetch()` and reschedules the reminder.
 
 ## What is **not** possible (honest)
 
-**Silent Holen at 03:00 while the phone sleeps** (WebView login → PDF → close) is **not** reliable on modern Android:
+**Silent Fetch at 03:00 while the phone sleeps** (WebView login → PDF → close) is **not** reliable on modern Android:
 
 - LOGA3 needs an interactive WebView / GWT session  
 - OEMs kill background WebViews and restrict exact alarms  
 - Would need a foreground service + unlocked screen class UX  
 
-So we **remind** (notification / widget / open prompt). The user (or “Ja, Holen”) runs the real sync in the foreground. Optional future: experimental FG-service path — not in v0.
+So we **remind** (notification / widget / open prompt). The user (or “Yes, fetch”) runs the real sync in the foreground. Optional future: experimental FG-service path — not in v0.
 
 ## Native rebuild
 

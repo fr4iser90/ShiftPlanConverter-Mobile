@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fr4iser.shiftplan",
       "infoPlist": {
-        "NSFaceIDUsageDescription": "ShiftPlan Converter kann Face ID nutzen, um Holen und Zugangsdaten zu schützen.",
+        "NSFaceIDUsageDescription": "ShiftPlan Converter kann Face ID nutzen, um Abrufen und Zugangsdaten zu schützen.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [

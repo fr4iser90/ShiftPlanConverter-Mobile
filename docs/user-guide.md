@@ -1,6 +1,6 @@
 # User handbook
 
-ShiftPlan Converter loads your **time sheets from LOGA3**, keeps everything **on device only**, shows shifts in a calendar, and can share them as **ICS** or optionally sync to **Google Calendar**.
+ShiftPlan Converter loads your **time sheets from LOGA3** or imports **PDF / CSV / ICS** from the device, keeps everything **on device only**, shows shifts in a calendar, and can share them as **ICS** or optionally sync to **Google Calendar**.
 
 The app is still experimental and currently aimed at **one employer and one role group** (pack). Another workplace or area may fail until a matching pack exists.
 
@@ -10,7 +10,7 @@ The app is still experimental and currently aimed at **one employer and one role
 
 | Tab | Purpose |
 |-----|---------|
-| **Fetch** | Pick months and load Zeitprotokolle from LOGA3 |
+| **Fetch** | Pick months and load Zeitprotokolle from LOGA3 **or** import files (PDF/CSV/ICS) |
 | **Calendar** | Review shifts (week / month / list) |
 | **Export** | Share ICS or sync Google |
 | **Settings** | Setup, fetch window, reminders, appearance, help |
@@ -28,21 +28,29 @@ Under **Settings → Setup** (or on first launch):
 3. **Employer / pack** — e.g. St. Elisabeth · anaesthesia. Wrong pack → wrong codes or times.
 4. **Google** — optional; you can add it later under Export.
 
-Fetch stays locked until setup is complete.
+**File import** only needs the employer pack. **LOGA3 fetch** also needs tenant URL and login.
 
 ---
 
 ## 3. Fetch time sheets
 
+### From LOGA3
+
 1. Open the **Fetch** tab.
-2. Tick the **months** you need (defaults come from **Settings → Fetch**: previous/next months).
-3. Tap **Load time sheets** (DE UI: *Zeitprotokolle laden*).
+2. Pick the **source** at the top: **LOGA3** or **File (PDF / CSV / ICS)**.
+3. For LOGA3: tick the **months** you need (defaults come from **Settings → Fetch**: previous/next months).
+4. Tap **Load time sheets** (DE UI: *Zeitprotokolle laden*).
 
 The app opens LOGA3 in an embedded view, signs in, and exports the monthly PDFs. That can take a while; the view may stay visible.
 
+### Import a file
+
+On **Fetch** → source **File** → **Choose file & import**: pick file(s) from the device.  
+PDFs use the selected pack parser; CSV needs columns `date,type` (optional `start,end,allDay`); ICS reads `VEVENT`.
+
 After success, shifts usually appear under **Calendar**.
 
-**Note:** Fetch only works while the app is open — there is no reliable silent overnight fetch without the app.
+**Note:** LOGA3 fetch only works while the app is open — there is no reliable silent overnight fetch without the app.
 
 ---
 

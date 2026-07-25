@@ -1,0 +1,34 @@
+---
+description: Portal selectors and PDF parser literals are site/pack match targets — never i18n, no casual renames
+globs: src/sources/loga3/**/*.ts,src/sources/loga3/**/*.tsx,src/convert/parser-*.ts,src/convert/pdfText.ts,src/convert/anonymize.ts,src/convert/parsers/**
+alwaysApply: false
+---
+
+# Portal / PDF literals — do not “clean up”
+
+German (and LOGA3) strings in these files are **match targets** against a foreign UI or PDF, not app chrome.
+
+## Layers
+
+| Literals | Layer | Change when |
+|----------|--------|-------------|
+| `öffnen`, `Zeiten`, Zeitprotokoll, GWT DOM, layout CSS | **Source plugin** `src/sources/loga3/` | LOGA3 portal UI changes (live smoke required) |
+| `Abrechnungsmonat`, `Übertrag…`, duty codes in parser/pdfText | **Parser** via pack `parserId` | That employer’s PDF layout changes |
+| Mapping JSON under `src/packs/builtin/` | **Pack** | Codes/colors/presets for that AG |
+
+Pack ≠ portal automation. Same LOGA3 site can serve many AGs; a new AG usually needs a **new parser/pack**, not new i18n keys for selectors.
+
+## Rules
+
+1. **Never** move portal/PDF literals into `src/i18n/` or wrap them in `t()`.
+2. **Never** rename/“English-ify” selector text, aria-labels, or PDF regexes for style — Fetch/parse will break.
+3. Touch only with an intentional portal/PDF change + live or fixture proof (matrix/smoke/unit fixture).
+4. App-facing copy (buttons, errors, widgets) stays in i18n; that is a different layer.
+
+```typescript
+// ❌ BAD — looks like Denglish cleanup
+el => t('open') === textOf(el)
+
+// ✅ GOOD — match the live LOGA3 label
+el => /^öffnen$/i.test(textOf(el))
+```

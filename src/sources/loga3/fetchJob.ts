@@ -1,18 +1,12 @@
 import type { AutomationCommand, AutomationMessage } from './automation';
-import { AutomationBridge } from './bridge';
-import { anonymizeDienstplanText } from '../convert/anonymize';
-import { convertPdfText } from '../convert/pipeline';
-import { extractTextFromPdfBuffer } from '../convert/pdfText';
-import type { MonthSummary, ShiftEntry } from '../convert/types';
+import { AutomationBridge } from '../webview/bridge';
+import { extractTextFromPdfBuffer } from '../../convert/pdfText';
+import type { SourceArtifact } from '../types';
 import { MONTH_LABELS_DE, validatePdfPeriod } from './contentGate';
-import { base64ToArrayBuffer, savePdfBytes } from './pdfStore';
-import { getSnapshot, setEntries } from '../state/store';
-import { markSuccessfulFetch } from '../schedule/prefs';
-import { refreshHomeWidgets } from '../widget/refresh';
-import { getMappingForScope } from '../packs';
-import { waitForCondition, WaitTimeoutError } from './wait';
+import { base64ToArrayBuffer, savePdfBytes } from '../webview/pdfStore';
+import { waitForCondition, WaitTimeoutError } from '../webview/wait';
 import { clearGateTraces, writeGateTrace } from './gateTrace';
-import { t } from '../i18n';
+import { t } from '../../i18n';
 
 export type FetchJobOptions = {
   username: string;
@@ -41,12 +35,12 @@ export type FetchStepTiming = {
 };
 
 export type FetchJobResult = {
-  entries: ShiftEntry[];
+  /** Raw PDFs / skips — convert+store via `ingestArtifacts`. */
+  artifacts: SourceArtifact[];
   texts: string[];
   savedPdfs: string[];
   skippedNoPlan: string[];
   errors: string[];
-  summaries: MonthSummary[];
   /** Gate dump file paths (when gateTrace) */
   gateTraces?: string[];
   /** Per-step wall times (action + waits) */
@@ -417,7 +411,7 @@ async function capturePdf(
     status(ctx, t('fjDownloadClicked', { label, elapsed: ago(t0) }));
 
     status(ctx, t('fjWaitPdf', { label, elapsed: ago(t0) }));
-    const { pollAndroidDownloadsForPdf } = await import('./androidDownloadPoll');
+    const { pollAndroidDownloadsForPdf } = await import('../webview/androidDownloadPoll');
 
   let scrapeStop = false;
   const scrapeBg = (async () => {
@@ -498,12 +492,11 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
   }
 
   const result: FetchJobResult = {
-    entries: [],
+    artifacts: [],
     texts: [],
     savedPdfs: [],
     skippedNoPlan: [],
     errors: [],
-    summaries: [],
     gateTraces: gatePaths,
     timings,
   };
@@ -547,6 +540,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         if (err.code === 'NO_PLAN' || /NO_PLAN/i.test(err.message)) {
           status(ctx, t('fjNoPlan', { label, elapsed: ago(monthT0) }));
           result.skippedNoPlan.push(label);
+          result.artifacts.push({ kind: 'skipped', month, year, reason: 'NO_PLAN' });
           await gate(ctx, `06b-no-plan-${label.replace('/', '-')}`);
           continue;
         }
@@ -652,31 +646,19 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
 
       result.savedPdfs.push(path);
       result.texts.push(`### ${label}\n${text}`);
-
-      const snap = getSnapshot();
-      if (!snap.preset || !snap.hospitalId || !snap.groupId || !snap.areaId) {
-        throw new Error(t('fjWorkplaceMissing'));
-      }
-      const mapping = getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
-      if (!mapping) {
-        throw new Error(t('fjMappingMissing', { scope: `${snap.hospitalId}/${snap.groupId}/${snap.areaId}` }));
-      }
-      const converted = convertPdfText(text, {
-        preset: snap.preset,
-        mapping,
-        userMappings: snap.userMappings,
+      result.artifacts.push({
+        kind: 'pdf',
+        month,
+        year,
+        bytes: new Uint8Array(buf),
+        text,
+        savedPath: path,
       });
-      result.entries.push(...converted.entries);
-      if (converted.summaries?.length) {
-        result.summaries.push(...converted.summaries);
-      } else if (converted.summary) {
-        result.summaries.push(converted.summary);
-      }
       status(
         ctx,
         t('fjShiftsDone', {
           label,
-          count: converted.entries.length,
+          count: 1,
           elapsed: ago(monthT0),
           total: ago(jobT0),
         })
@@ -698,7 +680,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
     ctx,
     t('fjFetchDone', {
       pdfs: result.savedPdfs.length,
-      shifts: result.entries.length,
+      shifts: result.artifacts.filter((a) => a.kind === 'pdf').length,
       errors: result.errors.length,
       elapsed: ago(jobT0),
     })
@@ -708,53 +690,11 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
     status(ctx, t('fjTimingSummary', { summary }));
   }
 
-  result.entries.sort(
-    (a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || '')
-  );
-
-  if (result.entries.length) {
-    const pad = (m: number) => String(m).padStart(2, '0');
-    const windowKeys = new Set(sorted.map((m) => `${year}-${pad(m)}`));
-    let base: typeof result.entries = [];
-    if (opts.preserveOutsideMonths) {
-      base = getSnapshot().entries.filter((e) => !windowKeys.has(String(e.date || '').slice(0, 7)));
-    } else if (opts.replaceEntries === false) {
-      base = getSnapshot().entries;
-    }
-    const merged = [...base, ...result.entries];
-    const seen = new Set<string>();
-    const unique = merged.filter((e) => {
-      const k = `${e.date}|${e.start || ''}|${e.end || ''}|${e.type}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    const prevSummaries = opts.preserveOutsideMonths ? getSnapshot().summaries || [] : [];
-    const summaries = opts.preserveOutsideMonths
-      ? [
-          ...prevSummaries.filter((s) => {
-            const m = Number(s?.month);
-            const y = Number(s?.year);
-            if (!m || !y) return true;
-            return !windowKeys.has(`${y}-${pad(m)}`);
-          }),
-          ...result.summaries,
-        ]
-      : result.summaries;
-    await setEntries(unique, {
-      rawText: anonymizeDienstplanText(result.texts.join('\n\n'), { maxChars: 80000 }),
-      summaries,
-      summary: summaries[summaries.length - 1] || null,
-    });
-    result.entries = unique;
-    await markSuccessfulFetch();
-    void refreshHomeWidgets(unique);
-  }
-
-  if (!result.entries.length && result.errors.length) {
+  const pdfCount = result.artifacts.filter((a) => a.kind === 'pdf').length;
+  if (!pdfCount && result.errors.length) {
     throw new Error(result.errors.join(' · '));
   }
-  if (!result.entries.length && result.skippedNoPlan.length && !result.errors.length) {
+  if (!pdfCount && result.skippedNoPlan.length && !result.errors.length) {
     throw new Error(t('fjNoShiftsNoPlan', { months: result.skippedNoPlan.join(', ') }));
   }
 

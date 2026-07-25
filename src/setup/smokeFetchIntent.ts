@@ -1,5 +1,5 @@
 /**
- * One-shot intent for emulator matrix. Persisted so Metro reload / Holen mount
+ * One-shot intent for emulator matrix. Persisted so Metro reload / Fetch mount
  * still sees autofetch after smoke deep-link.
  */
 import * as FileSystem from 'expo-file-system/legacy';

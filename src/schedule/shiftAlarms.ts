@@ -12,6 +12,7 @@ import { getMappingForScope } from '../packs';
 import { loadShiftAlarmPrefs, type ShiftAlarmPrefs } from './shiftAlarmPrefs';
 import { planShiftAlarms, SHIFT_ALARM_ID_PREFIX } from './shiftAlarmPlan';
 import { ensureNotificationPermission } from './reminders';
+import { t } from '../i18n';
 
 const CHANNEL_ID = 'loga3-shift-alarm';
 
@@ -21,8 +22,8 @@ export { planShiftAlarms } from './shiftAlarmPlan';
 async function ensureAlarmChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: 'Schicht-Erinnerung',
-    description: 'Laute Erinnerung vor dem Dienst',
+    name: t('shiftAlarmChannelName'),
+    description: t('shiftAlarmChannelDesc'),
     importance: Notifications.AndroidImportance.MAX,
     bypassDnd: true,
     enableVibrate: true,
@@ -83,10 +84,20 @@ export async function rescheduleShiftAlarms(
     await Notifications.scheduleNotificationAsync({
       identifier: a.id,
       content: {
-        title: a.eve ? `Vorabend · ${a.code}` : `Erinnerung · ${a.code}`,
+        title: a.eve
+          ? t('shiftAlarmTitleEve', { code: a.code })
+          : t('shiftAlarmTitleDay', { code: a.code }),
         body: a.eve
-          ? `Morgen ${a.code} ab ${a.shiftStart} · Wecker ${a.remindAt}`
-          : `Dienst ${a.shiftStart} · ${a.shiftDate} (Wecker ${a.remindAt})`,
+          ? t('shiftAlarmBodyEve', {
+              code: a.code,
+              start: a.shiftStart,
+              remindAt: a.remindAt,
+            })
+          : t('shiftAlarmBodyDay', {
+              start: a.shiftStart,
+              date: a.shiftDate,
+              remindAt: a.remindAt,
+            }),
         sound: true,
         priority: Notifications.AndroidNotificationPriority.MAX,
         data: { type: 'shift_alarm', code: a.code, date: a.shiftDate },
@@ -109,7 +120,7 @@ export async function openNextWakeInClockApp(): Promise<{
   label: string;
 }> {
   if (Platform.OS !== 'android') {
-    throw new Error('Clock-Intent nur auf Android');
+    throw new Error(t('shiftAlarmClockAndroidOnly'));
   }
   const prefs = await loadShiftAlarmPrefs();
   const planned = planShiftAlarms(resolvedEntriesFromStore(), {
@@ -117,7 +128,7 @@ export async function openNextWakeInClockApp(): Promise<{
     enabled: true,
   });
   if (!planned.length) {
-    throw new Error('Kein kommender Dienst mit Erinnerungszeit im Fenster');
+    throw new Error(t('shiftAlarmNoUpcoming'));
   }
   const nextShiftKey = `${planned[0].shiftDate}|${planned[0].shiftStart}`;
   const forShift = planned.filter(
@@ -128,7 +139,7 @@ export async function openNextWakeInClockApp(): Promise<{
   );
   const hour = wake.fireAt.getHours();
   const minutes = wake.fireAt.getMinutes();
-  const label = `LOGA3 ${wake.code} ${wake.shiftStart}`;
+  const label = t('shiftAlarmClockLabel', { code: wake.code, start: wake.shiftStart });
 
   await Linking.sendIntent('android.intent.action.SET_ALARM', [
     { key: 'android.intent.extra.alarm.HOUR', value: hour },

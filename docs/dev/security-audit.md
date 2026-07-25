@@ -30,7 +30,7 @@ Attack surface: on-device storage, WebView (third-party LOGA3 origin), Google Si
 | Check | Where | Status |
 |-------|--------|--------|
 | No tenant URL / user / password baked into APK | `app.config.js`, no `.env` secrets in binary | [ ] verify release APK strings |
-| LOGA3 password only in Secure Store | `src/loga3/credentials.ts` | [x] code |
+| LOGA3 password only in Secure Store | `src/sources/loga3/credentials.ts` | [x] code |
 | Clear credentials works (Settings) | `clearCredentials` | [x] code |
 | Wipe all local data (Settings) | `wipeAllLocalData` | [x] code |
 | Smoke credential deep-link disabled in release | `smokeSeed.ts` `__DEV__` gate | [x] code |
@@ -46,7 +46,7 @@ Attack surface: on-device storage, WebView (third-party LOGA3 origin), Google Si
 |-------|--------|--------|
 | Entries / mappings / prefs in AsyncStorage (plaintext) — acceptable for v0? Document residual risk | `src/state/store.ts` | [x] accepted residual; encrypt follow-up |
 | `rawText` stored anonymized after fetch | `fetchJob.ts` | [x] code |
-| PDFs under `documentDirectory/pdfs/` — not world-readable | `src/loga3/pdfStore.ts` | [ ] Android file perms spot-check |
+| PDFs under `documentDirectory/pdfs/` — not world-readable | `src/sources/webview/pdfStore.ts` | [ ] Android file perms spot-check |
 | Public Downloads PDF deleted after Android poll | `androidDownloadPoll.ts` | [x] code |
 | Widget reads same entries key — no extra copy of password | `src/widget/*` | [x] code |
 | Uninstall clears Secure Store + app files | OS behaviour | [ ] spot-check |
@@ -127,4 +127,4 @@ Re-check when Expo bumps `@expo/config-plugins` / `xcode` / `uuid`.
 3. Dedicated EAS production signing + Play App Signing SHA-1 in Google OAuth.
 4. Deploy ShiftPlanConverter so `https://shift.fr4iser.com/privacy` serves `privacy.html`.
 5. Widget: only shows shift codes already on device (no network) — keep it that way.
-6. ProGuard/R8 smoke on a signed production AAB (Holen + Google + widgets).
+6. ProGuard/R8 smoke on a signed production AAB (Fetch + Google + widgets).

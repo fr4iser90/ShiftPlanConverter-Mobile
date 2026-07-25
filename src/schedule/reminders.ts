@@ -1,5 +1,5 @@
 /**
- * Local notification when Holen/sync is due.
+ * Local notification when Fetch/sync is due.
  * Requires a native rebuild after adding expo-notifications.
  */
 import * as Notifications from 'expo-notifications';
@@ -10,6 +10,7 @@ import {
   nextReminderDate,
   type SchedulePrefs,
 } from './prefs';
+import { t } from '../i18n';
 
 const SYNC_REMINDER_ID = 'loga3-sync-reminder';
 
@@ -56,8 +57,8 @@ export async function rescheduleSyncReminder(prefs: SchedulePrefs): Promise<void
   await Notifications.scheduleNotificationAsync({
     identifier: SYNC_REMINDER_ID,
     content: {
-      title: 'LOGA3 — Sync fällig',
-      body: 'Dienstplan aktualisieren (Holen). Tippen öffnet die App.',
+      title: t('scheduleReminderTitle'),
+      body: t('scheduleReminderBody'),
       data: { type: 'sync_reminder' },
     },
     trigger: {

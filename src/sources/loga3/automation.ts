@@ -1,5 +1,8 @@
 /**
  * WebView automation scripts — Desktop loga3-workflow.js port (in-page JS).
+ *
+ * German/LOGA3 labels here (öffnen, Zeiten, …) match the live portal — not app i18n.
+ * Do not rename or wrap in t(); see docs/dev/architecture.md (Packs vs site plugin).
  */
 
 import { getLoga3BaseUrl } from './env';

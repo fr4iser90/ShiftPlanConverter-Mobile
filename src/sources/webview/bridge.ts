@@ -1,4 +1,4 @@
-import type { AutomationCommand, AutomationMessage } from './automation';
+import type { AutomationCommand, AutomationMessage } from '../loga3/automation';
 
 type MsgHandler = (msg: AutomationMessage) => void;
 

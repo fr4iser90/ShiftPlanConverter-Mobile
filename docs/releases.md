@@ -23,7 +23,7 @@ Users install/update by downloading the APK from the release page (Android “un
 
 1. Edit **both** [`CHANGELOG.md`](../CHANGELOG.md) (German) and [`CHANGELOG.en.md`](../CHANGELOG.en.md) (English) **first** — same version, same facts, **no mixed language** in either file.
 2. Bump `expo.version` in `app.json` (and native versionCode when using EAS autoIncrement).
-3. Top section = what **users** care about (Holen, calendar, export, widgets, security) — not only internal refactors.
+3. Top section = what **users** care about (Fetch, calendar, export, widgets, security) — not only internal refactors.
 4. Copy the German (or English) bullet list into the **GitHub Release** description to match the audience.
 5. Tag: `v0.1.5` matching the changelog heading.
 
@@ -103,7 +103,7 @@ Documented for users in the handbook; summary for maintainers:
 
 - [ ] `CHANGELOG.md` (DE) and `CHANGELOG.en.md` (EN) updated — same version, no mixed language
 - [ ] `app.json` version bumped
-- [ ] Holen smoke on at least one real device / matrix subset
+- [ ] Fetch smoke on at least one real device / matrix subset
 - [ ] Security: no secrets in APK; scan policy reviewed if deps changed
 - [ ] GitHub Release created with APK + notes
 - [ ] Settings links still point at this repo’s `/releases` and locale changelog
