@@ -86,7 +86,7 @@ def wait_ready(timeout: float = 90) -> str:
         blob = " ".join(ts)
         print("wait:", [t[:50] for t in ts[:10]], flush=True)
         if re.search(
-            r"Ausgewählte laden|Offline-Fixture|LOGA3 Login|Kalender|Holen|Preview|Calendar|Fetch",
+            r"Ausgewählte laden|Offline-Fixture|LOGA3 Login|Kalender|Abrufen|Preview|Calendar|Fetch",
             blob,
         ):
             return xml
@@ -99,7 +99,7 @@ def main() -> None:
     xml = wait_ready()
     shot("01-launch.png")
 
-    tap_label(xml, "Holen") or tap_label(xml, "Fetch")
+    tap_label(xml, "Abrufen") or tap_label(xml, "Fetch")
     time.sleep(1)
     xml = dump()
     shot("02-holen.png")

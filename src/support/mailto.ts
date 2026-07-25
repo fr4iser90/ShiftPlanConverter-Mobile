@@ -1,13 +1,14 @@
 import { Linking } from 'react-native';
 import Constants from 'expo-constants';
 
+import { t } from '../i18n';
 import { getSnapshot } from '../state/store';
 import { MAILTO_SAFE_CHARS, SUPPORT_EMAIL } from './legal';
 
 export function trimForMailto(text: string, maxChars = MAILTO_SAFE_CHARS): string {
-  const t = String(text || '').trim();
-  if (t.length <= maxChars) return t;
-  return `${t.slice(0, maxChars).trimEnd()}\n… [gekürzt für mailto]`;
+  const s = String(text || '').trim();
+  if (s.length <= maxChars) return s;
+  return `${s.slice(0, maxChars).trimEnd()}\n${t('mailTrimmed')}`;
 }
 
 export async function openSupportMail(opts: {
@@ -21,7 +22,7 @@ export async function openSupportMail(opts: {
   )}`;
   const can = await Linking.canOpenURL(href);
   if (!can) {
-    throw new Error(`Kein Mail-Client für ${email}`);
+    throw new Error(t('mailNoClient', { email }));
   }
   await Linking.openURL(href);
 }
@@ -43,23 +44,23 @@ export function buildSupportMailBody(opts: {
   sample?: string;
 }): string {
   const parts = [
-    'Hallo,',
+    t('mailHello'),
     '',
-    'Support-Anfrage aus ShiftPlan Converter:',
+    t('mailSupportIntro'),
     '',
-    `App-Version: ${appVersionLabel()}`,
-    `Arbeitgeber: ${opts.hospital || '—'}`,
-    `Berufsgruppe: ${opts.group || '—'}`,
-    `Bereich: ${opts.area || '—'}`,
+    t('mailAppVersion', { version: appVersionLabel() }),
+    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailGroup', { value: opts.group || '—' }),
+    t('mailArea', { value: opts.area || '—' }),
   ];
-  if (opts.note?.trim()) parts.push(`Hinweis: ${opts.note.trim()}`);
+  if (opts.note?.trim()) parts.push(t('mailNote', { value: opts.note.trim() }));
   parts.push('');
   if (opts.sample?.trim()) {
-    parts.push('Anonymisierter Parser-Ausschnitt:', '---', trimForMailto(opts.sample), '---');
+    parts.push(t('mailSampleHeader'), '---', trimForMailto(opts.sample), '---');
   } else {
-    parts.push('(Kein Sample angehängt — nur Meta.)');
+    parts.push(t('mailNoSample'));
   }
-  parts.push('', 'Danke!');
+  parts.push('', t('mailThanks'));
   return parts.join('\n');
 }
 
@@ -72,23 +73,18 @@ export function buildErrorReportMailBody(opts: {
   context?: string;
 }): string {
   const parts = [
-    'Hallo,',
+    t('mailHello'),
     '',
-    'Fehlerbericht aus ShiftPlan Converter:',
+    t('mailErrorIntro'),
     '',
-    `App-Version: ${appVersionLabel()}`,
-    `Arbeitgeber: ${opts.hospital || '—'}`,
-    `Berufsgruppe: ${opts.group || '—'}`,
-    `Bereich: ${opts.area || '—'}`,
+    t('mailAppVersion', { version: appVersionLabel() }),
+    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailGroup', { value: opts.group || '—' }),
+    t('mailArea', { value: opts.area || '—' }),
   ];
-  if (opts.context?.trim()) parts.push(`Kontext: ${opts.context.trim()}`);
-  parts.push('', 'Fehlermeldung:', '---', trimForMailto(opts.error, 900), '---');
-  parts.push(
-    '',
-    'Hinweis: Keine Zugangsdaten / keine Roh-PDFs in dieser Mail.',
-    '',
-    'Danke!'
-  );
+  if (opts.context?.trim()) parts.push(t('mailContext', { value: opts.context.trim() }));
+  parts.push('', t('mailErrorHeader'), '---', trimForMailto(opts.error, 900), '---');
+  parts.push('', t('mailNoSecrets'), '', t('mailThanks'));
   return parts.join('\n');
 }
 
@@ -98,7 +94,7 @@ export async function openErrorReportMail(opts: {
 }): Promise<void> {
   const snap = getSnapshot();
   await openSupportMail({
-    subject: 'ShiftPlan Converter — Fehlerbericht',
+    subject: t('mailErrorSubject'),
     body: buildErrorReportMailBody({
       error: opts.error,
       context: opts.context,

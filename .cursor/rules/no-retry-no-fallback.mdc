@@ -7,7 +7,7 @@ alwaysApply: true
 
 **Never** add retry loops, second attempts, “fallback” click paths, or silent recoveries in:
 
-- `src/loga3/fetchJob.ts`, `src/loga3/automation.ts`
+- `src/sources/loga3/fetchJob.ts`, `src/sources/loga3/automation.ts`
 - `tests/e2e/*` (matrix, smoke, gate)
 - Install/launch shell scripts under `scripts/dev/`
 

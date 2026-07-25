@@ -31,7 +31,7 @@ Mobile: WebView + injected JS + `fetchJob.ts`.
 
 Full step matrix (action → wait → validation): [fetch-steps.md](./fetch-steps.md).
 
-Orchestration in `fetchJob.ts` via `waitForCondition` (`src/loga3/wait.ts`):
+Orchestration in `fetchJob.ts` via `waitForCondition` (`src/sources/webview/wait.ts`):
 
 1. Login form → submit → **shell** (`assertShellReady`: Öffnen / Picker — not splash)
 2. **`clickOeffnen` once** → wait `#ZeitdatenMonthPicker` (no Zeiten fallback)

@@ -4,6 +4,7 @@ import { requestWidgetUpdate } from 'react-native-android-widget';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { ShiftEntry } from '../convert/types';
+import { t } from '../i18n';
 import {
   getLastSuccessfulFetchAt,
   isSyncOverdue,
@@ -34,7 +35,7 @@ async function syncBadge(): Promise<string | null> {
   if (!prefs.widgetBadge) return null;
   const last = await getLastSuccessfulFetchAt();
   if (!isSyncOverdue(prefs, last)) return null;
-  return 'Sync fällig — App öffnen';
+  return t('widgetSyncDueBadge');
 }
 
 /** Push shift data to installed NextShift + WeekPlan widgets (Android). */

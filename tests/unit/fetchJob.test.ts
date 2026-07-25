@@ -89,9 +89,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiRemove: jest.fn(async () => undefined),
 }));
 
-import type { AutomationCommand, AutomationMessage } from '../../src/loga3/automation';
-import { AutomationBridge } from '../../src/loga3/bridge';
-import { runFetchJob } from '../../src/loga3/fetchJob';
+import type { AutomationCommand, AutomationMessage } from '../../src/sources/loga3/automation';
+import { AutomationBridge } from '../../src/sources/webview/bridge';
+import { runFetchJob } from '../../src/sources/loga3/fetchJob';
 
 describe('AutomationBridge', () => {
   it('resolves run() when matching message arrives', async () => {

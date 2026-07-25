@@ -27,7 +27,7 @@ export function GoogleCalendarPicker({
 }: Props) {
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [newName, setNewName] = useState('Dienstplan');
+  const [newName, setNewName] = useState(() => t('googleDefaultCalendarName'));
 
   if (!calendars.length && !showForm) {
     return (
@@ -63,7 +63,7 @@ export function GoogleCalendarPicker({
       onChange(next, created.id);
       await setGoogleCalendarId(created.id);
       setShowForm(false);
-      setNewName('Dienstplan');
+      setNewName(t('googleDefaultCalendarName'));
     } catch (e) {
       Alert.alert(t('googleNewCalendar'), String(e));
     } finally {

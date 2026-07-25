@@ -1,6 +1,7 @@
 import React from 'react';
 import { FlexWidget, TextWidget } from 'react-native-android-widget';
 
+import { t } from '../i18n';
 import type { WeekPlanWidgetData } from './data';
 import { widgetChrome } from './theme';
 
@@ -49,7 +50,7 @@ export function WeekPlanWidget({
           }}
         />
         <TextWidget
-          text={badge ? badge : empty ? 'Keine Schichten' : range}
+          text={badge ? badge : empty ? t('widgetEmptyTitle') : range}
           style={{
             fontSize: 12,
             color: badge ? c.accent : c.inkMuted,

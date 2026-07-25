@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { decryptBytes, encryptBytes } from '../state/securePayload';
+import { decryptBytes, encryptBytes } from '../../state/securePayload';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');

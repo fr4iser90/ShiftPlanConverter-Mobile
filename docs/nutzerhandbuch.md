@@ -1,6 +1,6 @@
 # Nutzerhandbuch
 
-ShiftPlan Converter lädt deine **Zeitprotokolle aus LOGA3**, speichert alles **nur auf dem Gerät**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
+ShiftPlan Converter lädt deine **Zeitprotokolle aus LOGA3** oder importiert **PDF / CSV / ICS** von deinem Gerät, speichert alles **nur lokal**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
 
 Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Berufsgruppe** (Pack) ausgelegt. Anderer Arbeitgeber oder Bereich kann fehlschlagen, bis ein passendes Pack existiert.
 
@@ -10,7 +10,7 @@ Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Ber
 
 | Tab | Wozu |
 |-----|------|
-| **Abrufen** | Monate wählen und Zeitprotokolle aus LOGA3 laden |
+| **Abrufen** | Monate wählen und Zeitprotokolle aus LOGA3 laden **oder** Dateien (PDF/CSV/ICS) importieren |
 | **Kalender** | Schichten prüfen (Woche / Monat / Liste) |
 | **Export** | ICS teilen oder Google synchronisieren |
 | **Einstellungen** | Einrichtung, Abrufen-Fenster, Erinnerungen, Darstellung, Hilfe |
@@ -28,21 +28,29 @@ Unter **Einstellungen → Einrichtung** (oder beim ersten Start):
 3. **Arbeitgeber / Pack** — z. B. St. Elisabeth · Anästhesie. Falsches Pack → falsche Codes oder Zeiten.
 4. **Google** — optional, kannst du später unter Export nachholen.
 
-Ohne abgeschlossenes Setup bleibt Abrufen gesperrt.
+Für **Datei-Import** reicht der Arbeitgeber/Pack. **LOGA3-Abruf** braucht zusätzlich Tenant-URL und Login.
 
 ---
 
 ## 3. Zeitprotokolle abrufen
 
+### Aus LOGA3
+
 1. Tab **Abrufen** öffnen.
-2. Gewünschte **Monate** anhaken (Vorauswahl kommt aus **Einstellungen → Abrufen**: Vorgänger-/Folgemonate).
-3. **Zeitprotokolle laden** tippen.
+2. Oben die **Quelle** wählen: **LOGA3** oder **Datei (PDF / CSV / ICS)**.
+3. Bei LOGA3: gewünschte **Monate** anhaken (Vorauswahl kommt aus **Einstellungen → Abrufen**: Vorgänger-/Folgemonate).
+4. **Zeitprotokolle laden** tippen.
 
 Die App öffnet LOGA3 in einer eingebetteten Ansicht, meldet dich an und exportiert die Monats-PDFs. Das kann etwas dauern; die Ansicht kann dabei sichtbar sein.
 
+### Datei importieren
+
+Unter **Abrufen** → Quelle **Datei** → **Datei wählen & importieren**: Datei(en) vom Gerät wählen.  
+PDF wird mit dem gewählten Pack geparst; CSV braucht Spalten `date,type` (optional `start,end,allDay`); ICS liest `VEVENT`.
+
 Nach Erfolg siehst du die Schichten typischerweise unter **Kalender**.
 
-**Hinweis:** Abrufen funktioniert nur, während die App offen ist — es gibt keinen zuverlässigen stillen Abruf mitten in der Nacht ohne App.
+**Hinweis:** LOGA3-Abrufen funktioniert nur, während die App offen ist — es gibt keinen zuverlässigen stillen Abruf mitten in der Nacht ohne App.
 
 ---
 

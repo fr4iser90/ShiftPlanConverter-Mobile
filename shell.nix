@@ -96,7 +96,7 @@ let
          oder: npx expo start   dann im Metro „a“
 
     Smoke ohne Live-LOGA3:
-      Holen-Tab → „Fixture konvertieren“ → Preview → Export → ICS
+      Fetch-Tab → „Fixture konvertieren“ → Preview → Export → ICS
 
     Weitere Befehle:
       npm test

@@ -1,5 +1,5 @@
 /**
- * Optional biometric / device-credential gate (Holen + password reveal).
+ * Optional biometric / device-credential gate (Fetch + password reveal).
  * Off by default — opt-in in Settings → Security.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';

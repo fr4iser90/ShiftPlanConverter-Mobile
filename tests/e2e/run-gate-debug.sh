@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-profile gate debug: Holen 07/2026 + pull DOM dumps after each pipeline gate.
+# One-profile gate debug: Fetch 07/2026 + pull DOM dumps after each pipeline gate.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"

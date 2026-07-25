@@ -11,7 +11,7 @@ Android & iOS app — **the same idea as the desktop app**, running fully **on-d
 | Area | What it does |
 |------|----------------|
 | **Setup** | Tenant URL + LOGA3 login (**Secure Store**) + employer **pack** (parser/colors). Optional Google connect. |
-| **Holen (Fetch)** | In-app **WebView** drives LOGA3 like desktop Playwright (no public shift API): Zeiten → month → Zeitprotokoll **PDF** → parse → shifts. One-tap window or selected months. |
+| **Fetch** | In-app **WebView** drives LOGA3 like desktop Playwright (no public shift API): Zeiten → month → Zeitprotokoll **PDF** → parse → shifts. One-tap window or selected months. |
 | **Kalender** | Week / month / list preview; collapsible AZK / carry-over summary; pack colors + missing-code mapping. |
 | **Export** | **ICS** share sheet (Apple, Outlook, Nextcloud, …) and optional **Google Calendar** sync to a dedicated calendar. |
 | **Widgets** | Android: next shift + this week; theme in Settings. |
@@ -26,11 +26,11 @@ Playwright replacement details: [docs/dev/webview-fetch.md](./docs/dev/webview-f
 
 ## Status (experimental)
 
-**Not production-ready for arbitrary LOGA3 tenants.** Validated live so far for **one employer (AG) + one occupational group / pack**. Other hospitals, groups, or PEP layouts can differ in DOM, PDF export, and time mappings — treat those as untested until a pack exists and Holen passes there.
+**Not production-ready for arbitrary LOGA3 tenants.** Validated live so far for **one employer (AG) + one occupational group / pack**. Other hospitals, groups, or PEP layouts can differ in DOM, PDF export, and time mappings — treat those as untested until a pack exists and Fetch passes there.
 
 | Area | Today | Needed |
 |------|--------|--------|
-| Holen / parse / ICS / Google sync | Works on the tested pack; resolution matrix covers common phone/tablet sizes for that UI path | More AG/group packs + live checks |
+| Fetch / parse / ICS / Google sync | Works on the tested pack; resolution matrix covers common phone/tablet sizes for that UI path | More AG/group packs + live checks |
 | Viewports | Same WebView + layout fix for all sizes; matrix ≠ “every AG works” | Spot-check real devices after matrix PASS |
 | Security | Creds in Secure Store; PDFs/entries on-device; no our-server upload | Independent review — checklist: [docs/dev/security-audit.md](./docs/dev/security-audit.md) |
 | Widget | Next shift + week plan; theme in Settings | Native rebuild after adding WeekPlan widget |
@@ -87,7 +87,7 @@ shiftplan-android         # npm install + expo run:android
 Offline smoke: Fetch tab → **Offline fixture (debug)** → Preview → Export → ICS.  
 Live: After install, run **Setup** (tenant URL, login, employer pack), then months → **Fetch selected**. See [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md).
 
-**Resolution matrix (Phone + Tablet):** validate Holen on every common size before release:
+**Resolution matrix (Phone + Tablet):** validate Fetch on every common size before release:
 
 ```bash
 npm run smoke:matrix
@@ -170,7 +170,7 @@ src/                 # Converter, LOGA3 WebView, sync, i18n, packs
 assets/ components/  # UI assets
 fixtures/            # Parser fixtures
 docs/                # User guides + releases
-docs/dev/            # Architecture, Holen, Play/security, OAuth, CI, roadmap
+docs/dev/            # Architecture, Fetch, Play/security, OAuth, CI, roadmap
 ```
 
 ## Documents
@@ -190,7 +190,7 @@ docs/dev/            # Architecture, Holen, Play/security, OAuth, CI, roadmap
 | File | Content |
 |------|---------|
 | [docs/dev/architecture.md](./docs/dev/architecture.md) | On-device architecture |
-| [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md) | WebView vs desktop Holen |
+| [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md) | WebView vs desktop Fetch |
 | [docs/dev/fetch-steps.md](./docs/dev/fetch-steps.md) | One-path step machine + selectors |
 | [docs/dev/layout-fix-pdf.md](./docs/dev/layout-fix-pdf.md) | Phone layout CSS/JS for PDF path |
 | [docs/dev/google-oauth-android.md](./docs/dev/google-oauth-android.md) | Android Google Sign-In |
@@ -202,6 +202,7 @@ docs/dev/            # Architecture, Holen, Play/security, OAuth, CI, roadmap
 | [docs/dev/security-audit.md](./docs/dev/security-audit.md) | Security checklist (pre-distribution) |
 | [docs/dev/peer-review-packet.md](./docs/dev/peer-review-packet.md) | Handoff for independent review |
 | [docs/dev/roadmap.md](./docs/dev/roadmap.md) | Open items only |
+| [docs/dev/refactor-sources.md](./docs/dev/refactor-sources.md) | Source/Pack/Sink refactor plan |
 
 ## License
 

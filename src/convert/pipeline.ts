@@ -1,5 +1,5 @@
 import { parseTimeSheet } from './convert';
-import { parseStElisabeth } from './parser-st-elisabeth';
+import { getParser, DEFAULT_PARSER_ID } from './parsers';
 import { resolveShiftMapping } from './shiftMapping';
 import type { ConvertResult, HospitalMapping, ShiftEntry } from './types';
 import { getBuiltinMapping } from '../packs';
@@ -8,6 +8,8 @@ export type ConvertOptions = {
   preset?: string;
   mapping?: HospitalMapping;
   userMappings?: Record<string, string>;
+  /** Pack parser id — see `src/convert/parsers`. */
+  parserId?: string;
 };
 
 /**
@@ -55,16 +57,23 @@ export function resolveStoredEntries(
     : resolved;
 }
 
+/** Convert Zeitprotokoll-style PDF text via pack parser. */
 export function convertPdfText(pdfText: string, options: ConvertOptions = {}): ConvertResult {
+  return convertRawText(pdfText, options);
+}
+
+/** Same as convertPdfText — explicit name for non-PDF text paths. */
+export function convertRawText(rawText: string, options: ConvertOptions = {}): ConvertResult {
   const preset = options.preset || 'Anästhesie';
   const mapping = options.mapping || getBuiltinMapping();
+  const parser = getParser(options.parserId || DEFAULT_PARSER_ID);
   const result = parseTimeSheet(
-    pdfText,
+    rawText,
     'pflege',
     'op-bereich',
     preset,
     mapping,
-    parseStElisabeth
+    parser
   );
   if (options.userMappings) {
     result.entries = applyUserMappings(result.entries, options.userMappings);

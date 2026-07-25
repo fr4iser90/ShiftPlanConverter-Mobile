@@ -1,7 +1,7 @@
 /**
- * How often the user wants a Holen/sync — reminders + widget badge.
+ * How often the user wants a Fetch/sync — reminders + widget badge.
  *
- * Honest limits: LOGA3 Holen needs an in-app WebView. True “3 AM silent fetch while
+ * Honest limits: LOGA3 Fetch needs an in-app WebView. True “3 AM silent fetch while
  * phone sleeps” is unreliable on modern Android. We support:
  * - overdue tracking + widget badge
  * - optional notification reminder (expo-notifications)
@@ -17,13 +17,13 @@ const LAST_FETCH_KEY = 'loga3.lastSuccessfulFetchAt';
 const PREFS_SCHEMA = 2;
 
 export type SchedulePrefs = {
-  /** Days between expected Holen. 0 = tracking off. */
+  /** Days between expected Fetch. 0 = tracking off. */
   intervalDays: number;
   /** Preferred local hour (0–23) for the next reminder. */
   preferredHour: number;
   /** Schedule a local notification when a sync is due. */
   notifyEnabled: boolean;
-  /** When opening Holen tab, ask to sync if overdue. */
+  /** When opening Fetch tab, ask to sync if overdue. */
   promptOnOpen: boolean;
   /** Show “Sync fällig” on home-screen widgets. */
   widgetBadge: boolean;

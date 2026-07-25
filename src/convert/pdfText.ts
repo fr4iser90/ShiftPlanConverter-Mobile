@@ -3,6 +3,7 @@
  *
  * pdfjs-dist 4.x trips Hermes ("Invalid expression encountered"), so we
  * inflate FlateDecode streams (fflate) and rebuild text from `(...)Tj` runs.
+ * Rebuilt header tokens (Abrechnungsmonat, Übertrag…) must stay literal for parsers.
  */
 import { unzlibSync, inflateSync } from 'fflate';
 

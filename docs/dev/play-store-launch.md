@@ -62,7 +62,7 @@ export const PROJECT_PLAY_STORE =
 ```
 
 2. Rebuild so in-app “Check for updates” opens Play.
-3. Smoke: Holen + Google Sign-In + widget on a release build (ProGuard/R8).
+3. Smoke: Fetch + Google Sign-In + widget on a release build (ProGuard/R8).
 
 ---
 

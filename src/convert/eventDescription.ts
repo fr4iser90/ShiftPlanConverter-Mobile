@@ -1,4 +1,5 @@
 import type { ShiftEntry } from './types';
+import { t } from '../i18n';
 
 function formatSignedHours(value: string): string {
   const s = String(value).trim();
@@ -29,24 +30,35 @@ export function buildEventDescription(
   entry: ShiftEntry,
   { richDetails = false }: { richDetails?: boolean } = {}
 ): string {
-  const lines = ['Automatisch importiert aus Dienstplan – keine Gewähr.'];
+  const lines = [t('eventDescDisclaimer')];
 
   if (entry.allDay) {
-    lines.push(`Original: ${entry.type}`);
+    lines.push(t('eventDescOriginalAllDay', { type: entry.type }));
   } else {
-    lines.push(`Original: ${entry.type}, ${entry.start}, ${entry.end}`);
+    lines.push(
+      t('eventDescOriginalTimed', {
+        type: entry.type,
+        start: entry.start || '',
+        end: entry.end || '',
+      })
+    );
   }
 
   if (richDetails) {
-    if (entry.pause) lines.push(`Pause: ${entry.pause}`);
-    if (entry.ist) lines.push(`Ist: ${entry.ist}`);
+    if (entry.pause) lines.push(t('eventDescPause', { value: entry.pause }));
+    if (entry.ist) lines.push(t('eventDescIst', { value: entry.ist }));
     if (entry.azkDaily != null && entry.azkDaily !== '') {
-      lines.push(`AZK Tag: ${formatSignedHours(entry.azkDaily)}`);
+      lines.push(t('eventDescAzkDay', { value: formatSignedHours(entry.azkDaily) }));
     }
     if (entry.bereitPercent != null && entry.bewertet != null) {
-      lines.push(`Bereitschaft: ${entry.bereitPercent} % · bewertet ${entry.bewertet}`);
+      lines.push(
+        t('eventDescStandbyRated', {
+          pct: entry.bereitPercent,
+          rated: entry.bewertet,
+        })
+      );
     } else if (entry.bereitPercent != null) {
-      lines.push(`Bereitschaft: ${entry.bereitPercent} %`);
+      lines.push(t('eventDescStandby', { pct: entry.bereitPercent }));
     }
   }
 

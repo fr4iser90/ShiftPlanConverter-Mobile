@@ -1,5 +1,8 @@
 /**
  * St. Elisabeth Leipzig Zeitabrechnung parser (port from Desktop).
+ *
+ * PDF field labels / codes are pack-parser match targets — not app i18n.
+ * Bound via pack `parserId` (see docs/dev/architecture.md).
  */
 import type { MonthSummary, ParseResult, ShiftEntry } from './types';
 

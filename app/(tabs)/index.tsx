@@ -14,22 +14,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { loadCredentials } from '@/src/loga3/credentials';
-import { Loga3WebView } from '@/src/loga3/Loga3WebView';
-import type { AutomationCommand, AutomationMessage } from '@/src/loga3/automation';
-import { AutomationBridge } from '@/src/loga3/bridge';
-import { runFetchJob } from '@/src/loga3/fetchJob';
-import { convertPdfText, resolveStoredEntries } from '@/src/convert/pipeline';
-import { anonymizeDienstplanText } from '@/src/convert/anonymize';
+import { loadCredentials } from '@/src/sources/loga3/credentials';
+import { Loga3WebView } from '@/src/sources/loga3/Loga3WebView';
+import type { AutomationCommand, AutomationMessage } from '@/src/sources/loga3/automation';
+import { AutomationBridge } from '@/src/sources/webview/bridge';
+import { resolveStoredEntries } from '@/src/convert/pipeline';
 import { getMappingForScope } from '@/src/packs';
+import { ingestArtifacts } from '@/src/ingest/ingestArtifacts';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
-import { getGoogleCalendarId, getSnapshot, setEntries, subscribe } from '@/src/state/store';
+import { getGoogleCalendarId, getSnapshot, subscribe } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   takeSmokeFetchIntent,
   peekSmokeFetchIntent,
   setMatrixStatus,
 } from '@/src/setup/smokeFetchIntent';
+import { loadActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '@/src/state/quickPrefs';
 import {
   getLastSuccessfulFetchAt,
@@ -38,6 +38,8 @@ import {
 } from '@/src/schedule/prefs';
 import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
+import { listSources } from '@/src/sources';
+import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { openErrorReportMail } from '@/src/support/mailto';
@@ -135,6 +137,26 @@ function makeFetchStyles(theme: AppTheme) {
       color: theme.color.inkSecondary,
     },
     monthChipTextOn: { color: theme.color.primaryText },
+    sourceChip: {
+      paddingHorizontal: 14,
+      height: 40,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.color.surfaceMuted,
+      borderWidth: 1,
+      borderColor: theme.color.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sourceChipOn: {
+      backgroundColor: theme.color.primary,
+      borderColor: theme.color.primary,
+    },
+    sourceChipText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.color.inkSecondary,
+    },
+    sourceChipTextOn: { color: theme.color.primaryText },
     input: {
       borderWidth: 1,
       borderColor: theme.color.borderStrong,
@@ -232,7 +254,10 @@ export default function FetchScreen() {
   );
   const [year, setYear] = useState(new Date().getFullYear());
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
+  const [activeSourceId, setActiveSourceId] = useState('loga3-webview');
   const [googleConfigured, setGoogleConfigured] = useState(false);
+  const sources = useMemo(() => listSources(), []);
+  const isLocalSource = activeSourceId === 'local-files';
   const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void }>(null);
   const bridgeRef = useRef(new AutomationBridge());
   const readyRef = useRef(false);
@@ -272,6 +297,7 @@ export default function FetchScreen() {
   const refreshSetup = useCallback(async () => {
     const st = await getSetupStatus();
     setSetup(st);
+    setActiveSourceId(st.preferredSourceId);
     const prefs = await loadQuickPrefs();
     setQuickPrefs(prefs);
     if (!seededWindowRef.current) {
@@ -280,16 +306,29 @@ export default function FetchScreen() {
       setYear(new Date().getFullYear());
     }
     setGoogleConfigured(!!(await getGoogleCalendarId()));
-    if (st.complete) {
-      const c = await loadCredentials();
-      setCreds(c);
-      return;
+    if (st.credentialsOk) {
+      setCreds(await loadCredentials());
+    } else {
+      setCreds(null);
     }
-    setCreds(null);
+    if (st.complete || st.workplaceReady) return;
     // Dev-Smoke: .env → deep-link already seeds Secure Store. Never force Setup UI then.
     if (await peekSmokeFetchIntent()) return;
     router.push(SETUP_HREF);
   }, []);
+
+  const onPickSource = useCallback(
+    async (id: string) => {
+      if (busy || id === activeSourceId) return;
+      setActiveSourceId(id);
+      await saveActiveSourceId(id);
+      const st = await getSetupStatus();
+      setSetup(st);
+      if (st.credentialsOk) setCreds(await loadCredentials());
+      else setCreds(null);
+    },
+    [busy, activeSourceId]
+  );
 
   const applySettingsWindow = useCallback((prefs?: QuickUpdatePrefs | null) => {
     const p = prefs || quickPrefs;
@@ -335,25 +374,63 @@ export default function FetchScreen() {
   };
 
   const onConvertFixture = async () => {
-    if (!setup?.complete || !packMapping || !snap.preset) {
-      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+    if (!setup?.workplaceReady || !packMapping || !snap.preset) {
+      Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
       return;
     }
     try {
-      const result = convertPdfText(FIXTURE_TEXT, {
-        preset: snap.preset,
-        mapping: packMapping,
-        userMappings: snap.userMappings,
-      });
-      await setEntries(result.entries, {
-        rawText: anonymizeDienstplanText(FIXTURE_TEXT, { maxChars: 80000 }),
-        summary: result.summary,
-        summaries: result.summaries,
-      });
-      setStatus(t('fjOfflineFixture', { count: result.entries.length }));
-      Alert.alert('Fixture', t('fixtureLoaded', { count: result.entries.length }));
+      const ingested = await ingestArtifacts(
+        [{ kind: 'text', month: 9, year: 2026, text: FIXTURE_TEXT }],
+        { replaceEntries: true }
+      );
+      setStatus(t('fjOfflineFixture', { count: ingested.entries.length }));
+      Alert.alert('Fixture', t('fixtureLoaded', { count: ingested.entries.length }));
     } catch (e) {
       Alert.alert(t('alertError'), String(e));
+    }
+  };
+
+  const onImportFiles = async () => {
+    if (!setup?.workplaceReady) {
+      Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
+      router.push(SETUP_HREF);
+      return;
+    }
+    setBusy(true);
+    setStatus(t('sourceLocalRunning'));
+    try {
+      const result = await runSourceAndIngest({
+        sourceId: 'local-files',
+        period: selected.length
+          ? { months: selected.map((s) => s.month), year }
+          : undefined,
+        replaceEntries: false,
+        preserveOutsideMonths: true,
+        onStatus: setStatus,
+      });
+      if (!result.artifacts.length && !result.errors.length) {
+        setStatus(t('sourceLocalCancelled'));
+        return;
+      }
+      const parts = [
+        t('fjResultShifts', { count: result.entries.length }),
+        result.errors.length
+          ? t('fjResultErrors', {
+              errors: result.errors.map((e) => `· ${e}`).join('\n'),
+            })
+          : null,
+      ].filter(Boolean);
+      setStatus(parts.join(' · '));
+      if (result.entries.length > 0) {
+        router.replace(CALENDAR_HREF);
+      }
+      Alert.alert(t('sourceLocalDone'), parts.join('\n'));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(t('fjResultErrorLine', { msg }));
+      alertErrorWithReport(t('sourceLocalFiles'), msg, 'Local import');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -420,7 +497,7 @@ export default function FetchScreen() {
 
   const onAutomationMessage = useCallback((msg: AutomationMessage) => {
     bridgeRef.current.handleMessage(msg);
-    // Holen status is owned by fetchJob onStatus — probes/pdfBlob must not clobber it
+    // Fetch status is owned by fetchJob onStatus — probes/pdfBlob must not clobber it
     // (stuck "PDF erfasst" while WebView flapped for ~1min between months).
   }, []);
 
@@ -471,7 +548,7 @@ export default function FetchScreen() {
   const monthSelected = (m: number) =>
     selected.some((x) => x.month === m && x.year === year);
 
-  const onHolen = async () => {
+  const onFetch = async () => {
     if (!setup?.complete || !creds) {
       Alert.alert(t('setupTitle'), t('setupIncomplete'));
       router.push(SETUP_HREF);
@@ -481,7 +558,7 @@ export default function FetchScreen() {
       Alert.alert(t('selectMonths'), t('setupPickMonth'));
       return;
     }
-    const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptHolen'));
+    const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptFetch'));
     if (!unlocked) {
       Alert.alert(t('securityBiometric'), t('securityBiometricDenied'));
       return;
@@ -522,13 +599,6 @@ export default function FetchScreen() {
             ? `${r.id}: ${r.reason || '—'}`
             : `${r.id}: +${r.created || 0}/−${r.deleted || 0}`
         ),
-        result.fetch.timings?.length
-          ? t('fjTimingSummary', {
-              summary: result.fetch.timings
-                .map((x) => `${x.step}=${(x.ms / 1000).toFixed(1)}s`)
-                .join(' · '),
-            })
-          : null,
       ].filter(Boolean);
       setStatus(parts.join(' · '));
       await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
@@ -551,7 +621,7 @@ export default function FetchScreen() {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(t('fjResultErrorLine', { msg }));
       await setMatrixStatus(`MATRIX_FETCH_FAIL ${msg}`);
-      alertErrorWithReport(t('quickUpdate'), msg, 'Holen / QuickUpdate');
+      alertErrorWithReport(t('quickUpdate'), msg, 'Fetch / quickUpdate');
     } finally {
       setBusy(false);
     }
@@ -562,6 +632,8 @@ export default function FetchScreen() {
       void refreshSetup();
       void (async () => {
         if (busy || schedulePromptedRef.current) return;
+        const active = await loadActiveSourceId('loga3-webview');
+        if (active !== 'loga3-webview') return;
         const prefs = await loadSchedulePrefs();
         if (!prefs.promptOnOpen || prefs.intervalDays <= 0) return;
         const last = await getLastSuccessfulFetchAt();
@@ -572,7 +644,7 @@ export default function FetchScreen() {
           {
             text: t('schedulePromptYes'),
             onPress: () => {
-              void onHolen();
+              void onFetch();
             },
           },
         ]);
@@ -615,16 +687,16 @@ export default function FetchScreen() {
       try {
         await waitUntilReady();
         await warmBridge();
-        const result = await runFetchJob({
-          username: c.username,
-          password: c.password,
-          months,
-          year: y,
-          bridge: bridgeRef.current,
-          inject: (cmd) => webRef.current?.run(cmd),
+        const result = await runSourceAndIngest({
+          sourceId: 'loga3-webview',
+          credentials: { username: c.username, password: c.password },
+          period: { months, year: y },
+          host: {
+            bridge: bridgeRef.current,
+            inject: (cmd) => webRef.current?.run(cmd),
+          },
           onStatus: setStatus,
           replaceEntries: true,
-          // Gate dumps are debug-only — they make Open/picker waits feel like ~1min.
           gateTrace: false,
         });
         const parts = [
@@ -673,7 +745,7 @@ export default function FetchScreen() {
     );
   }
 
-  if (!setup.complete) {
+  if (!setup.workplaceReady) {
     return (
       <Screen style={styles.center}>
         <ScreenTitle>{t('setupRequired')}</ScreenTitle>
@@ -727,51 +799,94 @@ export default function FetchScreen() {
         {!busy ? (
           <>
             <AppCard accent>
-              <SectionTitle>{t('selectMonths')}</SectionTitle>
-              <Meta>{t('fetchHint')}</Meta>
-              <Text style={styles.windowLine}>
-                {selectionLabel || '—'}
-                {' · '}
-                {quickWillSyncGoogle ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
-              </Text>
+              <SectionTitle>{t('sourcePick')}</SectionTitle>
               <View style={styles.monthGrid}>
-                {MONTHS.map((m) => {
-                  const on = monthSelected(m);
+                {sources.map((s) => {
+                  const on = activeSourceId === s.id;
+                  const label =
+                    s.id === 'loga3-webview'
+                      ? t('sourceLoga3')
+                      : s.id === 'local-files'
+                        ? t('sourceLocalFiles')
+                        : t(s.labelKey as 'sourceLoga3');
                   return (
                     <Pressable
-                      key={m}
+                      key={s.id}
                       disabled={busy}
-                      onPress={() => toggleMonth(m)}
-                      style={[styles.monthChip, on && styles.monthChipOn]}>
-                      <Text style={[styles.monthChipText, on && styles.monthChipTextOn]}>
-                        {String(m).padStart(2, '0')}
+                      onPress={() => void onPickSource(s.id)}
+                      style={[styles.sourceChip, on && styles.sourceChipOn]}
+                    >
+                      <Text style={[styles.sourceChipText, on && styles.sourceChipTextOn]}>
+                        {label}
                       </Text>
                     </Pressable>
                   );
                 })}
               </View>
-              <TextInput
-                style={styles.input}
-                keyboardType="number-pad"
-                editable={!busy}
-                value={String(year)}
-                onChangeText={(v) => setYear(Number(v) || year)}
-              />
-              <AppButton
-                title={t('holenApplyWindow')}
-                variant="ghost"
-                compact
-                onPress={() => applySettingsWindow()}
-                disabled={busy}
-              />
-              <AppButton
-                title={
-                  quickWillSyncGoogle ? t('quickUpdateGoSync') : t('quickUpdateGo')
-                }
-                onPress={() => void onHolen()}
-                disabled={busy}
-                busy={busy}
-              />
+
+              {!isLocalSource ? (
+                <>
+                  <SectionTitle>{t('selectMonths')}</SectionTitle>
+                  <Meta>{t('fetchHint')}</Meta>
+                  <Text style={styles.windowLine}>
+                    {selectionLabel || '—'}
+                    {' · '}
+                    {quickWillSyncGoogle ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
+                  </Text>
+                  <View style={styles.monthGrid}>
+                    {MONTHS.map((m) => {
+                      const on = monthSelected(m);
+                      return (
+                        <Pressable
+                          key={m}
+                          disabled={busy}
+                          onPress={() => toggleMonth(m)}
+                          style={[styles.monthChip, on && styles.monthChipOn]}>
+                          <Text style={[styles.monthChipText, on && styles.monthChipTextOn]}>
+                            {String(m).padStart(2, '0')}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="number-pad"
+                    editable={!busy}
+                    value={String(year)}
+                    onChangeText={(v) => setYear(Number(v) || year)}
+                  />
+                  <AppButton
+                    title={t('fetchApplyWindow')}
+                    variant="ghost"
+                    compact
+                    onPress={() => applySettingsWindow()}
+                    disabled={busy}
+                  />
+                  <AppButton
+                    title={
+                      quickWillSyncGoogle ? t('quickUpdateGoSync') : t('sourceLoga3Go')
+                    }
+                    onPress={() => void onFetch()}
+                    disabled={busy || !setup.complete}
+                    busy={busy}
+                  />
+                  {!setup.complete ? <Meta>{t('setupLoga3Hint')}</Meta> : null}
+                </>
+              ) : (
+                <>
+                  <Meta>{t('fetchHintLocal')}</Meta>
+                  <AppButton
+                    title={t('sourceLocalGo')}
+                    onPress={() => void onImportFiles()}
+                    disabled={busy || !setup.workplaceReady}
+                    busy={busy}
+                  />
+                  {!setup.workplaceReady ? (
+                    <Meta>{t('setupIncompleteWorkplace')}</Meta>
+                  ) : null}
+                </>
+              )}
             </AppCard>
 
             {__DEV__ ? (
@@ -802,24 +917,32 @@ export default function FetchScreen() {
           </>
         ) : null}
 
-        {/* Erweitert ↑  ·  WebView-Leiste  ·  0 Schichten ↓ */}
-        <Pressable style={styles.webToggle} onPress={toggleShowWeb} disabled={busy}>
-          <Text style={styles.webToggleText}>
-            {webExpanded ? '▾ LOGA3 WebView' : '▸ LOGA3 WebView — antippen'}
-            {busy ? ' · Fetch läuft' : webReady ? ' · bereit' : ' · lädt…'}
-          </Text>
-        </Pressable>
+        {/* WebView stays mounted (ready for LOGA3); chrome only when that source is active */}
+        {!isLocalSource ? (
+          <Pressable style={styles.webToggle} onPress={toggleShowWeb} disabled={busy}>
+            <Text style={styles.webToggleText}>
+              {webExpanded ? t('webViewToggleOpen') : t('webViewToggleClosed')}
+              {busy
+                ? ` · ${t('quickUpdateRunning')}`
+                : webReady
+                  ? ` · ${t('webViewStatusReady')}`
+                  : ` · ${t('webViewStatusLoading')}`}
+            </Text>
+          </Pressable>
+        ) : null}
         <View
           style={[
             styles.webPanel,
-            webExpanded ? { height: webPanelHeight } : styles.webPanelCollapsed,
+            !isLocalSource && webExpanded
+              ? { height: webPanelHeight }
+              : styles.webPanelCollapsed,
           ]}
           onLayout={(e) => {
             const w = e.nativeEvent.layout.width;
             if (w > 1) setWebLayoutW(w);
           }}
-          pointerEvents={webExpanded ? 'auto' : 'none'}
-          accessibilityElementsHidden={!webExpanded}
+          pointerEvents={!isLocalSource && webExpanded ? 'auto' : 'none'}
+          accessibilityElementsHidden={isLocalSource || !webExpanded}
         >
           <Loga3WebView
             ref={webRef}

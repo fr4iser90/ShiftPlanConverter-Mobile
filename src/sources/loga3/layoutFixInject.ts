@@ -4,6 +4,7 @@
  * Proven live 2026-07-24 (Moto G73). See docs/dev/layout-fix-pdf.md.
  * Do NOT hide SmartEdin / LGSMartThing*. Do NOT pointer-events:none the whole header
  * (month arrows #ZeitdatenMonthPicker / ic-previous / ic-next must stay clickable).
+ * CSS/selectors are portal match targets — not app i18n.
  */
 export const LOGA3_LAYOUT_FIX_STYLE_ID = 'loga3-layout-fix-v1';
 

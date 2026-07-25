@@ -1,4 +1,5 @@
 import type { HospitalMapping } from '../convert/types';
+import { DEFAULT_PARSER_ID } from '../convert/parsers';
 import hospitalConfig from './builtin/st-elisabeth-leipzig/config.json';
 import opMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
 
@@ -21,6 +22,11 @@ export type PackConfig = {
   name: string;
   hint: string;
   groups: PackGroup[];
+  /** Convert parser registry id */
+  parserId?: string;
+  /** Default Fetch source */
+  preferredSourceId?: string;
+  supportedSourceIds?: string[];
 };
 
 /** Catalog of employer packs shipped in the app (more will be added). */
@@ -51,6 +57,14 @@ export function getPackById(hospitalId: string): PackConfig | null {
 
 export function getBuiltinPackConfig(): PackConfig {
   return BUILTIN_PACKS[0];
+}
+
+export function getParserIdForPack(pack: PackConfig | null | undefined): string {
+  return pack?.parserId?.trim() || DEFAULT_PARSER_ID;
+}
+
+export function getPreferredSourceId(pack: PackConfig | null | undefined): string {
+  return pack?.preferredSourceId?.trim() || 'loga3-webview';
 }
 
 export function getMappingForScope(

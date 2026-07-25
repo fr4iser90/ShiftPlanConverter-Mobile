@@ -9,6 +9,7 @@ import {
   weekTitle,
 } from '../calendar/dates';
 import { entriesByDate, findNextShift, formatShiftLine } from '../calendar/shifts';
+import { t } from '../i18n';
 import type { WidgetDensity } from './prefs';
 import type { WidgetScheme } from './theme';
 
@@ -53,9 +54,9 @@ export function buildNextShiftData(
   if (!next) {
     return {
       empty: true,
-      eyebrow: 'LOGA3',
-      title: 'Keine Schichten',
-      subtitle: 'In der App aktualisieren',
+      eyebrow: 'ShiftPlan',
+      title: t('widgetEmptyTitle'),
+      subtitle: t('widgetEmptySubtitle'),
       badge: badge || null,
       scheme,
       density,
@@ -63,7 +64,7 @@ export function buildNextShiftData(
   }
   return {
     empty: false,
-    eyebrow: 'Nächste Schicht',
+    eyebrow: t('widgetNextShift'),
     title: formatShiftLine(next),
     subtitle: formatDeDate(next.date),
     badge: badge || null,
@@ -73,14 +74,14 @@ export function buildNextShiftData(
 }
 
 function dayTimes(list: ShiftEntry[]): string {
-  const t = list
+  const times = list
     .map((e) => {
       if (e.start && e.end) return `${e.start}–${e.end}`;
       return e.start || e.end || '';
     })
     .filter(Boolean)
     .slice(0, 1);
-  return t[0] || '';
+  return times[0] || '';
 }
 
 /** Short duty label for week chips — never dump embedded times (BEREIT_00:00-…). */
@@ -122,7 +123,7 @@ export function buildWeekPlanData(
   const hasAny = days.some((d) => d.codes !== '—');
   return {
     empty: !hasAny,
-    eyebrow: 'Diese Woche',
+    eyebrow: t('widgetThisWeek'),
     range: weekTitle(sow),
     days,
     badge: badge || null,

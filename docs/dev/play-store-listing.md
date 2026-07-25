@@ -9,14 +9,14 @@ Category suggestion: Productivity / Tools
 
 ## DE — Kurzbeschreibung (max ~80 Zeichen)
 
-Dienstplan aus LOGA3 holen, Schichten anzeigen, optional Google-Kalender.
+Dienstplan aus LOGA3 abrufen, Schichten anzeigen, optional Google-Kalender.
 
 ## DE — Vollbeschreibung
 
 ShiftPlan Converter holt dein Zeitprotokoll aus LOGA3 auf dem Smartphone, erkennt Schichten und zeigt sie im Kalender. Optional Sync mit Google Calendar oder ICS-Export.
 
 **Features**
-- Holen per eingebettetem LOGA3-WebView (dein Tenant, HTTPS)
+- Abrufen per eingebettetem LOGA3-WebView (dein Tenant, HTTPS)
 - Login nur lokal im Secure Store
 - Kalenderansicht, Homescreen-Widgets, Schicht-Erinnerungen
 - Optional Google Calendar (dein Konto) oder ICS teilen

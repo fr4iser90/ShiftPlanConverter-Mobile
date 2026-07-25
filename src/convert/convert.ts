@@ -42,7 +42,7 @@ export function parseTimeSheet(
   parserFn: ParserFn
 ): ConvertResult {
   if (!parserFn) {
-    throw new Error('Kein Parser-Funktion übergeben!');
+    throw new Error('No parser function provided');
   }
 
   const {

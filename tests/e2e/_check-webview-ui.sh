@@ -26,7 +26,7 @@ import re
 t=Path(\"/tmp/loga3-shots/ui.xml\").read_text(errors=\"replace\")
 texts=re.findall(r\"text=\\\"([^\\\"]*)\\\"\", t)
 for x in texts:
-  if x and any(k.lower() in x.lower() for k in (\"LOGA3\",\"WebView\",\"Erweitert\",\"Schichten\",\"Holen\")):
+  if x and any(k.lower() in x.lower() for k in (\"LOGA3\",\"WebView\",\"Erweitert\",\"Schichten\",\"Fetch\")):
     print(\"UI:\", x)
 "
 '

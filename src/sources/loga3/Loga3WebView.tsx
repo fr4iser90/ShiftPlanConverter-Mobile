@@ -31,7 +31,7 @@ export function scaleForLayoutWidth(layoutWidth: number): number {
 export function buildViewportInject(layoutWidth: number): string {
   const scale = scaleForLayoutWidth(layoutWidth).toFixed(3);
   const content = `width=${LOGA3_DESKTOP_WIDTH}, initial-scale=${scale}, maximum-scale=4, user-scalable=yes`;
-  // Skip rewrite when meta already matches — Holen expand (layoutW 400→432) felt like a reload.
+  // Skip rewrite when meta already matches — Fetch expand (layoutW 400→432) felt like a reload.
   return (
     `(function(){try{var want=${JSON.stringify(content)};` +
     `var m=document.querySelector('meta[name=viewport]');` +
@@ -167,7 +167,7 @@ export const Loga3WebView = React.forwardRef<
     (req: ShouldStartLoadRequest) => {
       const url = req.url || '';
       // Only block real PDF payloads — never GWT/servlet navigations.
-      // Broad servlet/export blocking fetched Login-HTML as "PDF" and broke Holen.
+      // Broad servlet/export blocking fetched Login-HTML as "PDF" and broke Fetch.
       const isPdfUrl =
         url.startsWith('blob:') ||
         /^data:application\/pdf/i.test(url) ||

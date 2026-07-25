@@ -175,7 +175,7 @@ def main() -> None:
         shot("01b-setup-gate.png")
         raise SystemExit("SMOKE_SEED_FAILED: still gated")
 
-    tap(xml, "Holen") or tap(xml, "Fetch")
+    tap(xml, "Abrufen") or tap(xml, "Fetch")
     time.sleep(0.8)
     xml = dump()
 
