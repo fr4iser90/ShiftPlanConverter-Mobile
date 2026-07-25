@@ -39,7 +39,7 @@ npm run smoke:matrix
 | `live-smoke-year-2026.py` | Jahres-Smoke |
 | `shot-calendar*.py` | Screenshots Kalender-Tab |
 
-**Ziel:** PDF-Holen (eigener Dienstplan) auf **jeder** Matrix-Größe. Exakte `wm size` Pflicht. Nur Eigenkalender-Pfad — siehe `docs/fetch-steps.md`.
+**Ziel:** PDF-Holen (eigener Dienstplan) auf **jeder** Matrix-Größe. Exakte `wm size` Pflicht. Nur Eigenkalender-Pfad — siehe `docs/dev/fetch-steps.md`.
 
 **AVD:** `pixel_6_phone` unter `$HOME/.loga3-android/project-android-nix`. Nie `run-test-emulator` (Temp-AVD → 320×640).
 

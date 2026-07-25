@@ -13,7 +13,7 @@ ADB = os.environ.get(
     "ADB",
     "/nix/store/qgpls420q0bm1h0isxz91njqnfra8ky4-androidsdk/bin/adb",
 )
-PKG = "com.fr4iser.loga3mobile"
+PKG = "com.fr4iser.shiftplan"
 OUT = Path("/tmp/loga3-shots/year-2026")
 ROOT = Path(__file__).resolve().parents[2]
 YEAR = 2026
@@ -188,7 +188,7 @@ def main() -> None:
             "preset": "Anästhesie",
         }
     )
-    deep = f"loga3mobile:///?{q}"
+    deep = f"shiftplan:///?{q}"
     launch_deep(deep)
     print("SEED_LAUNCHED", flush=True)
     time.sleep(8)

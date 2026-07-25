@@ -14,9 +14,9 @@ export function getExportTarget(id: string): ExportTarget | undefined {
 
 export async function listConfiguredOauthTargets(): Promise<ExportTarget[]> {
   const out: ExportTarget[] = [];
-  for (const t of EXPORT_TARGETS) {
-    if (t.kind !== 'oauth') continue;
-    if (await t.isConfigured()) out.push(t);
+  for (const target of EXPORT_TARGETS) {
+    if (target.kind !== 'oauth') continue;
+    if (await target.isConfigured()) out.push(target);
   }
   return out;
 }
@@ -34,19 +34,19 @@ export async function runEnabledOauthTargets(
   }
 ): Promise<TargetRunSummary[]> {
   const results: TargetRunSummary[] = [];
-  for (const t of EXPORT_TARGETS) {
-    if (t.kind !== 'oauth') continue;
-    if (!(await t.isEnabledInQuickUpdate())) {
-      results.push({ id: t.id, skipped: true, reason: 'in Einstellungen aus' });
+  for (const target of EXPORT_TARGETS) {
+    if (target.kind !== 'oauth') continue;
+    if (!(await target.isEnabledInQuickUpdate())) {
+      results.push({ id: target.id, skipped: true, reason: 'in Einstellungen aus' });
       continue;
     }
-    if (!(await t.isConfigured())) {
-      results.push({ id: t.id, skipped: true, reason: t('fjSkipNotConfigured') });
+    if (!(await target.isConfigured())) {
+      results.push({ id: target.id, skipped: true, reason: t('fjSkipNotConfigured') });
       continue;
     }
-    opts?.onStatus?.(`${t.id} sync…`);
-    const r = await t.sync(entries, opts);
-    results.push({ id: t.id, ...r });
+    opts?.onStatus?.(`${target.id} sync…`);
+    const r = await target.sync(entries, opts);
+    results.push({ id: target.id, ...r });
   }
   return results;
 }

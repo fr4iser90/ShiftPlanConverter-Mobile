@@ -1,17 +1,17 @@
 {
-  # LOGA3-Automation-Mobile — Dev-Shell mit Node + JDK + Android SDK/Emulator
+  # ShiftPlanConverter-Mobile — Dev-Shell mit Node + JDK + Android SDK/Emulator
   #
   #   nix-shell
-  #   loga3-help
-  #   loga3-emu          # Emulator starten
-  #   loga3-android      # App auf Emulator bauen & installieren
+  #   shiftplan-help
+  #   shiftplan-emu          # Emulator starten
+  #   shiftplan-android      # App auf Emulator bauen & installieren
   #
   # Erster Einstieg lädt Android SDK + Emulator + NDK (~mehrere GiB, Nix-Cache).
   # Unfree + SDK-Lizenzen: NIXPKGS_ALLOW_UNFREE=1 (oder config unten).
   #
   # Nach Emulator-Start:
   #   adb reverse tcp:8091 tcp:8091
-  #   loga3-android   # braucht expo-dev-client (bereits in package.json)
+  #   shiftplan-android   # braucht expo-dev-client (bereits in package.json)
 
   pkgs ? import <nixpkgs> {
     config.allowUnfree = true;
@@ -60,7 +60,7 @@ let
   androidEmulator =
     if emulatorSupported then
       pkgs.androidenv.emulateApp {
-        name = "loga3-android-emulator";
+        name = "shiftplan-android-emulator";
         deviceName = "pixel_6";
         platformVersion = "34";
         abiVersion = "x86_64";
@@ -78,9 +78,9 @@ let
   jdk = pkgs.jdk17;
   nodejs = pkgs.nodejs_22;
 
-  helperBin = pkgs.writeShellScriptBin "loga3-help" ''
+  helperBin = pkgs.writeShellScriptBin "shiftplan-help" ''
     cat <<'EOF'
-    LOGA3 Mobile — nix-shell Hilfen
+    ShiftPlan Converter — nix-shell Hilfen
     ===============================
 
     Umgebung:
@@ -90,9 +90,9 @@ let
 
     Typischer Ablauf:
       1) nix-shell
-      2) loga3-emu          # Emulator im Hintergrund (braucht KVM: /dev/kvm)
+      2) shiftplan-emu      # Emulator im Hintergrund (braucht KVM: /dev/kvm)
       3) adb wait-for-device
-      4) loga3-android      # npm install + expo run:android
+      4) shiftplan-android  # npm install + expo run:android
          oder: npx expo start   dann im Metro „a“
 
     Smoke ohne Live-LOGA3:
@@ -101,18 +101,19 @@ let
     Weitere Befehle:
       npm test
       npm run typecheck
-      loga3-emu-fg          # Emulator Vordergrund (Logs)
+      shiftplan-emu-fg      # Emulator Vordergrund (Logs)
       adb devices
       sdkmanager --list
 
     Hinweise:
       • Erster Download ~2.5 GiB (SDK + Emulator + system-image)
       • AVD-Daten unter ./.android-nix (gitignored)
+      • Legacy-AVD-Home: ~/.loga3-android/… (Pfad unverändert, bestehende Emulatoren)
       • iOS: nicht via dieser Shell — Mac/Xcode oder eas build
     EOF
   '';
 
-  runAndroid = pkgs.writeShellScriptBin "loga3-android" ''
+  runAndroid = pkgs.writeShellScriptBin "shiftplan-android" ''
     set -euo pipefail
     cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
     if ! command -v adb >/dev/null; then
@@ -120,7 +121,7 @@ let
       exit 1
     fi
     if ! adb devices 2>/dev/null | awk 'NR>1 && $2=="device"{found=1} END{exit !found}'; then
-      echo "Kein Gerät/Emulator. Starte zuerst: loga3-emu" >&2
+      echo "Kein Gerät/Emulator. Starte zuerst: shiftplan-emu" >&2
       exit 1
     fi
     if [ ! -d node_modules ]; then
@@ -133,7 +134,8 @@ let
 
   # Stable AVD home — NEVER use nixpkgs run-test-emulator (mktemp → broken 320×640).
   # Prefer pixel_6_phone (1080×2400@400 = Moto G73 class).
-  runEmu = pkgs.writeShellScriptBin "loga3-emu" ''
+  # Legacy path ~/.loga3-android kept so existing AVDs keep working.
+  runEmu = pkgs.writeShellScriptBin "shiftplan-emu" ''
     set -euo pipefail
     if [ ! -e /dev/kvm ]; then
       echo "Warnung: /dev/kvm fehlt — Emulator wird sehr langsam (oder scheitert)." >&2
@@ -176,7 +178,7 @@ let
     adb devices
   '';
 
-  runEmuFg = pkgs.writeShellScriptBin "loga3-emu-fg" ''
+  runEmuFg = pkgs.writeShellScriptBin "shiftplan-emu-fg" ''
     set -euo pipefail
     if [ -z "''${ANDROID_USER_HOME:-}" ]; then
       if [ -d "$HOME/.loga3-android/project-android-nix/avd/pixel_6_phone.avd" ]; then
@@ -194,7 +196,7 @@ let
 
 in
 pkgs.mkShell {
-  name = "loga3-automation-mobile";
+  name = "shiftplan-converter-mobile";
 
   packages = [
     nodejs
@@ -245,9 +247,9 @@ pkgs.mkShell {
 
     echo ""
     echo "┌──────────────────────────────────────────────┐"
-    echo "│  LOGA3 Mobile nix-shell                      │"
+    echo "│  ShiftPlan Converter nix-shell                      │"
     echo "│  Node $(${nodejs}/bin/node -v) · JDK 17"
-    echo "│  tip: loga3-help | loga3-emu | loga3-android │"
+    echo "│  tip: shiftplan-help | shiftplan-emu | shiftplan-android │"
     echo "└──────────────────────────────────────────────┘"
     echo ""
   '';

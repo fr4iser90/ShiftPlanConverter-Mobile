@@ -81,6 +81,8 @@ export const de = {
   appTheme: 'Erscheinungsbild',
   appThemeHint: 'Hell/Dunkel der App. „System“ folgt Android.',
   settingsHubSetup: 'Einrichtung',
+  settingsHubSecurity: 'Sicherheit',
+  settingsHubSecurityMeta: 'Biometrie & Verschlüsselung',
   settingsHubFetch: 'Abrufen',
   settingsHubFetchMeta: 'Monatsfenster & Sync-Ziele',
   settingsHubReminders: 'Erinnerungen',
@@ -104,7 +106,7 @@ export const de = {
   reportErrorFailed: 'Mail konnte nicht geöffnet werden: {msg}',
   legalTitle: 'Impressum & Datenschutz',
   legalImpressumBody:
-    'LOGA3 Automation Mobile — Kontakt: support@fr4iser.com · Web: shift.fr4iser.com · Open Source auf GitHub.',
+    'ShiftPlan Converter — Kontakt: support@fr4iser.com · Web: shift.fr4iser.com · Open Source auf GitHub.',
   legalPrivacyBody:
     'Tenant-URL, Login und Schichtdaten bleiben auf diesem Gerät (Secure Store / Speicher). Kein Upload auf unsere Server. Optional: Google OAuth nur für Kalender-Sync (direkt Gerät ↔ Google).',
   legalDisclaimerBody:
@@ -114,7 +116,25 @@ export const de = {
   legalWebsite: 'Website öffnen',
   legalGithub: 'Mobile auf GitHub',
   legalDesktop: 'Desktop auf GitHub',
+  legalPrivacy: 'Datenschutzerklärung öffnen',
+  securityBiometric: 'Gerätesperre',
+  securityBiometricToggle: 'Biometrie / PIN vor Holen',
+  securityBiometricHint:
+    'Optional: Fingerabdruck, Gesicht oder Geräte-PIN vor Holen und vor Anzeigen des Passworts im Setup.',
+  securityBiometricUnavailable:
+    'Kein Biometrie-/PIN-Schutz auf diesem Gerät eingerichtet — Schalter bleibt wirkungslos, bis du einen in den Systemeinstellungen anlegst.',
+  securityBiometricDenied: 'Entsperren abgebrochen — Holen nicht gestartet.',
+  securityBiometricPromptHolen: 'Abrufen entsperren',
+  securityBiometricPromptSetup: 'Zugangsdaten anzeigen',
+  securityAtRest: 'Verschlüsselung auf dem Gerät',
+  securityAtRestBody:
+    'Schichten, Rohtext, Monatsübersichten und PDFs werden mit einem Keystore-/Keychain-Schlüssel (AES-GCM) verschlüsselt gespeichert. Login weiter nur im Secure Store.',
   clearCreds: 'Zugangsdaten löschen',
+  wipeAllData: 'Alle lokalen Daten löschen',
+  wipeAllDataConfirm:
+    'Löscht Zugangsdaten, Tenant-URL, Schichten, PDFs, Mappings und Google-Kalender-ID auf diesem Gerät. Locale/Theme bleiben.',
+  wipeAllDataCancel: 'Abbrechen',
+  wipeAllDataDone: 'Lokale Daten gelöscht — Setup erneut nötig.',
   missingMappings: 'Unbekannte Zeiten (nicht im Mapping)',
   missingMappingsHint:
     'Nur wirklich unbekannte Startzeiten. Früher gehen mit gleichem Start wird automatisch dem Dienst zugeordnet (⚠️ = Ist weicht vom Soll ab).',
@@ -207,14 +227,16 @@ export const de = {
   widgetShowTimes: 'Wochen-Widget: Zeiten anzeigen',
   appUpdateSection: 'App-Update',
   appUpdateHint:
-    'Aktuell per GitHub-APK (kein Play-Store-Auto-Update). Changelog lesen, dann neue APK installieren.',
+    'GitHub-APK oder Play Store (wenn gelistet). Changelog lesen, dann aktualisieren.',
   appUpdateVersion: 'Installierte Version: {version}',
   appUpdateCheck: 'Nach Updates suchen',
   appUpdateChangelog: 'Was ist neu?',
-  appUpdateChecking: 'Prüfe GitHub…',
+  appUpdateChecking: 'Prüfe Update…',
   appUpdateLatest: 'Aktuell ({latest})',
   appUpdateAvailable: 'Neu: {latest} — Tippen zum Download',
   appUpdateOpenRelease: 'Release öffnen',
+  appUpdateOpenPlay: 'Play Store öffnen',
+  appUpdatePlayStore: 'Updates über den Google Play Store',
   appUpdateNone: 'Noch kein GitHub-Release',
   appUpdateError: 'Update-Check fehlgeschlagen: {error}',
   scheduleSection: 'Sync-Erinnerung',

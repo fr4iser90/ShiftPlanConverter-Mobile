@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # One-profile gate debug: Holen 07/2026 + pull DOM dumps after each pipeline gate.
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 export NIXPKGS_ALLOW_UNFREE=1
 OUT=/tmp/loga3-shots/gate-debug
 mkdir -p "$OUT"
@@ -11,7 +12,7 @@ echo "=== gate-debug start ==="
 nix-shell --run '
 set -e
 ADB=adb
-PKG=com.fr4iser.loga3mobile
+PKG=com.fr4iser.shiftplan
 OUT=/tmp/loga3-shots/gate-debug
 
 curl -sf --max-time 2 http://127.0.0.1:8091/status >/dev/null || {
@@ -28,13 +29,13 @@ echo "SIZE=$(adb shell wm size | tr -d '\''\r'\'')"
 
 adb shell am force-stop "$PKG" || true
 # shellcheck disable=SC1091
-source /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile/tests/e2e/_pm_clear_guard.sh
+source tests/e2e/_pm_clear_guard.sh
 loga3_pm_clear_guard
 adb shell pm clear "$PKG"
 sleep 2
 
 ENC=$(python3 -c "import urllib.parse; print(urllib.parse.quote(\"http://10.0.2.2:8091\", safe=\"\"))")
-adb shell am start -a android.intent.action.VIEW -d "loga3mobile://expo-development-client/?url=${ENC}" "$PKG"
+adb shell am start -a android.intent.action.VIEW -d "shiftplan://expo-development-client/?url=${ENC}" "$PKG"
 echo "waiting bundle…"
 sleep 28
 
@@ -42,7 +43,7 @@ python3 - <<'"'"'PY'"'"'
 from pathlib import Path
 import urllib.parse, subprocess
 ADB="adb"
-PKG="com.fr4iser.loga3mobile"
+PKG="com.fr4iser.shiftplan"
 vals={}
 for line in Path(".env").read_text().splitlines():
     if "=" in line and not line.strip().startswith("#"):
@@ -52,7 +53,7 @@ q=urllib.parse.urlencode({
   "hospital":"st-elisabeth-leipzig","group":"pflege","area":"op-bereich","preset":"Anästhesie",
   "months":"07","year":"2026","autofetch":"1",
 })
-deep=f"loga3mobile:///?{q}"
+deep=f"shiftplan:///?{q}"
 subprocess.check_call([ADB,"shell",f"am start -a android.intent.action.VIEW -d '\''{deep}'\'' {PKG}"])
 print("SEED_OK")
 PY
@@ -69,7 +70,7 @@ import subprocess, time, re
 from pathlib import Path
 OUT=Path("/tmp/loga3-shots/gate-debug")
 ADB="adb"
-PKG="com.fr4iser.loga3mobile"
+PKG="com.fr4iser.shiftplan"
 t0=time.time()
 last_gate=""
 n=0

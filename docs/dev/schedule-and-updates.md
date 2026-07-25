@@ -4,7 +4,7 @@
 
 **Nach Updates suchen** calls GitHub `GET /repos/…/releases/latest`, compares `tag_name` to `app.json` version, and offers **Release öffnen** when newer.
 
-No auto-install — user downloads the APK from the release page ([releases.md](./releases.md)).
+No auto-install — user downloads the APK from the release page ([releases.md](../releases.md)).
 
 ## Sync interval (Settings → Sync-Erinnerung)
 

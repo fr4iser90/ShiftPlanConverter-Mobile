@@ -45,7 +45,7 @@ export function buildSupportMailBody(opts: {
   const parts = [
     'Hallo,',
     '',
-    'Support-Anfrage aus LOGA3 Automation Mobile:',
+    'Support-Anfrage aus ShiftPlan Converter:',
     '',
     `App-Version: ${appVersionLabel()}`,
     `Arbeitgeber: ${opts.hospital || '—'}`,
@@ -74,7 +74,7 @@ export function buildErrorReportMailBody(opts: {
   const parts = [
     'Hallo,',
     '',
-    'Fehlerbericht aus LOGA3 Automation Mobile:',
+    'Fehlerbericht aus ShiftPlan Converter:',
     '',
     `App-Version: ${appVersionLabel()}`,
     `Arbeitgeber: ${opts.hospital || '—'}`,
@@ -98,7 +98,7 @@ export async function openErrorReportMail(opts: {
 }): Promise<void> {
   const snap = getSnapshot();
   await openSupportMail({
-    subject: 'LOGA3 Mobile — Fehlerbericht',
+    subject: 'ShiftPlan Converter — Fehlerbericht',
     body: buildErrorReportMailBody({
       error: opts.error,
       context: opts.context,

@@ -32,10 +32,7 @@ App: `src/loga3/layoutFixInject.ts` → `Loga3WebView` (`bootInject` = viewport 
 | SmartEdin `position:fixed` / zoom | „Smarten Ding entfernt“ / grau |
 | Header `pointer-events:none` (CSS5 voll) | **bricht Monatsnavigation** |
 
-## Noch prüfen
+## Status
 
-- [x] Monat wechseln (`ic-previous` / `ic-next`) → Header + Grid updaten (**OK 2026-07-24**: Juli→August, `gridW=336`, `pe:auto`)
-- [ ] Holen App-Tap End-to-End (Warm: LAGSDZPG-Timeout; Cold: Picker-Wait — siehe Checklist)
-- [ ] Danach erneut Zeitprotokoll → PDF für den neuen Monat
-
-Details / Lab: [`pdf-path-checklist.md`](pdf-path-checklist.md)
+- [x] Monat wechseln (`ic-previous` / `ic-next`) → Header + Grid updaten (**OK 2026-07-24**)
+- [x] Holen End-to-End für getestetes Pack (siehe [`webview-fetch.md`](webview-fetch.md))

@@ -12,7 +12,7 @@ const { spawnSync } = require('child_process');
 const WebSocket = require('ws');
 
 const SERIAL = process.env.ANDROID_SERIAL || 'ZY22J3RHFC';
-const PKG = 'com.fr4iser.loga3mobile';
+const PKG = 'com.fr4iser.shiftplan';
 const OUT = '/tmp/loga3-shots/dom-steps';
 const CDP_PORT = 9334;
 

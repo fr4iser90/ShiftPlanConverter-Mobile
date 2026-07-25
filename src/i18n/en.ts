@@ -82,6 +82,8 @@ export const en: { [K in keyof typeof de]: string } = {
   appTheme: 'Appearance',
   appThemeHint: 'App light/dark. “System” follows the device.',
   settingsHubSetup: 'Setup',
+  settingsHubSecurity: 'Security',
+  settingsHubSecurityMeta: 'Biometrics & encryption',
   settingsHubFetch: 'Fetch',
   settingsHubFetchMeta: 'Month window & sync targets',
   settingsHubReminders: 'Reminders',
@@ -105,7 +107,7 @@ export const en: { [K in keyof typeof de]: string } = {
   reportErrorFailed: 'Could not open mail: {msg}',
   legalTitle: 'Legal & privacy',
   legalImpressumBody:
-    'LOGA3 Automation Mobile — contact: support@fr4iser.com · web: shift.fr4iser.com · open source on GitHub.',
+    'ShiftPlan Converter — contact: support@fr4iser.com · web: shift.fr4iser.com · open source on GitHub.',
   legalPrivacyBody:
     'Tenant URL, login, and shift data stay on this device (Secure Store / storage). No upload to our servers. Optional: Google OAuth only for calendar sync (device ↔ Google).',
   legalDisclaimerBody:
@@ -115,7 +117,25 @@ export const en: { [K in keyof typeof de]: string } = {
   legalWebsite: 'Open website',
   legalGithub: 'Mobile on GitHub',
   legalDesktop: 'Desktop on GitHub',
+  legalPrivacy: 'Open privacy policy',
+  securityBiometric: 'Device lock',
+  securityBiometricToggle: 'Biometrics / PIN before fetch',
+  securityBiometricHint:
+    'Optional: fingerprint, face, or device PIN before Holen and before revealing the password in setup.',
+  securityBiometricUnavailable:
+    'No biometrics/PIN set up on this device — the toggle has no effect until you add one in system settings.',
+  securityBiometricDenied: 'Unlock cancelled — fetch not started.',
+  securityBiometricPromptHolen: 'Unlock fetch',
+  securityBiometricPromptSetup: 'Show credentials',
+  securityAtRest: 'Encryption on device',
+  securityAtRestBody:
+    'Shifts, raw text, month summaries, and PDFs are encrypted at rest with a Keystore/Keychain key (AES-GCM). Login stays in Secure Store only.',
   clearCreds: 'Clear credentials',
+  wipeAllData: 'Wipe all local data',
+  wipeAllDataConfirm:
+    'Deletes credentials, tenant URL, shifts, PDFs, mappings, and Google calendar ID on this device. Locale/theme stay.',
+  wipeAllDataCancel: 'Cancel',
+  wipeAllDataDone: 'Local data wiped — run setup again.',
   missingMappings: 'Unknown times (not in mapping)',
   missingMappingsHint:
     'Only truly unknown start times. Leaving early with the same start is auto-matched to that shift (⚠️ = actual differs from planned).',
@@ -207,14 +227,16 @@ export const en: { [K in keyof typeof de]: string } = {
   widgetShowTimes: 'Week widget: show times',
   appUpdateSection: 'App update',
   appUpdateHint:
-    'Distributed as a GitHub APK (no Play Store auto-update yet). Read the changelog, then install the new APK.',
+    'GitHub APK or Play Store (when listed). Read the changelog, then update.',
   appUpdateVersion: 'Installed version: {version}',
   appUpdateCheck: 'Check for updates',
   appUpdateChangelog: "What's new?",
-  appUpdateChecking: 'Checking GitHub…',
+  appUpdateChecking: 'Checking for updates…',
   appUpdateLatest: 'Up to date ({latest})',
   appUpdateAvailable: 'New: {latest} — tap to download',
   appUpdateOpenRelease: 'Open release',
+  appUpdateOpenPlay: 'Open Play Store',
+  appUpdatePlayStore: 'Updates via the Google Play Store',
   appUpdateNone: 'No GitHub release yet',
   appUpdateError: 'Update check failed: {error}',
   scheduleSection: 'Sync reminder',

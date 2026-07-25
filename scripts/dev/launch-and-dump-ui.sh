@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 adb reverse tcp:8091 tcp:8091 || true
-adb shell am force-stop com.fr4iser.loga3mobile
+adb shell am force-stop com.fr4iser.shiftplan
 sleep 1
 ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('http://10.0.2.2:8091', safe=''))")
 adb shell am start -a android.intent.action.VIEW \
-  -d "loga3mobile://expo-development-client/?url=${ENCODED}" \
-  com.fr4iser.loga3mobile
+  -d "shiftplan://expo-development-client/?url=${ENCODED}" \
+  com.fr4iser.shiftplan
 echo STARTED
 
 UI_READY=0

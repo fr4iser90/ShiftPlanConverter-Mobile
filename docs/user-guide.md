@@ -1,6 +1,6 @@
 # User handbook
 
-LOGA3 Automation Mobile loads your **time sheets from LOGA3**, keeps everything **on device only**, shows shifts in a calendar, and can share them as **ICS** or optionally sync to **Google Calendar**.
+ShiftPlan Converter loads your **time sheets from LOGA3**, keeps everything **on device only**, shows shifts in a calendar, and can share them as **ICS** or optionally sync to **Google Calendar**.
 
 The app is still experimental and currently aimed at **one employer and one role group** (pack). Another workplace or area may fail until a matching pack exists.
 

@@ -18,7 +18,10 @@ const ENTRIES_KEY = 'loga3.entries';
 async function loadEntries(): Promise<ShiftEntry[]> {
   try {
     const raw = await AsyncStorage.getItem(ENTRIES_KEY);
-    return (raw ? JSON.parse(raw) : []) as ShiftEntry[];
+    if (!raw) return [];
+    const { decryptUtf8 } = await import('../state/securePayload');
+    const plain = await decryptUtf8(raw);
+    return (plain ? JSON.parse(plain) : []) as ShiftEntry[];
   } catch {
     return [];
   }

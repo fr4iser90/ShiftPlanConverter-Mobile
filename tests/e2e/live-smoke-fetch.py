@@ -13,7 +13,7 @@ ADB = os.environ.get(
     "ADB",
     "/nix/store/qgpls420q0bm1h0isxz91njqnfra8ky4-androidsdk/bin/adb",
 )
-PKG = "com.fr4iser.loga3mobile"
+PKG = "com.fr4iser.shiftplan"
 OUT = Path("/tmp/loga3-shots/live-smoke")
 # Prefer project .env (dev); fall back to staged smoke file
 ROOT = Path(__file__).resolve().parents[2]
@@ -143,7 +143,7 @@ def main() -> None:
             "preset": "Anästhesie",
         }
     )
-    deep = f"loga3mobile:///?{q}"
+    deep = f"shiftplan:///?{q}"
     # Quote -d for remote shell: unquoted & splits the am command
     def launch_deep(url: str) -> None:
         sh(

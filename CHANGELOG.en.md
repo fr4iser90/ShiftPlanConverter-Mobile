@@ -4,13 +4,29 @@ English. German version: [CHANGELOG.md](./CHANGELOG.md)
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.1.5 — 2026-07-25
+
+### Added
+- Encrypt-at-rest (AES-GCM) for shifts, raw text, summaries, and PDFs; key in Secure Store
+- Optional biometrics/PIN gate before fetch and password reveal (Settings → Security)
+- Privacy policy at shift.fr4iser.com/privacy (ShiftPlanConverter) + About link; Play Store launch docs
+- Wipe-all local data; HTTPS-only tenant URL
+
+### Changed
+- WebView debugging and smoke credential deep-links are `__DEV__`-only
+- Delete public Downloads PDF after Android poll; Advanced/fixture `__DEV__`-only
+- Update check can switch to Play Store when `PROJECT_PLAY_STORE` is set
+
+### Security
+- No “security audited” claim in store copy; peer-review packet under `docs/dev/peer-review-packet.md`
+
 ## 0.1.4 — 2026-07-24
 
 ### Added
 - User handbook and [docs/releases.md](./docs/releases.md) (GitHub APK, changelog required before release)
 - Settings: GitHub update check (`releases/latest`) and changelog links
 - Settings: sync reminder (interval, hour, notification, prompt on open, widget badge)
-- [docs/schedule-and-updates.md](./docs/schedule-and-updates.md) — background Holen limits
+- [docs/dev/schedule-and-updates.md](./docs/dev/schedule-and-updates.md) — background Holen limits
 - System light/dark theme for product UI; status bar follows canvas
 - Calendar: week / month / list chips; AZK month overview collapsible below
 - Android widgets: next shift + this week; theme in Settings
@@ -47,7 +63,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Android PDF capture: viewer scrape and real PDF bytes only; text extract without worker on Hermes
 
 ### Changed
-- PLAN / `docs/webview-fetch.md`: live Holen DoD met
+- PLAN / `docs/dev/webview-fetch.md`: live Holen DoD met
 - README: no display-size cheat; emulator = natural phone size
 - Multi-month smoke 06+07/2026 → 28 shifts / 2 PDFs
 - Google sync like desktop: built-in client ID (no `EXPO_PUBLIC_GOOGLE_*`), wipe in date range; optional `GOOGLE_CLIENT_ID` in `.env`

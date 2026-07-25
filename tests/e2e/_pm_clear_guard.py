@@ -87,6 +87,6 @@ def pm_clear(pkg: str, adb: str | None = None, serial: str | None = None) -> sub
 
 if __name__ == "__main__":
     # CLI: python3 tests/e2e/_pm_clear_guard.py [package]
-    pkg = sys.argv[1] if len(sys.argv) > 1 else "com.fr4iser.loga3mobile"
+    pkg = sys.argv[1] if len(sys.argv) > 1 else "com.fr4iser.shiftplan"
     r = pm_clear(pkg)
     sys.exit(r.returncode)

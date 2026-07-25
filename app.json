@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "LOGA3 Mobile",
-    "slug": "loga3-automation-mobile",
-    "version": "0.1.4",
+    "name": "ShiftPlan Converter",
+    "slug": "shiftplan-converter-mobile",
+    "version": "0.1.5",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
-    "scheme": "loga3mobile",
+    "scheme": "shiftplan",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "androidStatusBar": {
@@ -15,19 +15,20 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fr4iser.loga3mobile",
+      "bundleIdentifier": "com.fr4iser.shiftplan",
       "infoPlist": {
+        "NSFaceIDUsageDescription": "ShiftPlan Converter kann Face ID nutzen, um Holen und Zugangsdaten zu schützen.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "loga3mobile"
+              "shiftplan"
             ]
           }
         ]
       }
     },
     "android": {
-      "package": "com.fr4iser.loga3mobile",
+      "package": "com.fr4iser.shiftplan",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
@@ -52,7 +53,7 @@
           ],
           "data": [
             {
-              "scheme": "loga3mobile"
+              "scheme": "shiftplan"
             }
           ]
         }
@@ -67,6 +68,7 @@
       "expo-router",
       "expo-secure-store",
       "expo-sharing",
+      "expo-local-authentication",
       [
         "expo-notifications",
         {

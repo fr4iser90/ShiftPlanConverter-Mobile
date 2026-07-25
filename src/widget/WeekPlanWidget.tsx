@@ -62,7 +62,6 @@ export function WeekPlanWidget({
         style={{
           flexDirection: 'row',
           width: 'match_parent',
-          alignItems: 'stretch',
         }}>
         {days.map((d) => (
           <FlexWidget

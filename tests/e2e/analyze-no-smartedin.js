@@ -10,7 +10,7 @@ const WebSocket = require('ws');
 
 const ADB = process.env.ADB || 'adb';
 const SERIAL = (process.env.ANDROID_SERIAL || 'ZY22J3RHFC').trim();
-const PKG = 'com.fr4iser.loga3mobile';
+const PKG = 'com.fr4iser.shiftplan';
 const OUT = '/tmp/loga3-shots/no-smartedin-ab';
 const CDP_PORT = 9334;
 
@@ -173,7 +173,7 @@ async function ensureAppAndCdp() {
     adb([
       'shell',
       `am start -a android.intent.action.VIEW -d ${qsh(
-        'loga3mobile://expo-development-client/?url=' + enc
+        'shiftplan://expo-development-client/?url=' + enc
       )} ${PKG}`,
     ]);
     await sleep(18000);
@@ -188,7 +188,7 @@ async function ensureAppAndCdp() {
       area: 'op-bereich',
       preset: 'Anästhesie',
     }).toString();
-    adb(['shell', `am start -a android.intent.action.VIEW -d ${qsh('loga3mobile:///?' + qs)} ${PKG}`]);
+    adb(['shell', `am start -a android.intent.action.VIEW -d ${qsh('shiftplan:///?' + qs)} ${PKG}`]);
     await sleep(8000);
     pid = (adb(['shell', 'pidof', '-s', PKG]).stdout || '').trim();
   }

@@ -2,7 +2,7 @@
 
 How we avoid **accidentally committing secrets / `node_modules` / a poisoned lockfile**, and what still needs human review.
 
-See also: [security-audit.md](./security-audit.md) · [`.scanning/finding-policy.json`](../.scanning/finding-policy.json)
+See also: [security-audit.md](./security-audit.md) · [`.scanning/finding-policy.json`](../../.scanning/finding-policy.json)
 
 ---
 
@@ -18,6 +18,10 @@ See also: [security-audit.md](./security-audit.md) · [`.scanning/finding-policy
 **Pre-commit does not replace CI.** Hooks are local and can be skipped (`--no-verify`). CI is the real gate for pushes/PRs.
 
 **Full CVE scanners (Trivy/OWASP) on every commit** are usually too slow/noisy. Run them on PR/release (your external scanner + finding-policy), and keep `npm audit --audit-level=high` in CI so **high/critical** block the build. Accepted moderate findings (e.g. transitive `uuid` via Expo) stay in finding-policy, not as a reason to disable audit entirely.
+
+`brace-expansion` DoS (high) is pinned via `package.json` → `"overrides": { "brace-expansion": "5.0.8" }` until upstream jest/minimatch trees catch up.
+
+If your shell wraps npm (`secure-npm`) and fails installs on **moderate**, use `NPM_AUDIT_LEVEL=high npm install` (matches CI/pre-commit) or the real Node npm binary.
 
 ---
 
@@ -60,4 +64,4 @@ When reviewing a Dependabot PR: skim lockfile + changelog; run CI; don’t squas
 - Compromised Expo/EAS build secrets (rotate `EXPO_TOKEN`, protect signing keys)
 - Skipping hooks with `git commit --no-verify` (CI still runs on GitHub)
 
-For release APKs: still follow [releases.md](./releases.md).
+For release APKs: still follow [releases.md](../releases.md).

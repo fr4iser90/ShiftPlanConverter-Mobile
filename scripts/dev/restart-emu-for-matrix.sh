@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hard-restart emulator onto the stable 1080×2400 AVD (pixel_6_phone).
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 export NIXPKGS_ALLOW_UNFREE=1
 export ANDROID_USER_HOME="${ANDROID_USER_HOME:-$HOME/.loga3-android/project-android-nix}"
 export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
@@ -39,7 +40,7 @@ for i in $(seq 1 60); do
 done
 adb shell wm size
 adb shell wm density
-if ! adb shell pm path com.fr4iser.loga3mobile >/dev/null 2>&1; then
+if ! adb shell pm path com.fr4iser.shiftplan >/dev/null 2>&1; then
   echo "→ install apk"
   APK=android/app/build/outputs/apk/debug/app-debug.apk
   if [ ! -f "$APK" ]; then
@@ -49,6 +50,6 @@ if ! adb shell pm path com.fr4iser.loga3mobile >/dev/null 2>&1; then
   adb push "$APK" /data/local/tmp/loga3.apk
   adb shell pm install -r -t /data/local/tmp/loga3.apk
 fi
-adb shell pm path com.fr4iser.loga3mobile
+adb shell pm path com.fr4iser.shiftplan
 echo DONE
 '

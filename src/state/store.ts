@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
+import { clearDataEncryptionKey, decryptUtf8, encryptUtf8 } from './securePayload';
 
 function pingHomeWidgets(entries: ShiftEntry[]): void {
   void import('../widget/refresh')
@@ -79,12 +80,22 @@ export function isWorkplaceConfigured(snap: AppStateSnapshot = cache): boolean {
   return !!(snap.hospitalId && snap.groupId && snap.areaId && snap.preset);
 }
 
+async function parseJsonEnc<T>(raw: string | null, fallback: T): Promise<T> {
+  const plain = await decryptUtf8(raw);
+  if (!plain) return fallback;
+  try {
+    return JSON.parse(plain) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function hydrateStore(): Promise<AppStateSnapshot> {
   if (hydrated) return cache;
   try {
     const [
       entriesRaw,
-      rawText,
+      rawTextEnc,
       mappingsRaw,
       locale,
       themePrefRaw,
@@ -113,10 +124,16 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       themePrefRaw === 'light' || themePrefRaw === 'dark' || themePrefRaw === 'system'
         ? themePrefRaw
         : 'system';
+    const [entries, rawText, summary, summaries] = await Promise.all([
+      parseJsonEnc<ShiftEntry[]>(entriesRaw, []),
+      decryptUtf8(rawTextEnc),
+      parseJsonEnc<MonthSummary | null>(summaryRaw, null),
+      parseJsonEnc<MonthSummary[]>(summariesRaw, []),
+    ]);
     cache = {
       ...cache,
-      entries: entriesRaw ? JSON.parse(entriesRaw) : [],
-      rawText: rawText || '',
+      entries,
+      rawText,
       userMappings: mappingsRaw ? JSON.parse(mappingsRaw) : {},
       locale: locale === 'en' ? 'en' : 'de',
       themePref,
@@ -125,9 +142,22 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       hospitalId: hospitalId || '',
       groupId: groupId || '',
       areaId: areaId || '',
-      summary: summaryRaw ? JSON.parse(summaryRaw) : null,
-      summaries: summariesRaw ? JSON.parse(summariesRaw) : [],
+      summary,
+      summaries,
     };
+    // Migrate legacy plaintext sensitive keys → encrypted at rest.
+    if (entriesRaw && !entriesRaw.startsWith('enc:v1:')) {
+      await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+    }
+    if (rawTextEnc && !rawTextEnc.startsWith('enc:v1:') && rawText) {
+      await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(rawText));
+    }
+    if (summaryRaw && !summaryRaw.startsWith('enc:v1:')) {
+      await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(summary)));
+    }
+    if (summariesRaw && !summariesRaw.startsWith('enc:v1:')) {
+      await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
+    }
   } catch {
     // keep defaults
   }
@@ -167,11 +197,13 @@ export async function setEntries(
     summary,
     summaries,
   };
-  await AsyncStorage.setItem(KEYS.entries, JSON.stringify(entries));
-  if (opts.rawText != null) await AsyncStorage.setItem(KEYS.rawText, opts.rawText);
+  await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+  if (opts.rawText != null) {
+    await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(opts.rawText));
+  }
   if (opts.summary !== undefined || opts.summaries !== undefined) {
-    await AsyncStorage.setItem(KEYS.summary, JSON.stringify(summary));
-    await AsyncStorage.setItem(KEYS.summaries, JSON.stringify(summaries));
+    await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(summary)));
+    await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
   }
   notify();
   pingHomeWidgets(entries);
@@ -240,4 +272,62 @@ export async function setGoogleCalendarId(id: string): Promise<void> {
 
 export async function getGoogleCalendarId(): Promise<string | null> {
   return AsyncStorage.getItem(KEYS.googleCalendarId);
+}
+
+/**
+ * Wipe local app data: shifts, raw text, mappings, workplace, summaries,
+ * Google calendar id, PDFs, credentials, tenant URL, encryption key.
+ * Keeps locale/theme prefs.
+ */
+export async function wipeAllLocalData(): Promise<void> {
+  const { clearCredentials } = await import('../loga3/credentials');
+  const { setLoga3BaseUrl } = await import('../loga3/env');
+  const { deleteAllPdfFiles } = await import('../loga3/pdfStore');
+  const { disconnectGoogle } = await import('../sync/google');
+  const { setSmokeFetchIntent, clearMatrixStatus } = await import('../setup/smokeFetchIntent');
+  const { clearBiometricSession, setBiometricLockEnabled } = await import('../security/biometric');
+
+  await Promise.all([
+    clearCredentials(),
+    setLoga3BaseUrl(''),
+    deleteAllPdfFiles(),
+    disconnectGoogle(),
+    setSmokeFetchIntent(null),
+    clearMatrixStatus(),
+    setBiometricLockEnabled(false),
+    clearDataEncryptionKey(),
+    AsyncStorage.multiRemove([
+      KEYS.entries,
+      KEYS.rawText,
+      KEYS.userMappings,
+      KEYS.preset,
+      KEYS.hospitalId,
+      KEYS.groupId,
+      KEYS.areaId,
+      KEYS.googleCalendarId,
+      KEYS.summary,
+      KEYS.summaries,
+    ]),
+  ]);
+  clearBiometricSession();
+
+  cache = {
+    ...cache,
+    entries: [],
+    rawText: '',
+    userMappings: {},
+    preset: '',
+    hospitalId: '',
+    groupId: '',
+    areaId: '',
+    summary: null,
+    summaries: [],
+  };
+  notify();
+  pingHomeWidgets([]);
+  void import('../schedule/shiftAlarms')
+    .then((m) => m.rescheduleShiftAlarms())
+    .catch(() => {
+      // optional
+    });
 }

@@ -10,7 +10,7 @@ const WebSocket = require('ws');
 
 const ADB = process.env.ADB || 'adb';
 const SERIAL = (process.env.ANDROID_SERIAL || '').trim();
-const PKG = 'com.fr4iser.loga3mobile';
+const PKG = 'com.fr4iser.shiftplan';
 const OUT = '/tmp/loga3-shots/viewport-ab';
 const CDP_PORT = Number(process.env.LOGA3_CDP_PORT || 9333);
 
@@ -315,7 +315,7 @@ function launchAndSeed(creds) {
   adb(['reverse', 'tcp:8091', 'tcp:8091']);
   adb(['shell', 'am', 'force-stop', PKG]);
   spawnSync('sleep', ['1']);
-  const metroDeep = `loga3mobile://expo-development-client/?url=${enc}`;
+  const metroDeep = `shiftplan://expo-development-client/?url=${enc}`;
   let r = adb(['shell', `am start -a android.intent.action.VIEW -d ${shlexQuote(metroDeep)} ${PKG}`]);
   if (r.status !== 0) throw new Error(`launch failed: ${r.stderr || r.stdout}`);
   console.log('LAUNCHED metro client');
@@ -331,7 +331,7 @@ function launchAndSeed(creds) {
     area: 'op-bereich',
     preset: 'Anästhesie',
   }).toString();
-  const seedDeep = `loga3mobile:///?${q}`;
+  const seedDeep = `shiftplan:///?${q}`;
   r = adb(['shell', `am start -a android.intent.action.VIEW -d ${shlexQuote(seedDeep)} ${PKG}`]);
   if (r.status !== 0) throw new Error(`seed failed: ${r.stderr || r.stdout}`);
   console.log('SEED_OK');

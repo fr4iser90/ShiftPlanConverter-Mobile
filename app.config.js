@@ -20,7 +20,7 @@ if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'react-native-android
       widgets: [
         {
           name: 'NextShift',
-          label: 'LOGA3 nächste Schicht',
+          label: 'ShiftPlan nächste Schicht',
           description: 'Zeigt die nächste Schicht aus dem Dienstplan',
           // Android: ~70×cells−30. Old 250dp forced ~4×2 even with target 3.
           minWidth: '110dp',
@@ -33,7 +33,7 @@ if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'react-native-android
         },
         {
           name: 'WeekPlan',
-          label: 'LOGA3 diese Woche',
+          label: 'ShiftPlan diese Woche',
           description: 'Wochenübersicht der Schichten (Mo–So)',
           // 4×1 default; minHeight 40dp = 1 row (110dp forced 2 rows before).
           minWidth: '180dp',
@@ -56,7 +56,7 @@ module.exports = {
     extra: {
       ...(appJson.expo.extra || {}),
       // Web client (Desktop parity) — used as webClientId for Google Sign-In tokens.
-      googleClientId: env('GOOGLE_CLIENT_ID') || env('LOGA3_GOOGLE_CLIENT_ID'),
+      googleClientId: env('GOOGLE_CLIENT_ID'),
       // Android OAuth client id (optional in JS; must exist in GCP with package+SHA-1).
       googleAndroidClientId: env('GOOGLE_ANDROID_CLIENT_ID'),
       googleIosClientId: env('GOOGLE_IOS_CLIENT_ID'),

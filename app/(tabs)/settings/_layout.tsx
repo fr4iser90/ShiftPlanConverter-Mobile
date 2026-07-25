@@ -17,6 +17,7 @@ export default function SettingsStackLayout() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="setup" options={{ title: t('settingsHubSetup') }} />
+      <Stack.Screen name="security" options={{ title: t('settingsHubSecurity') }} />
       <Stack.Screen name="fetch" options={{ title: t('settingsHubFetch') }} />
       <Stack.Screen name="reminders" options={{ title: t('settingsHubReminders') }} />
       <Stack.Screen name="appearance" options={{ title: t('settingsHubAppearance') }} />

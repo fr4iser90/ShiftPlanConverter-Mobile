@@ -19,7 +19,7 @@ import websocket  # websocket-client
 
 ADB = os.environ.get("ADB", "adb")
 SERIAL = os.environ.get("ANDROID_SERIAL", "").strip()
-PKG = "com.fr4iser.loga3mobile"
+PKG = "com.fr4iser.shiftplan"
 OUT = Path("/tmp/loga3-shots/viewport-ab")
 CDP_PORT = int(os.environ.get("LOGA3_CDP_PORT", "9333"))
 
@@ -330,7 +330,7 @@ def launch_app_with_metro() -> None:
     adb(["reverse", "tcp:8091", "tcp:8091"])
     adb(["shell", "am", "force-stop", PKG])
     time.sleep(1)
-    deep = f"loga3mobile://expo-development-client/?url={enc}"
+    deep = f"shiftplan://expo-development-client/?url={enc}"
     # One argv to adb shell → quote for device sh (password may contain !)
     r = adb(["shell", f"am start -a android.intent.action.VIEW -d {shlex.quote(deep)} {PKG}"])
     if r.returncode != 0:
@@ -352,7 +352,7 @@ def seed_creds(creds: dict[str, str]) -> None:
             "preset": "Anästhesie",
         }
     )
-    deep = f"loga3mobile:///?{q}"
+    deep = f"shiftplan:///?{q}"
     r = adb(["shell", f"am start -a android.intent.action.VIEW -d {shlex.quote(deep)} {PKG}"])
     if r.returncode != 0:
         raise RuntimeError(f"seed failed rc={r.returncode}: {(r.stderr or '')[:120]}")

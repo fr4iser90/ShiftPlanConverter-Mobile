@@ -1,0 +1,61 @@
+/**
+ * Optional biometric / device-credential gate (Holen + password reveal).
+ * Off by default — opt-in in Settings → Security.
+ */
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as LocalAuthentication from 'expo-local-authentication';
+
+const PREF_KEY = 'loga3.biometricLock';
+
+let sessionUnlocked = false;
+
+export async function isBiometricLockEnabled(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(PREF_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function setBiometricLockEnabled(enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(PREF_KEY, enabled ? '1' : '0');
+  if (!enabled) sessionUnlocked = false;
+}
+
+export function clearBiometricSession(): void {
+  sessionUnlocked = false;
+}
+
+export async function canUseDeviceAuth(): Promise<boolean> {
+  try {
+    const compatible = await LocalAuthentication.hasHardwareAsync();
+    if (!compatible) return false;
+    return LocalAuthentication.isEnrolledAsync();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * If lock enabled and session not unlocked, prompt once.
+ * Returns true when the caller may proceed.
+ */
+export async function ensureBiometricUnlocked(promptMessage: string): Promise<boolean> {
+  if (!(await isBiometricLockEnabled())) return true;
+  if (sessionUnlocked) return true;
+  const enrolled = await canUseDeviceAuth();
+  if (!enrolled) {
+    // Pref on but no biometrics/PIN enrolled — do not brick the app.
+    return true;
+  }
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage,
+    cancelLabel: 'Cancel',
+    disableDeviceFallback: false,
+  });
+  if (result.success) {
+    sessionUnlocked = true;
+    return true;
+  }
+  return false;
+}

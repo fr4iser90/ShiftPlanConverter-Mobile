@@ -29,18 +29,18 @@ Mobile: WebView + injected JS + `fetchJob.ts`.
 
 ## Gates
 
-Full step matrix (action → wait → validation): [docs/fetch-steps.md](./fetch-steps.md).
+Full step matrix (action → wait → validation): [fetch-steps.md](./fetch-steps.md).
 
 Orchestration in `fetchJob.ts` via `waitForCondition` (`src/loga3/wait.ts`):
 
-1. Login form → submit → **shell** (`assertShellReady`: Öffnen / Zeiten / Picker — not splash)
-2. **`clickOeffnen`** (desktop) → wait `#ZeitdatenMonthPicker` (Zeiten = fallback only)
+1. Login form → submit → **shell** (`assertShellReady`: Öffnen / Picker — not splash)
+2. **`clickOeffnen` once** → wait `#ZeitdatenMonthPicker` (no Zeiten fallback)
 3. `selectMonth` once → wait calendar header
 4. Content gate (verify; optional grid reload)
-5. Time-sheet dialog (billing month; max 1 re-open)
+5. Time-sheet dialog (billing month; fail-fast on wrong export)
 6. Download → PDF bytes (`waitForPdf` / Download folder); post-PDF `validatePdfPeriod`
 
-No sleep/retry spam (no 20–30 blind attempts).
+No sleep/retry spam. One path — fail clearly.
 
 ## Resolution matrix (Phone + Tablet)
 

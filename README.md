@@ -1,4 +1,4 @@
-# LOGA3 Automation Mobile
+# ShiftPlan Converter (Mobile)
 
 Android & iOS app — **the same idea as the desktop app**, running fully **on-device**.
 
@@ -17,7 +17,7 @@ Android & iOS app — **the same idea as the desktop app**, running fully **on-d
 | **Widgets** | Android: next shift + this week; theme in Settings. |
 | **Einstellungen** | Month window, Google/ICS prefs, widget theme, **Check for updates** → GitHub Releases + Changelog. |
 
-Playwright replacement details: [docs/webview-fetch.md](./docs/webview-fetch.md).
+Playwright replacement details: [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md).
 
 ### Calendar providers
 
@@ -32,7 +32,7 @@ Playwright replacement details: [docs/webview-fetch.md](./docs/webview-fetch.md)
 |------|--------|--------|
 | Holen / parse / ICS / Google sync | Works on the tested pack; resolution matrix covers common phone/tablet sizes for that UI path | More AG/group packs + live checks |
 | Viewports | Same WebView + layout fix for all sizes; matrix ≠ “every AG works” | Spot-check real devices after matrix PASS |
-| Security | Creds in Secure Store; PDFs/entries on-device; no our-server upload | Independent review — checklist: [docs/security-audit.md](./docs/security-audit.md) |
+| Security | Creds in Secure Store; PDFs/entries on-device; no our-server upload | Independent review — checklist: [docs/dev/security-audit.md](./docs/dev/security-audit.md) |
 | Widget | Next shift + week plan; theme in Settings | Native rebuild after adding WeekPlan widget |
 | App updates | Manual via GitHub Releases (Settings links) | Optional latest-release API badge later |
 
@@ -41,7 +41,7 @@ Roadmap ideas (not committed): more customizable preview (colors, density), pack
 ## CI & supply chain
 
 GitHub Actions runs on push/PR: `npm ci` → typecheck → jest → `npm audit --audit-level=high`.  
-Dependabot opens weekly npm update PRs. Details: [docs/ci-and-supply-chain.md](./docs/ci-and-supply-chain.md).
+Dependabot opens weekly npm update PRs. Details: [docs/dev/ci-and-supply-chain.md](./docs/dev/ci-and-supply-chain.md).
 
 Local pre-commit (once per clone):
 
@@ -79,13 +79,13 @@ First enter downloads **~2.5 GiB** SDK + emulator + system image (Nix cache).
 
 ```bash
 nix-shell                 # or: NIXPKGS_ALLOW_UNFREE=1 nix-shell
-loga3-help                # overview
-loga3-emu                 # start emulator (background)
-loga3-android             # npm install + expo run:android
+shiftplan-help            # overview
+shiftplan-emu             # start emulator (background)
+shiftplan-android         # npm install + expo run:android
 ```
 
 Offline smoke: Fetch tab → **Offline fixture (debug)** → Preview → Export → ICS.  
-Live: After install, run **Setup** (tenant URL, login, employer pack), then months → **Fetch selected**. See [docs/webview-fetch.md](./docs/webview-fetch.md).
+Live: After install, run **Setup** (tenant URL, login, employer pack), then months → **Fetch selected**. See [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md).
 
 **Resolution matrix (Phone + Tablet):** validate Holen on every common size before release:
 
@@ -142,13 +142,13 @@ Profiles: see `eas.json` (`development` Dev Client, `preview` internal APK/simul
 
 ## Google OAuth
 
-**Android:** Native Google Sign-In (Play Services). Custom-scheme redirects (`loga3mobile://`) on a **Web** OAuth client are **rejected** by Google Cloud Console.
+**Android:** Native Google Sign-In (Play Services). Custom-scheme redirects (`shiftplan://`) on a **Web** OAuth client are **rejected** by Google Cloud Console.
 
-Guide: [docs/google-oauth-android.md](docs/google-oauth-android.md)
+Guide: [docs/dev/google-oauth-android.md](docs/dev/google-oauth-android.md)
 
 Short version:
 
-1. GCP: create an **Android** OAuth client — package `com.fr4iser.loga3mobile`, SHA-1 via `./scripts/dev/google-sha1.sh`
+1. GCP: create an **Android** OAuth client — package `com.fr4iser.shiftplan`, SHA-1 via `./scripts/dev/google-sha1.sh`
 2. Keep the existing **Web** client (built-in desktop ID)
 3. Enable Calendar API · add test users
 4. Rebuild the APK (native module)
@@ -169,25 +169,39 @@ app/                 # Expo Router screens (Fetch, Preview, Export, Settings)
 src/                 # Converter, LOGA3 WebView, sync, i18n, packs
 assets/ components/  # UI assets
 fixtures/            # Parser fixtures
-docs/                # Architecture & handoff
+docs/                # User guides + releases
+docs/dev/            # Architecture, Holen, Play/security, OAuth, CI, roadmap
 ```
 
 ## Documents
+
+### User
 
 | File | Content |
 |------|---------|
 | [docs/nutzerhandbuch.md](./docs/nutzerhandbuch.md) | Nutzer: Features, WebView, Creds, Kalender, Updates (DE) |
 | [docs/user-guide.md](./docs/user-guide.md) | Same overview (EN) |
 | [docs/releases.md](./docs/releases.md) | GitHub APK, changelog rules, Settings update |
-| [docs/ci-and-supply-chain.md](./docs/ci-and-supply-chain.md) | CI, Dependabot, pre-commit, lockfile hygiene |
-| [docs/schedule-and-updates.md](./docs/schedule-and-updates.md) | Update-Check, Sync-Erinnerung, Hintergrund-Grenzen |
-| [PLAN.md](./PLAN.md) | Phases / definition of done |
-| [docs/security-audit.md](./docs/security-audit.md) | Security checklist (pre-distribution) |
-| [docs/architecture.md](./docs/architecture.md) | Architecture |
-| [docs/webview-fetch.md](./docs/webview-fetch.md) | WebView vs desktop |
-| [docs/google-oauth-android.md](./docs/google-oauth-android.md) | Android Google Sign-In |
 | [CHANGELOG.md](./CHANGELOG.md) | Versions (Deutsch) |
 | [CHANGELOG.en.md](./CHANGELOG.en.md) | Versions (English) |
+
+### Dev (`docs/dev/`)
+
+| File | Content |
+|------|---------|
+| [docs/dev/architecture.md](./docs/dev/architecture.md) | On-device architecture |
+| [docs/dev/webview-fetch.md](./docs/dev/webview-fetch.md) | WebView vs desktop Holen |
+| [docs/dev/fetch-steps.md](./docs/dev/fetch-steps.md) | One-path step machine + selectors |
+| [docs/dev/layout-fix-pdf.md](./docs/dev/layout-fix-pdf.md) | Phone layout CSS/JS for PDF path |
+| [docs/dev/google-oauth-android.md](./docs/dev/google-oauth-android.md) | Android Google Sign-In |
+| [docs/dev/ci-and-supply-chain.md](./docs/dev/ci-and-supply-chain.md) | CI, Dependabot, pre-commit |
+| [docs/dev/schedule-and-updates.md](./docs/dev/schedule-and-updates.md) | Update check, sync reminder limits |
+| [docs/dev/play-store-launch.md](./docs/dev/play-store-launch.md) | EAS / Play Console checklist |
+| [docs/dev/play-store-listing.md](./docs/dev/play-store-listing.md) | Store copy draft (DE/EN) |
+| [docs/dev/play-data-safety.md](./docs/dev/play-data-safety.md) | Play Data safety answers |
+| [docs/dev/security-audit.md](./docs/dev/security-audit.md) | Security checklist (pre-distribution) |
+| [docs/dev/peer-review-packet.md](./docs/dev/peer-review-packet.md) | Handoff for independent review |
+| [docs/dev/roadmap.md](./docs/dev/roadmap.md) | Open items only |
 
 ## License
 

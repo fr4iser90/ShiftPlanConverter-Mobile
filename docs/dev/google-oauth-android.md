@@ -1,7 +1,7 @@
 # Google OAuth — Android (Option A)
 
 The mobile app uses **Google Sign-In (Play Services)** on Android.
-Custom-scheme redirects (`loga3mobile://`) on a **Web** OAuth client are **not** accepted by Google Cloud Console.
+Custom-scheme redirects (`shiftplan://`) on a **Web** OAuth client are **not** accepted by Google Cloud Console.
 
 ## What to create in Google Cloud
 
@@ -17,7 +17,7 @@ APIs & Services → Credentials → **Create OAuth client ID** → type **Androi
 
 | Field | Value |
 |-------|--------|
-| Package name | `com.fr4iser.loga3mobile` |
+| Package name | `com.fr4iser.shiftplan` |
 | SHA-1 | see below |
 
 **No** authorized redirect URIs, **no** JavaScript origins.
@@ -25,24 +25,35 @@ APIs & Services → Credentials → **Create OAuth client ID** → type **Androi
 ### 3. Keep the existing Web client
 
 The built-in web client stays as `webClientId` (token minting).  
-Do **not** add `loga3mobile://` there.
+Do **not** add `shiftplan://` there.
 
 ### 4. OAuth consent screen
 
 In testing mode: add your Google account as a **test user**.  
 Scopes: Calendar + Calendar Events (requested by the app).
 
-## SHA-1 for this repo keystore (debug = current release signing)
+## SHA-1 for signing
+
+### Debug / local `assembleRelease` (current default keystore)
 
 ```bash
 nix-shell --run './scripts/dev/google-sha1.sh'
 ```
 
-Current local `android/app/debug.keystore` (also used by `assembleRelease`):
-
 ```
 SHA1: 5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25
 ```
+
+### Production / Play Store (required before store)
+
+Use an **EAS production keystore** (not `debug.keystore`). See [play-store-launch.md](./play-store-launch.md).
+
+```bash
+eas credentials -p android
+# production → view keystore → copy SHA-1
+```
+
+Add that SHA-1 **and** the Play Console “App signing key certificate” SHA-1 to the Android OAuth client.
 
 If you later use a **dedicated release key** or **Play App Signing**, add that SHA-1 to the same Android client (or create another).
 

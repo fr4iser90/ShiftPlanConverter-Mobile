@@ -20,7 +20,10 @@ async function loadEntries(fallback?: ShiftEntry[]): Promise<ShiftEntry[]> {
   if (fallback) return fallback;
   try {
     const raw = await AsyncStorage.getItem(ENTRIES_KEY);
-    return (raw ? JSON.parse(raw) : []) as ShiftEntry[];
+    if (!raw) return [];
+    const { decryptUtf8 } = await import('../state/securePayload');
+    const plain = await decryptUtf8(raw);
+    return (plain ? JSON.parse(plain) : []) as ShiftEntry[];
   } catch {
     return [];
   }

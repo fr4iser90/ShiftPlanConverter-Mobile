@@ -10,7 +10,7 @@ Related: [CHANGELOG.md](../CHANGELOG.md) (DE) · [CHANGELOG.en.md](../CHANGELOG.
 
 | Channel | Status |
 |---------|--------|
-| Google Play / App Store | Not the primary path (experimental sideload) |
+| Google Play / App Store | Prep docs in [play-store-launch.md](./dev/play-store-launch.md) — not live until YOU finish Console |
 | **GitHub Releases** (APK) | Intended for testers / colleagues |
 | EAS `preview` APK | CI/manual build artifact → attach to a GitHub Release |
 | EAS `production` AAB | Only if/when store listing exists |
@@ -83,7 +83,7 @@ Phase 2 (implemented in Settings):
 
 Do **not** auto-download/install without user confirmation (Android policy + trust).
 
-Sync reminders / widget badge / open-prompt: [schedule-and-updates.md](./schedule-and-updates.md).
+Sync reminders / widget badge / open-prompt: [schedule-and-updates.md](./dev/schedule-and-updates.md).
 
 Constants: `PROJECT_GITHUB` in `src/support/legal.ts`.
 

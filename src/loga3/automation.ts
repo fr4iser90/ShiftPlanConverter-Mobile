@@ -530,13 +530,19 @@ true;
 
 /**
  * Returns JS that runs inside the WebView and posts results via window.ReactNativeWebView.
+ * fillLogin: password is a one-shot local (`__p`), cleared after field fill — not kept on `cmd`.
  */
 export function buildAutomationScript(cmd: AutomationCommand): string {
-  const payload = JSON.stringify(cmd);
+  const isFillLogin = cmd.type === 'fillLogin';
+  const payload = JSON.stringify(
+    isFillLogin ? { type: 'fillLogin' as const, username: cmd.username, password: '' } : cmd
+  );
+  const passwordLiteral = isFillLogin ? JSON.stringify(cmd.password) : '""';
   const monthsJson = JSON.stringify(MONTH_LABELS);
   return `
 (function() {
   var cmd = ${payload};
+  var __p = ${passwordLiteral};
   var MONTH_LABELS = ${monthsJson};
   function post(msg) {
     try {
@@ -889,6 +895,8 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         pass = null;
       }
       if (!user || !pass) {
+        __p = '';
+        try { cmd.password = ''; } catch (e) {}
         post({
           ok: false,
           type: 'fillLogin',
@@ -900,7 +908,9 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         return true;
       }
       setNative(user, cmd.username);
-      setNative(pass, cmd.password);
+      setNative(pass, __p);
+      __p = '';
+      try { cmd.password = ''; } catch (e) {}
       post({ ok: true, type: 'fillLogin', note: (user.getAttribute('name') || '') + '/' + (pass.getAttribute('name') || '') });
       return true;
     }

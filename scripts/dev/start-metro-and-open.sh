@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/fr4iser/Documents/Git/LOGA3-Automation-Mobile
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
 export DISPLAY=:0
 export WAYLAND_DISPLAY=wayland-0
 export ANDROID_USER_HOME="$PWD/.android-nix"
@@ -10,7 +11,7 @@ unset CI || true
 printf '%s\n' "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
 adb devices -l
-adb shell am force-stop com.fr4iser.loga3mobile || true
+adb shell am force-stop com.fr4iser.shiftplan || true
 
 # adb reverse; 10.0.2.2 is ENETUNREACH on this AVD
 HOST_URL="http://127.0.0.1:8091"
@@ -29,8 +30,8 @@ done
 
 ENCODED=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${HOST_URL}', safe=''))")
 adb shell am start -a android.intent.action.VIEW \
-  -d "loga3mobile://expo-development-client/?url=${ENCODED}" \
-  com.fr4iser.loga3mobile
+  -d "shiftplan://expo-development-client/?url=${ENCODED}" \
+  com.fr4iser.shiftplan
 
 sleep 35
 adb shell dumpsys window | grep mCurrentFocus || true

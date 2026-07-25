@@ -79,6 +79,12 @@ export default function SettingsHubScreen() {
             styles={styles}
           />
           <SettingsMenuRow
+            title={t('settingsHubSecurity')}
+            meta={t('settingsHubSecurityMeta')}
+            onPress={() => go('security')}
+            styles={styles}
+          />
+          <SettingsMenuRow
             title={t('settingsHubFetch')}
             meta={fetchMeta || t('settingsHubFetchMeta')}
             onPress={() => go('fetch')}

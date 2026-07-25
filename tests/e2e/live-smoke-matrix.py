@@ -27,7 +27,7 @@ ADB = os.environ.get(
     "ADB",
     "/nix/store/qgpls420q0bm1h0isxz91njqnfra8ky4-androidsdk/bin/adb",
 )
-PKG = "com.fr4iser.loga3mobile"
+PKG = "com.fr4iser.shiftplan"
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX_PATH = ROOT / "tests" / "e2e" / "resolution-matrix.json"
 # Single canonical screenshot root for the matrix (do not scatter to .screenshots / tmp/).
@@ -231,7 +231,7 @@ def launch_seed(
         q["year"] = str(year)
     if autofetch:
         q["autofetch"] = "1"
-    deep = f"loga3mobile:///?{urllib.parse.urlencode(q)}"
+    deep = f"shiftplan:///?{urllib.parse.urlencode(q)}"
     sh("shell", f"am start -a android.intent.action.VIEW -d '{deep}' {PKG}")
 
 
@@ -450,7 +450,7 @@ def run_profile(
         dismiss_blockers(w, h)
         sh(
             "shell",
-            f"am start -a android.intent.action.VIEW -d 'loga3mobile://expo-development-client/?url={enc}' {PKG}",
+            f"am start -a android.intent.action.VIEW -d 'shiftplan://expo-development-client/?url={enc}' {PKG}",
         )
         print("  waiting for Metro/JS…", flush=True)
         if not wait_js_ready(w, h, timeout=90):

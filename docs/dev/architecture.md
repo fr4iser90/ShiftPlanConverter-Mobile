@@ -1,10 +1,10 @@
-# Architecture — LOGA3 Mobile
+# Architecture — ShiftPlan Converter
 
 Everything runs **on-device**. The Expo project lives at the **repo root** (not a nested Expo project folder). `app/` is only the Expo Router tree.
 
 ```
 ┌──────────────────────────────────────────────────┐
-│  LOGA3-Automation-Mobile (Expo / RN)             │
+│  ShiftPlanConverter-Mobile (Expo / RN)           │
 │                                                  │
 │  ┌────────────┐   ┌──────────┐   ┌────────────┐ │
 │  │ Fetch      │→  │ Convert  │→  │ Export     │ │
