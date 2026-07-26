@@ -51,3 +51,14 @@ result-*
 *.swp
 tmp/
 .screenshots/
+
+# Workplace OCR dumps/photos — never commit (PII / Dienstplan).
+# Local copies: /tmp/shiftplan-ocr-private/  (or $SHIFTPLAN_OCR_PRIVATE)
+tests/fixtures/ocr/**/dumps/
+tests/fixtures/ocr/**/*.jpg
+tests/fixtures/ocr/**/*.jpeg
+tests/fixtures/ocr/**/*.png
+tests/fixtures/ocr/**/sample.json
+tests/fixtures/ocr/**/expected.json
+tests/fixtures/ocr/month-matrix-feb-*
+tests/fixtures/ocr/month-matrix/wallplan.*

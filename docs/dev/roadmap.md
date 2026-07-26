@@ -13,7 +13,8 @@ Packs (Arbeitgeber)           ← schon ansatzweise da
 Sources (Eingang)             ← klar trennen
   ├─ loga3-webview            (aktuell)
   ├─ other-site webview       (bei Bedarf, eigene Automation)
-  └─ local files              (PDF / CSV / ICS — kein Login)
+  ├─ local files              (PDF / CSV / ICS — kein Login)
+  └─ camera-ocr               (Foto → on-device OCR — spike)
 
 Sinks (Ausgang)               ← schon Targets
   └─ ICS share · Google Calendar · (später mehr)
@@ -35,6 +36,7 @@ Detaillierter Refactor-Plan: [`refactor-sources.md`](refactor-sources.md).
 | **3 Source-Interface** | done | `src/sources/` · LOGA3-Adapter · Setup `needsCredentials` |
 | **4 WebView shared** | done | Bridge/Wait/PDF-Poll/pdfStore unter `src/sources/webview/` (loga3 re-exportiert) |
 | **5 Local import** | done | `local-files` Source · Fetch tab „Datei“ |
+| **5b Camera OCR** | spike | On-device photo → OCR → raw text (no ingest) — [`ocr-camera-source.md`](ocr-camera-source.md) |
 | **6 2nd WebView** | open | nur bei konkretem zweiten AG |
 
 Nicht alles vor dem ersten Store-Build: Local-PDF ist der Store-Mehrwert; zweites Site-Plugin warten.

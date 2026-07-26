@@ -6,7 +6,7 @@ import { router, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
 import { buildSupportParserSample } from '@/src/convert/anonymize';
-import { getSnapshot, subscribe } from '@/src/state/store';
+import { getSnapshot, subscribeKeys } from '@/src/state/store';
 import {
   DESKTOP_GITHUB,
   PROJECT_GITHUB,
@@ -36,7 +36,13 @@ export default function SettingsAboutScreen() {
   const snap = getSnapshot();
   const version = Constants.expoConfig?.version || '0.1.1';
 
-  useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
+  useEffect(
+    () =>
+      subscribeKeys(['locale', 'themePref', 'rawText', 'hospitalId', 'groupId', 'areaId'], () =>
+        setTick((n) => n + 1)
+      ),
+    []
+  );
 
   const supportText = useMemo(() => {
     if (!snap.rawText) return '(kein Rohtext — zuerst Fixture/PDF konvertieren)';

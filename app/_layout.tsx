@@ -13,6 +13,7 @@ import { t } from '@/src/i18n';
 import { hydrateStore } from '@/src/state/store';
 import { hydrateLoga3Env } from '@/src/sources/loga3/env';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
+import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import { restoreGoogleSession } from '@/src/sync/google';
 import { useTheme } from '@/src/ui/useTheme';
 
@@ -51,6 +52,9 @@ export default function RootLayout() {
         if (isSmokeSetupUrl(initial)) {
           await applySmokeSetupFromUrl(initial!);
           router.replace('/(tabs)');
+        } else if (initial && isOcrSmokeUrl(initial)) {
+          await applyOcrSmokeFromUrl(initial, { fromInitialURL: true });
+          router.replace('/(tabs)');
         }
       } catch (e) {
         // Release: credential smoke deep-links are rejected by design.
@@ -59,10 +63,17 @@ export default function RootLayout() {
       setBootstrapped(true);
       // Deep-link listener always registered; applySmokeSetupFromUrl enforces __DEV__ for creds.
       sub = Linking.addEventListener('url', (e) => {
-        if (!isSmokeSetupUrl(e.url)) return;
-        void applySmokeSetupFromUrl(e.url)
-          .then(() => router.replace('/(tabs)'))
-          .catch((err) => console.warn('smoke-setup url failed', err));
+        if (isSmokeSetupUrl(e.url)) {
+          void applySmokeSetupFromUrl(e.url)
+            .then(() => router.replace('/(tabs)'))
+            .catch((err) => console.warn('smoke-setup url failed', err));
+          return;
+        }
+        if (isOcrSmokeUrl(e.url)) {
+          void applyOcrSmokeFromUrl(e.url)
+            .then(() => router.replace('/(tabs)'))
+            .catch((err) => console.warn('ocr-smoke url failed', err));
+        }
       });
     })();
     return () => sub?.remove();

@@ -1,7 +1,13 @@
 import { parseCsvShifts } from '../../src/ingest/parseCsv';
 import { parseIcsShifts } from '../../src/ingest/parseIcs';
 import { getParser, DEFAULT_PARSER_ID } from '../../src/convert/parsers';
-import { getParserIdForPack, getPreferredSourceId, getBuiltinPackConfig } from '../../src/packs';
+import {
+  getParserIdForPack,
+  getPreferredSourceId,
+  getSupportedSourceIds,
+  getBuiltinPackConfig,
+  isSourceSupportedByPack,
+} from '../../src/packs';
 
 describe('parser registry', () => {
   it('resolves default St. Elisabeth parser', () => {
@@ -13,6 +19,30 @@ describe('parser registry', () => {
     const pack = getBuiltinPackConfig();
     expect(getParserIdForPack(pack)).toBe('st-elisabeth-zeitprotokoll-pdf');
     expect(getPreferredSourceId(pack)).toBe('loga3-webview');
+  });
+
+  it('exposes supportedSourceIds for Fetch filtering', () => {
+    const pack = getBuiltinPackConfig();
+    expect(getSupportedSourceIds(pack)).toEqual([
+      'loga3-webview',
+      'local-files',
+      'camera-ocr',
+    ]);
+    expect(isSourceSupportedByPack(pack, 'loga3-webview')).toBe(true);
+    expect(isSourceSupportedByPack(pack, 'unknown-portal')).toBe(false);
+  });
+
+  it('preferred source falls back to first supported when preferred missing from list', () => {
+    expect(
+      getPreferredSourceId({
+        id: 'x',
+        name: 'X',
+        hint: '',
+        groups: [],
+        preferredSourceId: 'loga3-webview',
+        supportedSourceIds: ['local-files'],
+      })
+    ).toBe('local-files');
   });
 });
 

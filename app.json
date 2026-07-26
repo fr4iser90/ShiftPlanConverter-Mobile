@@ -18,6 +18,8 @@
       "bundleIdentifier": "com.fr4iser.shiftplan",
       "infoPlist": {
         "NSFaceIDUsageDescription": "ShiftPlan Converter kann Face ID nutzen, um Abrufen und Zugangsdaten zu schützen.",
+        "NSCameraUsageDescription": "ShiftPlan Converter fotografiert den Dienstplan für die Erkennung direkt auf dem Gerät.",
+        "NSPhotoLibraryUsageDescription": "ShiftPlan Converter liest ein Dienstplan-Foto für die Erkennung direkt auf dem Gerät.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [

@@ -3,7 +3,7 @@
   "hint": "Aktuell freigeschaltet: Pflegedienst · OP-Bereich · Preset Anästhesie. Andere Bereiche folgen — dafür „Unterstützung anfragen“ nutzen.",
   "parserId": "st-elisabeth-zeitprotokoll-pdf",
   "preferredSourceId": "loga3-webview",
-  "supportedSourceIds": ["loga3-webview", "local-files"],
+  "supportedSourceIds": ["loga3-webview", "local-files", "camera-ocr"],
   "groups": [
     {
       "id": "pflege",

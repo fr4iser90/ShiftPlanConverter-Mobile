@@ -3,8 +3,8 @@ import { ScrollView } from 'react-native';
 import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { getSnapshot, subscribe } from '@/src/state/store';
-import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
+import { getSnapshot, subscribeKeys } from '@/src/state/store';
+import { formatSetupStatusMeta, getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   formatScheduleSummary,
   getLastSuccessfulFetchAt,
@@ -31,7 +31,9 @@ export default function SettingsHubScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      const unsub = subscribe(() => setTick((n) => n + 1));
+      const unsub = subscribeKeys(['locale', 'themePref', 'summary'], () =>
+        setTick((n) => n + 1)
+      );
       void (async () => {
         setSetup(await getSetupStatus());
         const quick = await loadQuickPrefs();
@@ -71,9 +73,9 @@ export default function SettingsHubScreen() {
           <SettingsMenuRow
             title={t('settingsHubSetup')}
             meta={
-              setup?.complete
-                ? `${t('setupComplete')}: ${setup.summary}`
-                : t('setupIncomplete')
+              setup
+                ? formatSetupStatusMeta(setup)
+                : t('setupIncompleteWorkplace')
             }
             onPress={() => go('setup')}
             styles={styles}
@@ -91,9 +93,21 @@ export default function SettingsHubScreen() {
             styles={styles}
           />
           <SettingsMenuRow
+            title={t('settingsHubGoogle')}
+            meta={t('settingsHubGoogleMeta')}
+            onPress={() => go('google')}
+            styles={styles}
+          />
+          <SettingsMenuRow
             title={t('settingsHubReminders')}
             meta={remindMeta || t('settingsHubRemindersMeta')}
             onPress={() => go('reminders')}
+            styles={styles}
+          />
+          <SettingsMenuRow
+            title={t('settingsHubOcr')}
+            meta={t('settingsHubOcrMeta')}
+            onPress={() => go('ocr')}
             styles={styles}
           />
           <SettingsMenuRow

@@ -23,7 +23,7 @@ import {
   getSnapshot,
   setEntries,
   setUserMappings,
-  subscribe,
+  subscribeKeys,
 } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
 import { ShiftWeekView } from '@/src/ui/ShiftWeekView';
@@ -240,7 +240,14 @@ export default function PreviewScreen() {
   const listRef = useRef<FlatList<ShiftEntry>>(null);
   const scrolledRef = useRef(false);
 
-  useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
+  useEffect(
+    () =>
+      subscribeKeys(
+        ['entries', 'locale', 'themePref', 'hospitalId', 'groupId', 'areaId', 'preset', 'userMappings'],
+        () => setTick((n) => n + 1)
+      ),
+    []
+  );
   useEffect(() => {
     setDraftMappings({ ...snap.userMappings });
   }, [snap.userMappings]);

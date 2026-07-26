@@ -55,6 +55,8 @@ Sync: prefer a dedicated calendar; warn on primary.
 
 Same LOGA3 site → usually one automation plugin. New employer → new pack (+ parser if the PDF differs). Another HR portal → new Source plugin, not only a pack.
 
+Fetch UI lists only `supportedSourceIds` for the active pack; default is `preferredSourceId` (clamped if the stored source is unsupported). A PDF-only pack can omit `loga3-webview`.
+
 German strings in automation/parsers are **match targets**, not app UI — do not put them in i18n (see Cursor rule `portal-pdf-literals`).
 
 ## Localization
@@ -62,3 +64,5 @@ German strings in automation/parsers are **match targets**, not app UI — do no
 - **Docs / README:** English
 - **In-app UI:** `src/i18n/de.ts` + `en.ts`, switched in Settings (locale in AsyncStorage)
 - **Not localized:** LOGA3 portal selectors, PDF/parser regexes, pack mapping keys tied to payroll codes
+
+OCR camera Source (spike): [`ocr-camera-source.md`](./ocr-camera-source.md).

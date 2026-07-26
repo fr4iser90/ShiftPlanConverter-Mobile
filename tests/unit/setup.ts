@@ -1,6 +1,27 @@
 /**
  * Shared Jest mocks so unit tests can import `t()` / store without Expo native modules.
  */
+jest.mock('react-native', () => ({
+  Platform: { OS: 'android', Version: 34, select: (o: Record<string, unknown>) => o.android },
+  Image: {
+    getSize: jest.fn((_u: string, ok: (w: number, h: number) => void) => ok(1600, 1200)),
+  },
+  TurboModuleRegistry: { get: () => null },
+  StyleSheet: {
+    create: (s: unknown) => s,
+    hairlineWidth: 1,
+  },
+  View: 'View',
+  Text: 'Text',
+  ScrollView: 'ScrollView',
+  Pressable: 'Pressable',
+  Modal: 'Modal',
+  FlatList: 'FlatList',
+  TextInput: 'TextInput',
+  ActivityIndicator: 'ActivityIndicator',
+  useWindowDimensions: () => ({ width: 390, height: 844 }),
+}));
+
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null),
   setItemAsync: jest.fn(async () => undefined),
@@ -45,4 +66,29 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   setItem: jest.fn(async () => undefined),
   removeItem: jest.fn(async () => undefined),
   multiRemove: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-image-manipulator', () => ({
+  manipulateAsync: jest.fn(async (uri: string, actions: unknown[]) => {
+    const resize = Array.isArray(actions)
+      ? (actions.find((a) => a && typeof a === 'object' && 'resize' in a) as
+          | { resize: { width: number; height: number } }
+          | undefined)
+      : undefined;
+    return {
+      uri: resize ? `${uri}.ocr.jpg` : uri,
+      width: resize?.resize.width ?? 100,
+      height: resize?.resize.height ?? 40,
+    };
+  }),
+  SaveFormat: { JPEG: 'jpeg', PNG: 'png' },
+}));
+
+jest.mock('react-native-document-scanner-plugin', () => ({
+  __esModule: true,
+  default: {
+    scanDocument: jest.fn(async () => ({ status: 'cancel', scannedImages: [] })),
+  },
+  ResponseType: { ImageFilePath: 'imageFilePath', Base64: 'base64' },
+  ScanDocumentResponseStatus: { Success: 'success', Cancel: 'cancel' },
 }));

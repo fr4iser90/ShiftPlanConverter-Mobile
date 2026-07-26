@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
-import { hydrateStore, subscribe } from '@/src/state/store';
+import { getSnapshot, hydrateStore, subscribe } from '@/src/state/store';
 import { t } from '@/src/i18n';
 
 function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string }) {
@@ -21,7 +21,14 @@ export default function TabLayout() {
 
   useEffect(() => {
     hydrateStore();
-    return subscribe(() => setTick((n) => n + 1));
+    let locale = getSnapshot().locale;
+    return subscribe(() => {
+      const next = getSnapshot().locale;
+      if (next !== locale) {
+        locale = next;
+        setTick((n) => n + 1);
+      }
+    });
   }, []);
 
   return (
@@ -48,6 +55,7 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerShown: false,
+        freezeOnBlur: true,
         sceneStyle: { paddingBottom: 58 + bottomGap + 8 },
       }}
     >
