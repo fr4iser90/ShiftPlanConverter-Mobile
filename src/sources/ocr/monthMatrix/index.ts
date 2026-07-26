@@ -10,6 +10,8 @@ export {
   mergeSplitDayHeaderTokens,
   fillCalendarDayGaps,
   collectDayColumns,
+  collectDayColumnsFromDayNumbers,
+  detectMonthYearFromOcr,
 } from './dayHeaders';
 export {
   formatMonthMatrixTable,

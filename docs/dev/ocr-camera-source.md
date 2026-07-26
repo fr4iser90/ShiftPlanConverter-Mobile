@@ -51,27 +51,30 @@ Rules:
 
 ## Layout profiles (structure ≠ OCR engine)
 
-OCR engine is generic. **Structure understanding is layout-specific** (list vs month matrix vs week strip).
+OCR engine is generic. **Structure understanding is layout-specific** (month matrix vs day plan vs list …).
 
 Rules (same spirit as no-retry / one-path):
 
-- User picks **one** concrete layout, or **`auto`** (detect once from the OCR result, then run that winner).
-- Never “try month → fail → try list → try week”.
-- Weak/unclear structure under `auto` → **`raw-review`** (clear outcome), not a second parser attempt.
-- New AG forms = **new layout id** when real photo samples arrive; do not bolt heuristics onto `raw-review`.
+- User picks **one** concrete layout, or **`auto`** (detect once, then run that winner).
+- **`auto` is detection meta, not a layout.**
+- **Pro order:** detect layout from the **image lattice** (H/V lines) first; OCR-text cues only if the image score is weak. Never “try month → fail → try list”.
+- Weak/unclear structure under `auto` → **text-only fallback** (`text-only`) — clear outcome, **not** a layout chip, not a second parser attempt.
+- New AG forms = **new layout id + own file** when real photo samples arrive; do not bolt heuristics onto text-only.
 - Stub layouts today only trim whitespace; real cell/line parsers land in `postprocess` (or a sibling module) per id.
 
-Registry: [`src/sources/ocr/layouts.ts`](../../src/sources/ocr/layouts.ts)  
+Registry: [`src/sources/ocr/layouts/`](../../src/sources/ocr/layouts/) (one file per layout + `index.ts`)  
 Detection: [`src/sources/ocr/detectLayout.ts`](../../src/sources/ocr/detectLayout.ts)  
 Preference: `ocr.activeLayoutId` via [`src/state/ocrLayout.ts`](../../src/state/ocrLayout.ts)
 
 | Id | Status | Intent |
 |----|--------|--------|
-| `auto` | experimental | Detect layout once → run that concrete path |
+| `auto` | experimental | Detect layout once → run that concrete path (meta, not a layout) |
 | `month-matrix` | experimental | Wall plan: name × day grid → ASCII table; names **only** from grid rows |
-| `raw-review` | ready | Review/edit OCR text |
-| `list-protocol` | stub | Lines like date · code · von–bis |
 | `week-strip` | stub | Mo–Su / ward board |
+| `list-protocol` | stub | Lines like date · code · von–bis |
+| `day-plan` | stub | Tagesplan: one day, many people/slots |
+| `single-calendar` | stub | Einzelkalender: one name, month calendar cells |
+| `text-only` | fallback | Debug/raw text only — **not** listed as a layout |
 
 **month-matrix rule:** if the grid cannot be built, show “table not recognized” — **never** open the name picker with plain-text OCR junk.
 
@@ -87,8 +90,8 @@ Preference: `ocr.activeLayoutId` via [`src/state/ocrLayout.ts`](../../src/state/
 ### How to add or tune a layout (when samples arrive)
 
 1. Collect 2–5 representative photos (same AG form, decent lighting).
-2. Run Fetch → Foto → that layout (or `raw-review`) and keep OCR geometry under `/tmp/shiftplan-ocr-private/` (**never** commit real names/photos).
-3. In `layouts.ts`: keep the existing id or add e.g. `ag-foo-month-2026` with `status: 'experimental'`.
+2. Run Fetch → Foto → that layout (or let `auto` fall back to text-only) and keep OCR geometry under `/tmp/shiftplan-ocr-private/` (**never** commit real names/photos).
+3. Add `src/sources/ocr/layouts/<id>.ts` (profile + `score*`) and register it in `layouts/index.ts`.
 4. Implement `postprocess` (and later guided-review suggestions) against the fixtures — **one path**, fail clearly on unexpected structure.
 5. Add a unit test that feeds fixture text → expected cleaned / suggested rows.
 6. Bump i18n `ocrLayout*` label/hint; set `status: 'ready'` only when review→ingest is trustworthy enough for that form.

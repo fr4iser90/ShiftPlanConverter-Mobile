@@ -16,15 +16,22 @@ import {
 import { getSnapshot } from '../state/store';
 import { captureOcrImage, type OcrCaptureMode } from './ocr/capture';
 import { maybeDumpOcrGeometry } from './ocr/geometryDump';
-import { applyPackMappingToGrid, refinePersonRowFromOcr } from './ocr/applyPackMapping';
+import {
+  applyPackMappingToGrid,
+  refineAllPersonRowsFromOcr,
+  refinePersonRowFromOcr,
+} from './ocr/applyPackMapping';
 import {
   applyOcrLayoutPostprocess,
   DEFAULT_OCR_LAYOUT_ID,
   getOcrLayout,
   isAutoOcrLayout,
+  isOcrTextOnlyFallback,
+  OCR_TEXT_ONLY_FALLBACK,
   type OcrLayoutId,
 } from './ocr/layouts';
-import { detectOcrLayout } from './ocr/detectLayout';
+import { detectLayoutFromImageUri } from './ocr/layouts/detectFromImage';
+import { detectOcrLayout, mergeLayoutDetections } from './ocr/detectLayout';
 import {
   buildMonthMatrixGrid,
   computeMonthMatrixMetrics,
@@ -77,7 +84,7 @@ export type CameraOcrRunOpts = SourceRunOpts & {
 };
 
 export type CameraOcrRunResult = SourceRunResult & {
-  /** Concrete layout used for this run (never `auto`). */
+  /** Concrete layout used for this run, or text-only fallback (never `auto`). */
   layoutId: string;
   /** User/chip selection before auto-resolve (`auto` or concrete). */
   requestedLayoutId?: string;
@@ -157,7 +164,9 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     return {
       artifacts: [],
       errors: [],
-      layoutId: isAutoOcrLayout(requestedLayoutId) ? 'raw-review' : requestedLayoutId,
+      layoutId: isAutoOcrLayout(requestedLayoutId)
+        ? OCR_TEXT_ONLY_FALLBACK
+        : requestedLayoutId,
       requestedLayoutId,
       matrix: null,
       imageUri: null,
@@ -173,7 +182,9 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       return {
         artifacts: [],
         errors: [],
-        layoutId: isAutoOcrLayout(requestedLayoutId) ? 'raw-review' : requestedLayoutId,
+        layoutId: isAutoOcrLayout(requestedLayoutId)
+          ? OCR_TEXT_ONLY_FALLBACK
+          : requestedLayoutId,
         requestedLayoutId,
         matrix: null,
         imageUri: sourceImageUri,
@@ -187,6 +198,17 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     uri = await prepareImageForOcr(uri);
   } catch {
     // Keep original URI — OCR may still work on full-res.
+  }
+
+  // Pro order: layout from image lattice first (not OCR text).
+  let imageLayout: Awaited<ReturnType<typeof detectLayoutFromImageUri>> = null;
+  if (isAutoOcrLayout(requestedLayoutId)) {
+    opts.onStatus?.({ line: t('sourceOcrStatusDetectLayout') });
+    try {
+      imageLayout = await detectLayoutFromImageUri(uri);
+    } catch {
+      imageLayout = null;
+    }
   }
 
   opts.onStatus?.({ line: t('sourceOcrStatusRecognizing') });
@@ -206,10 +228,17 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       }
     }
     if (!ocr.text && !ocr.lines.length) {
+      // Image may still have locked a layout — keep it for the fail path.
+      const layoutId =
+        imageLayout && imageLayout.layoutId !== OCR_TEXT_ONLY_FALLBACK
+          ? imageLayout.layoutId
+          : isAutoOcrLayout(requestedLayoutId)
+            ? OCR_TEXT_ONLY_FALLBACK
+            : requestedLayoutId;
       return {
         artifacts: [],
         errors: [t('sourceOcrEmpty')],
-        layoutId: isAutoOcrLayout(requestedLayoutId) ? 'raw-review' : requestedLayoutId,
+        layoutId,
         requestedLayoutId,
         matrix: null,
         imageUri: sourceImageUri,
@@ -218,12 +247,12 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
 
     let layoutId = requestedLayoutId;
     if (isAutoOcrLayout(requestedLayoutId)) {
-      opts.onStatus?.({ line: t('sourceOcrStatusDetectLayout') });
-      const detected = detectOcrLayout({
+      const textDet = detectOcrLayout({
         text: ocr.text,
         lines: ocr.lines,
         pageWidth: ocr.pageWidth,
       });
+      const detected = mergeLayoutDetections(imageLayout, textDet);
       layoutId = detected.layoutId;
       const labelKey = getOcrLayout(layoutId)?.labelKey || 'ocrLayoutRaw';
       opts.onStatus?.({
@@ -234,6 +263,20 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     }
 
     const isMonthMatrix = layoutId === 'month-matrix';
+
+    // Text-only fallback: trim OCR text — no structure parser.
+    if (isOcrTextOnlyFallback(layoutId)) {
+      opts.onStatus?.({ line: t('sourceOcrStatusDoneRaw') });
+      return {
+        artifacts: [{ kind: 'text', text: applyOcrLayoutPostprocess(layoutId, ocr.text) }],
+        errors: [],
+        layoutId,
+        requestedLayoutId,
+        selectedName: null,
+        matrix: null,
+        imageUri: sourceImageUri,
+      };
+    }
 
     opts.onStatus?.({ line: t('sourceOcrStatusBuildingMatrix') });
     const grid = buildMonthMatrixGrid(ocr.lines, ocr.pageWidth);
@@ -349,15 +392,25 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     let outGrid = grid;
 
     if (grid.ok) {
-      // Pack mapping: one path (time→code / known codes). No second layout guess.
+      // Employer pack: time→code / known codes. One path — no second layout guess.
       const snap = getSnapshot();
-      const hospitalMapping = getMappingForScope(
-        snap.hospitalId,
-        snap.groupId,
-        snap.areaId
+      const packMapping = getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
+      const presetMap = packMapping?.presets?.[snap.preset] ?? null;
+      outGrid = applyPackMappingToGrid(
+        outGrid,
+        presetMap,
+        packMapping?.colors,
+        packMapping?.codeAliases
       );
-      const presetMap = hospitalMapping?.presets?.[snap.preset] ?? null;
-      outGrid = applyPackMappingToGrid(outGrid, presetMap, hospitalMapping?.colors);
+      // Intensify every row once (same refine path — needed for full-matrix accuracy).
+      outGrid = refineAllPersonRowsFromOcr(
+        outGrid,
+        ocr.lines,
+        presetMap,
+        packMapping?.colors,
+        undefined,
+        packMapping?.codeAliases
+      );
       outGrid = {
         ...outGrid,
         rows: applyKnownSpellingsToGridRows(outGrid.rows, preferred, aliases),
@@ -397,7 +450,8 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           selected.label,
           ocr.lines,
           presetMap,
-          hospitalMapping?.colors
+          packMapping?.colors,
+          packMapping?.codeAliases
         );
         await saveOcrPreferredName(selected.label);
         rawText = formatMonthMatrixTable(outGrid, {
@@ -427,7 +481,8 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
             preferred,
             ocr.lines,
             presetMap,
-            hospitalMapping?.colors
+            packMapping?.colors,
+            packMapping?.codeAliases
           );
         }
         rawText = formatMonthMatrixTable(outGrid, {

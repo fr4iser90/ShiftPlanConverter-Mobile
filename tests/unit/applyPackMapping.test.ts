@@ -11,6 +11,7 @@ import type { OcrLine } from '../../src/sources/ocr/recognize';
 
 const anaesthesie: Record<string, MappingValue> = {
   '07:35-15:50': { code: 'F', type: 'work', isValidated: true },
+  '08:30-16:45': { code: 'F1', type: 'work', isValidated: true },
   '13:15-21:30': { code: 'S', type: 'work', isValidated: true },
   '07:35-19:35': { code: 'B36', type: 'long', isValidated: true },
   '11:35-19:50': { code: 'M3', type: 'work', isValidated: true },
@@ -53,12 +54,49 @@ describe('applyPackMapping', () => {
 
   it('matchDigitsToPackCode prefers unique pack fingerprints', () => {
     const fps = [
-      { digits: '07351550', start: '07:35', end: '15:50', code: 'F' },
-      { digits: '07351935', start: '07:35', end: '19:35', code: 'B36' },
+      { digits: '07351550', start: '07:35', end: '15:50', code: 'F', dutyType: 'work' },
+      { digits: '07351935', start: '07:35', end: '19:35', code: 'B36', dutyType: 'long' },
     ];
     expect(matchDigitsToPackCode('07351550', fps)).toBe('F');
     expect(matchDigitsToPackCode('xx07351935yy', fps)).toBe('B36');
     expect(matchDigitsToPackCode('17351935', fps)).toBe('B36'); // one digit off
+  });
+
+  it('maps start-only / end-only / mm+end OCR crumbs via pack fingerprints', () => {
+    // Start repeated, no end → prefer shorter pack "work" over "long" sharing the start.
+    expect(applyPackMappingToCell('0735-0735-07:35', anaesthesie)).toBe('F');
+    expect(applyPackMappingToCell('7.35', anaesthesie)).toBe('F');
+    // End repeated / end-only.
+    expect(applyPackMappingToCell('15:501550', anaesthesie)).toBe('F');
+    expect(applyPackMappingToCell('15501550', anaesthesie)).toBe('F');
+    // Split start-minutes + end (+ trailing OCR junk).
+    expect(applyPackMappingToCell('351550', anaesthesie)).toBe('F');
+    expect(applyPackMappingToCell('351550166015', anaesthesie)).toBe('F');
+    expect(applyPackMappingToCell('08301645', anaesthesie)).toBe('F1');
+    expect(applyPackMappingToCell('2130', anaesthesie)).toBe('S');
+  });
+
+  it('canonicalizes pack code aliases (B41→B36, URLAUB→U)', () => {
+    const aliases = { B41: 'B36', URLAUB: 'U' };
+    const codes = collectPackCodes(anaesthesie, { ...colors, B41: '#b91c1c', U: '#a78bfa' }, aliases);
+    expect(applyPackMappingToCell('B41', anaesthesie, codes, aliases)).toBe('B36');
+    expect(applyPackMappingToCell('urlauB', anaesthesie, codes, aliases)).toBe('U');
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Sa1'],
+      rows: [{ name: 'Nordmann, Alice', yCenter: 10, cells: ['B41', 'URLAUB'] }],
+    };
+    const out = applyPackMappingToGrid(grid, anaesthesie, colors, aliases);
+    expect(out.rows[0].cells).toEqual(['B36', 'U']);
+  });
+
+  it('does not invent a duty from digit mash with no pack fingerprint', () => {
+    const codes = collectPackCodes(anaesthesie, colors);
+    // OCR garbage like hyphenated digit mush — not a pack time.
+    expect(applyPackMappingToCell('07-36-07', anaesthesie, codes)).not.toBe('B36');
+    expect(applyPackMappingToCell('07-36-07', anaesthesie, codes)).not.toBe('F');
+    const mapped = applyPackMappingToCell('07-36-07', anaesthesie, codes);
+    expect(codes.has(mapped)).toBe(false);
   });
 
   it('maps every cell in a grid without touching names', () => {
@@ -102,6 +140,41 @@ describe('applyPackMapping', () => {
     const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('F');
     expect(out.rows[0].cells[1]).toBe('F');
+  });
+
+  it('bare end-minutes do not invent overnight from start-minutes alone', () => {
+    const mapping: Record<string, MappingValue> = {
+      ...anaesthesie,
+      '19:50-07:35': { code: 'B38', type: 'night', isValidated: true },
+      '13:15-21:30': { code: 'S', type: 'work', isValidated: true },
+    };
+    expect(applyPackMappingToCell('50', mapping)).toBe('F');
+    expect(applyPackMappingToCell('50', mapping)).not.toBe('B38');
+  });
+
+  it('printed on-call code wins over shared-start day digits (MO vs M3)', () => {
+    const mapping: Record<string, MappingValue> = {
+      ...anaesthesie,
+      '11:35-19:50': { code: 'M3', type: 'work', isValidated: true },
+      '11:35-07:35': { code: 'MO', type: 'oncall', isValidated: true },
+    };
+    const colors = { F: '#22c55e', M3: '#93c5fd', MO: '#8b5cf6', B36: '#f87171' };
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Mi5'],
+      colCenters: [500],
+      nameMaxX: 80,
+      colGap: 40,
+      rowYPad: 20,
+      rows: [{ name: 'Nordmann, Alice', yCenter: 300, cells: [''] }],
+    };
+    const lines: OcrLine[] = [
+      { text: 'MO', boundingBox: { x: 490, y: 285, width: 20, height: 12 } },
+      { text: '1135', boundingBox: { x: 495, y: 300, width: 30, height: 12 } },
+      { text: '19:50', boundingBox: { x: 495, y: 315, width: 30, height: 12 } },
+    ];
+    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, mapping, colors);
+    expect(out.rows[0].cells[0]).toBe('MO');
   });
 
   it('refine clears unmapped garbage instead of keeping it', () => {

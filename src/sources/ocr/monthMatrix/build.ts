@@ -17,7 +17,7 @@ import {
   looksLikeDayHeader,
   looksLikeShiftCell,
   median,
-  nearestColIndex,
+  owningColIndex,
   xCenter,
   yCenter,
 } from './geometry';
@@ -68,10 +68,10 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     const t = cleanCell(l.text);
     if (!t || t.length < 2) return false;
     if (looksLikeDayHeader(t) || looksLikeShiftCell(t)) return false;
-    if (/telefon|stationsleitung|fkt\.?dienst|objekt|februar|anästhesie/i.test(t)) return false;
     if (/\d/.test(t)) return false;
     if (!/[A-Za-zÄÖÜäöüß]/.test(t)) return false;
     if (t.length <= 2) return false;
+    if (l.boundingBox.height > medH * 2.5 && t.length >= 5) return false;
     return true;
   });
   const nameHeights = nameTokens.map((l) => l.boundingBox.height).filter((h) => h > 0);
@@ -108,15 +108,12 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     if (!people.length) continue;
 
     const yMid = g.reduce((s, l) => s + yCenter(l), 0) / g.length;
-    const xTol = colGap * 0.85;
-    const cells = colCenters.map((cx, colIndex) => {
+    const cells = colCenters.map((_cx, colIndex) => {
       const candidates = merged.filter((l) => {
         const xc = xCenter(l);
         if (xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
         if (Math.abs(yCenter(l) - yMid) > rowYPad) return false;
-        if (Math.abs(xc - cx) > xTol) return false;
-        // One OCR token belongs to exactly one day column (nearest center).
-        return nearestColIndex(xc, colCenters) === colIndex;
+        return owningColIndex(l, colCenters, nameMaxX, w) === colIndex;
       });
       if (!candidates.length) return '';
       const texts = candidates

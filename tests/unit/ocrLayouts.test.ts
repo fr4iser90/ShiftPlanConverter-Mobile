@@ -3,7 +3,10 @@ import {
   DEFAULT_OCR_LAYOUT_ID,
   getOcrLayout,
   isAutoOcrLayout,
+  isConcreteOcrLayout,
+  isOcrTextOnlyFallback,
   listOcrLayouts,
+  OCR_TEXT_ONLY_FALLBACK,
   requireOcrLayout,
 } from '../../src/sources/ocr/layouts';
 import { detectOcrLayout } from '../../src/sources/ocr/detectLayout';
@@ -53,20 +56,27 @@ describe('OCR layouts', () => {
     expect(ids).toEqual([
       'auto',
       'month-matrix',
-      'raw-review',
-      'list-protocol',
       'week-strip',
+      'list-protocol',
+      'day-plan',
+      'single-calendar',
     ]);
     expect(isAutoOcrLayout('auto')).toBe(true);
     expect(isAutoOcrLayout('month-matrix')).toBe(false);
+    expect(isConcreteOcrLayout('day-plan')).toBe(true);
+    expect(isConcreteOcrLayout('raw-review')).toBe(false);
+    expect(isOcrTextOnlyFallback(OCR_TEXT_ONLY_FALLBACK)).toBe(true);
   });
 
-  it('marks auto/month experimental; others stub/ready', () => {
+  it('marks auto/month experimental; others stub; text-only is not a layout', () => {
     expect(requireOcrLayout('auto').status).toBe('experimental');
     expect(requireOcrLayout('month-matrix').status).toBe('experimental');
     expect(requireOcrLayout('list-protocol').status).toBe('stub');
     expect(requireOcrLayout('week-strip').status).toBe('stub');
-    expect(requireOcrLayout('raw-review').status).toBe('ready');
+    expect(requireOcrLayout('day-plan').status).toBe('stub');
+    expect(requireOcrLayout('single-calendar').status).toBe('stub');
+    expect(getOcrLayout('raw-review')).toBeNull();
+    expect(getOcrLayout(OCR_TEXT_ONLY_FALLBACK)).toBeNull();
   });
 
   it('rejects unknown layout ids', () => {
@@ -77,6 +87,7 @@ describe('OCR layouts', () => {
   it('postprocess trims whitespace', () => {
     const messy = '  Mo 01 F  \n\n\n  Di 02 S  \r\n';
     expect(applyOcrLayoutPostprocess('list-protocol', messy)).toBe('Mo 01 F\n\nDi 02 S');
+    expect(applyOcrLayoutPostprocess(OCR_TEXT_ONLY_FALLBACK, messy)).toBe('Mo 01 F\n\nDi 02 S');
   });
 });
 
@@ -106,12 +117,50 @@ describe('detectOcrLayout', () => {
     expect(det.layoutId).toBe('list-protocol');
   });
 
-  it('falls back to raw-review when structure is unclear', () => {
+  it('falls back to text-only when structure is unclear', () => {
     const det = detectOcrLayout({
       text: 'hello world\nnothing useful',
       lines: [],
       pageWidth: 800,
     });
-    expect(det.layoutId).toBe('raw-review');
+    expect(det.layoutId).toBe(OCR_TEXT_ONLY_FALLBACK);
+  });
+
+  it('scores month-matrix from day×name hints even when full grid would be weak', () => {
+    // Sparse geometry: enough MoN headers + left names + codes — no need for a perfect grid.
+    const pageWidth = 1200;
+    const lines: OcrLine[] = [];
+    for (let i = 0; i < 14; i++) {
+      const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][i % 7];
+      lines.push(L(`${wd}${i + 1}`, 180 + i * 55, 20, 36));
+    }
+    const people = ['Nordmann', 'Suedmann', 'Westmann', 'Ostmann', 'Bergmann'];
+    people.forEach((name, r) => {
+      lines.push(L(name, 12, 70 + r * 40, 70));
+      for (let i = 0; i < 14; i++) {
+        lines.push(L(i % 2 ? 'F' : 'U', 180 + i * 55, 74 + r * 40, 14));
+      }
+    });
+    const det = detectOcrLayout({
+      text: lines.map((l) => l.text).join('\n'),
+      lines,
+      pageWidth,
+    });
+    expect(det.scores['month-matrix']).toBeGreaterThanOrEqual(0.42);
+    expect(det.layoutId).toBe('month-matrix');
+  });
+
+  it('scores day-plan for a single-day board with many clocks', () => {
+    const text = [
+      'Tagesplan 12.03.2026',
+      'OP1 07:00-15:30 Mueller',
+      'OP2 07:15-15:45 Schmidt',
+      'OP3 08:00-16:00 Weber',
+      'OP4 08:30-16:30 Fischer',
+      'OP5 09:00-17:00 Becker',
+    ].join('\n');
+    const det = detectOcrLayout({ text, lines: [], pageWidth: 1000 });
+    expect(det.scores['day-plan']).toBeGreaterThan(0.4);
+    expect(det.layoutId).toBe('day-plan');
   });
 });

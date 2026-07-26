@@ -54,6 +54,8 @@ export function splitGluedDayHeaderText(text: string): string[] {
   if (t.length === 1 && WD_STUB[t.toUpperCase()]) return [WD_STUB[t.toUpperCase()]];
   if (WD_RE.test(t)) return [`${t[0].toUpperCase()}${t.slice(1).toLowerCase()}`];
   if (looksLikeDayHeader(t) || looksLikeDayNumber(t)) return [];
+  // Keep calendar years intact — "2025" must not become day crumbs 20+25.
+  if (/^20\d{2}$/.test(t)) return [];
 
   const out: string[] = [];
   let i = 0;
@@ -104,10 +106,7 @@ export function expandGluedDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
       out.push({ text: `So${o2[1]}`, boundingBox: { ...l.boundingBox } });
       continue;
     }
-    if (raw.length === 1 && WD_STUB[raw.toUpperCase()]) {
-      out.push({ text: WD_STUB[raw.toUpperCase()], boundingBox: { ...l.boundingBox } });
-      continue;
-    }
+    // Do not rewrite single-letter stubs (F/D/M/S) — those are often duty codes in the body.
     const parts = splitGluedDayHeaderText(l.text);
     if (parts.length < 2) {
       out.push(l);
@@ -148,7 +147,7 @@ export function mergeSplitDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
   const maxDx = Math.max(36, medH * 5);
   const maxDy = Math.max(10, medH * 1.35);
 
-  type Pair = { wi: number; di: number; score: number };
+  type Pair = { wi: number; di: number; score: number; asDay1?: boolean };
   const pairs: Pair[] = [];
   for (let di = 0; di < sorted.length; di++) {
     const b = sorted[di];
@@ -164,8 +163,8 @@ export function mergeSplitDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
       const dx = b.boundingBox.x - aRight;
       if (dx < -medH || dx > maxDx) continue;
       const digit = cleanCell(b.text);
-      // Reject Sa+"11" when So2 sits just to the right (OCR doubled the 1).
-      if (
+      // Sa+"11" next to So2 is OCR doubling the stem of day 1 — bind as Sa1, not Sa11.
+      const forceDay1 =
         /^(Sa|So)$/i.test(cleanCell(a.text)) &&
         digit === '11' &&
         sorted.some(
@@ -175,12 +174,9 @@ export function mergeSplitDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
             /^(So2|o2)$/i.test(cleanCell(o.text).replace(/\s+/g, '')) &&
             xCenter(o) > xCenter(b) &&
             xCenter(o) - xCenter(b) < maxDx * 2.5
-        )
-      ) {
-        continue;
-      }
+        );
       const score = Math.abs(Math.max(dx, 0)) * 3 + dy;
-      if (!best || score < best.score) best = { wi, di, score };
+      if (!best || score < best.score) best = { wi, di, score, asDay1: forceDay1 || undefined };
     }
     if (best) pairs.push(best);
   }
@@ -215,8 +211,9 @@ export function mergeSplitDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
       };
       const wdRaw = cleanCell(a.text).slice(0, 2);
       const wd = `${wdRaw[0].toUpperCase()}${wdRaw.slice(1).toLowerCase()}`;
+      const dayNum = p.asDay1 ? '1' : cleanCell(b.text);
       out.push({
-        text: `${wd}${cleanCell(b.text)}`,
+        text: `${wd}${dayNum}`,
         boundingBox: box,
       });
       continue;
@@ -258,6 +255,17 @@ export function fillCalendarDayGaps(
 
   if (cols[0]?.wd === 'Sa' && cols[0].day == null && cols[1]?.day === 2) {
     cols[0] = { ...cols[0], day: 1, label: 'Sa1' };
+  }
+
+  // Leading Saturday missing entirely (OCR dropped Sa1) while calendar starts at So2.
+  if (cols[0]?.day === 2 && cols[0]?.wd === 'So') {
+    const gap =
+      cols.length >= 2 && cols[1].x > cols[0].x
+        ? cols[1].x - cols[0].x
+        : cols.length >= 2
+          ? Math.abs(cols[1].x - cols[0].x) || 40
+          : 40;
+    cols.unshift({ x: cols[0].x - gap, day: 1, wd: 'Sa', label: 'Sa1' });
   }
 
   const out: Col[] = [];
@@ -310,6 +318,8 @@ export function fillCalendarDayGaps(
 
 /**
  * Day columns from the header strip only (not body shift cells).
+ * Prefer weekday+day labels; if OCR drops weekdays, recover from day-numbers
+ * (+ optional month/year in the OCR for calendar weekday names).
  */
 export function collectDayColumns(
   lines: OcrLine[],
@@ -322,7 +332,7 @@ export function collectDayColumns(
       (looksLikeDayHeader(l.text) || looksLikeWeekdayOnly(l.text))
   );
   if (weekdays.length < 2) {
-    return { centers: [], headers: [] };
+    return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
   }
 
   const ys = weekdays.map((l) => yCenter(l)).sort((a, b) => a - b);
@@ -370,7 +380,7 @@ export function collectDayColumns(
   ].sort((a, b) => a.x - b.x);
 
   if (anchors.length < 3) {
-    return { centers: [], headers: [] };
+    return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
   }
 
   const labeledXs = anchors
@@ -407,16 +417,175 @@ export function collectDayColumns(
   return fillCalendarDayGaps(centers, headers);
 }
 
+/** Parse "März 2025" / "March 2025" / "02/2026" style cues from OCR. */
+export function detectMonthYearFromOcr(
+  lines: OcrLine[]
+): { year: number; month: number } | null {
+  const blob = lines
+    .map((l) => cleanCell(l.text))
+    .filter(Boolean)
+    .join(' ');
+  const months: Record<string, number> = {
+    jan: 1,
+    januar: 1,
+    january: 1,
+    feb: 2,
+    februar: 2,
+    february: 2,
+    mär: 3,
+    maer: 3,
+    marz: 3,
+    märz: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    mai: 5,
+    may: 5,
+    jun: 6,
+    juni: 6,
+    june: 6,
+    jul: 7,
+    juli: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    okt: 10,
+    oct: 10,
+    oktober: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dez: 12,
+    dec: 12,
+    dezember: 12,
+    december: 12,
+  };
+  const lower = blob.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  let month: number | null = null;
+  for (const [k, v] of Object.entries(months)) {
+    if (new RegExp(`(^|[^a-z])${k}([^a-z]|$)`, 'i').test(lower)) {
+      month = v;
+      break;
+    }
+  }
+  const y = blob.match(/(20\d{2})/);
+  if (!month || !y) return null;
+  const year = Number(y[1]);
+  if (year < 2000 || year > 2100) return null;
+  return { year, month };
+}
+
+function germanWeekdayForDate(year: number, month: number, day: number): string {
+  // JS: 0=Sun … 6=Sat → German roster labels
+  const map = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
+  return map[new Date(year, month - 1, day).getDay()];
+}
+
+/**
+ * When weekday glyphs are unreadable, recover columns from a row of day numbers.
+ */
+export function collectDayColumnsFromDayNumbers(
+  lines: OcrLine[],
+  pageWidth: number,
+  nameMaxX: number
+): { centers: number[]; headers: string[] } {
+  const nums = lines.filter(
+    (l) => xCenter(l) >= nameMaxX * 0.55 && looksLikeDayNumber(l.text)
+  );
+  if (nums.length < 8) return { centers: [], headers: [] };
+
+  const ys = nums.map((l) => yCenter(l)).sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let i = 1; i < ys.length; i++) gaps.push(ys[i] - ys[i - 1]);
+  const bandGap = Math.max(10, median(gaps.filter((g) => g > 0 && g < 60)) || 14);
+  const yBands = clusterSorted(
+    nums.map((l) => ({ v: yCenter(l), item: l })),
+    bandGap * 1.15
+  );
+  // Prefer the band with the most unique calendar days (header strip).
+  let best = yBands[0] || [];
+  let bestScore = -1;
+  for (const g of yBands) {
+    const uniq = new Set(g.map((l) => Number(cleanCell(l.text))));
+    const score = uniq.size * 10 + g.length;
+    if (score > bestScore) {
+      bestScore = score;
+      best = g;
+    }
+  }
+  const uniqDays = new Set(best.map((l) => Number(cleanCell(l.text))));
+  if (uniqDays.size < 8) return { centers: [], headers: [] };
+
+  const sorted = best
+    .slice()
+    .sort((a, b) => xCenter(a) - xCenter(b) || Number(cleanCell(a.text)) - Number(cleanCell(b.text)));
+  const colGap = Math.max(8, pageWidth / 40);
+  const groups: OcrLine[][] = [];
+  for (const l of sorted) {
+    const last = groups[groups.length - 1];
+    const day = Number(cleanCell(l.text));
+    if (
+      last &&
+      xCenter(l) - xCenter(last[last.length - 1]) <= colGap &&
+      Number(cleanCell(last[0].text)) === day
+    ) {
+      last.push(l);
+    } else if (last && xCenter(l) - xCenter(last[last.length - 1]) <= colGap * 0.45) {
+      // same column, prefer keeping first
+      continue;
+    } else {
+      groups.push([l]);
+    }
+  }
+
+  // Deduplicate by day number keeping left-to-right first occurrence of each day in order
+  const seen = new Set<number>();
+  const cols: { x: number; day: number }[] = [];
+  for (const g of groups) {
+    const day = Number(cleanCell(g[0].text));
+    if (seen.has(day)) continue;
+    // Prefer ascending calendar order; allow OCR reorder noise
+    seen.add(day);
+    cols.push({
+      x: g.reduce((s, l) => s + xCenter(l), 0) / g.length,
+      day,
+    });
+  }
+  cols.sort((a, b) => a.x - b.x);
+  if (cols.length < 8) return { centers: [], headers: [] };
+
+  const cal = detectMonthYearFromOcr(lines);
+  const centers = cols.map((c) => c.x);
+  const headers = cols.map((c) => {
+    if (cal) {
+      const wd = germanWeekdayForDate(cal.year, cal.month, c.day);
+      return `${wd}${c.day}`;
+    }
+    return String(c.day);
+  });
+  return fillCalendarDayGaps(centers, headers);
+}
+
 /**
  * Left edge of the day grid = just left of the leftmost day-header token.
  */
 export function inferNameMaxX(lines: OcrLine[], pageWidth: number): number {
   const fallback = pageWidth * 0.22;
   const dayHeaders = lines.filter(
-    (l) => looksLikeDayHeader(l.text) || looksLikeWeekdayOnly(l.text)
+    (l) =>
+      looksLikeDayHeader(l.text) ||
+      looksLikeWeekdayOnly(l.text) ||
+      looksLikeDayNumber(l.text)
   );
   if (dayHeaders.length >= 2) {
-    const leftmost = Math.min(...dayHeaders.map((l) => l.boundingBox.x));
+    // Prefer tokens in the upper third (header strip) when using bare day numbers.
+    const pageH = Math.max(...lines.map((l) => l.boundingBox.y + l.boundingBox.height), 1);
+    const top = dayHeaders.filter((l) => yCenter(l) < pageH * 0.35);
+    const use = top.length >= 5 ? top : dayHeaders;
+    const leftmost = Math.min(...use.map((l) => l.boundingBox.x));
     return Math.max(pageWidth * 0.08, leftmost - 8);
   }
   return fallback;

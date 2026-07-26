@@ -58,5 +58,7 @@ export type MappingValue =
 
 export type HospitalMapping = {
   colors?: Record<string, string>;
+  /** Alternate printed codes → canonical pack code (e.g. synonym labels). */
+  codeAliases?: Record<string, string>;
   presets?: Record<string, Record<string, MappingValue>>;
 };

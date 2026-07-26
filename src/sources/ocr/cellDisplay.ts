@@ -51,7 +51,7 @@ export function formatOcrCellForDisplay(
 
   if (mode === 'codes') return asCode || '';
   if (mode === 'times') return asTime || '';
-  // both: prefer "F" or "F·07:35-15:50" when pack knows the time
+  // both: code·time when the pack resolves both
   if (asCode && asTime) return `${asCode}·${asTime}`;
   return asCode || asTime || '';
 }

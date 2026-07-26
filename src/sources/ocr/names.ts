@@ -54,10 +54,7 @@ export function isPlausiblePersonName(label: string): boolean {
   // Day header strip / weekday mash ("SA 1 So 2 Mo 3 …")
   if (/(Mo|Di|Mi|Do|Fr|Sa|So)\s*\d{1,2}/i.test(t) && t.length > 12) return false;
   if (/^(Mo|Di|Mi|Do|Fr|Sa|So)[\s\d]*$/i.test(t)) return false;
-  if (/telefon|stationsleitung|fkt\.?dienst|objekt|februar|anästhesie/i.test(t)) {
-    return false;
-  }
-  // Prefer "Last, First" or two capitalized tokens
+  // Prefer "Last, First" or two capitalized name tokens
   if (NAME_ONLY_RE.test(t)) return true;
   if (
     /^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{1,30},\s*(?:Dr\.?\s*)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-'\s]{1,40}$/.test(
@@ -71,7 +68,7 @@ export function isPlausiblePersonName(label: string): boolean {
   ) {
     return true;
   }
-  // Abbreviated last name: "Nordm., Alice"
+  // Abbreviated last name with period before comma
   if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{1,20}\.,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,30}$/.test(t)) {
     return true;
   }
@@ -136,7 +133,7 @@ export function detectRosterNames(
       }
     }
 
-    // 2) Dense matrix: "Last, First F 07:35 …" on one OCR line.
+    // 2) Dense matrix: name prefix then shift tokens on one OCR line.
     const prefix = cleaned.match(NAME_PREFIX_RE);
     if (prefix) {
       const label = formatName(prefix[1], prefix[2]);

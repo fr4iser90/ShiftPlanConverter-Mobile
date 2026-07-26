@@ -20,8 +20,9 @@ function clean(t: string): string {
 
 function isWeekdayish(text: string): boolean {
   const t = clean(text);
-  if (/^(MO|ST|OP|FT|RU)$/.test(t)) return false;
-  return /^(Mo|Di|Mi|Do|Fr|Sa|So)(\d{1,2})?$/i.test(t);
+  if (/^(Mo|Di|Mi|Do|Fr|Sa|So)\d{1,2}$/i.test(t)) return true;
+  // Bare weekday: Title Case only — all-caps short tokens are duty codes, not headers.
+  return /^(Mo|Di|Mi|Do|Fr|Sa|So)$/.test(t);
 }
 
 function median(nums: number[]): number {
@@ -91,7 +92,6 @@ export function focusLinesOnMonthTable(
     if (xCenter(l) > w * 0.32) return false;
     const t = clean(l.text);
     if (t.length < 3 || /\d/.test(t)) return false;
-    if (/telefon|stationsleitung|fkt|februar|anästhesie|objekt/i.test(t)) return false;
     if (!/^[A-Za-zÄÖÜäöüß]/.test(t)) return false;
     return yCenter(l) > bandY + 10;
   });
@@ -135,8 +135,18 @@ export function focusLinesOnMonthTable(
     const xc = xCenter(l);
     if (yc < yTop || yc > yMax) return false;
     if (xc < xLeft - 4 || xc > xRight + 4) return false;
-    // Drop remaining mega title glyphs inside the band
-    if (/^februar$/i.test(clean(l.text)) && l.boundingBox.height > 40) return false;
+    // Drop remaining mega title glyphs inside the band (tall letter-only banners).
+    {
+      const tt = clean(l.text);
+      if (
+        l.boundingBox.height > 40 &&
+        tt.length >= 5 &&
+        !/\d/.test(tt) &&
+        /^[A-Za-zÄÖÜäöüß]+$/i.test(tt)
+      ) {
+        return false;
+      }
+    }
     return true;
   });
 
