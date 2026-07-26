@@ -23,12 +23,11 @@ There is **no** Fr4iser server holding your password or schedule.
 
 Under **Settings → Setup** (or on first launch):
 
-1. **Tenant URL** — your facility’s LOGA3 address (often in a browser bookmark).
-2. **Username / password** — same as in the browser; stored locally in the Secure Store.
-3. **Employer / pack** — e.g. St. Elisabeth · anaesthesia. Wrong pack → wrong codes or times.
-4. **Google** — optional; you can add it later under Export.
+1. **Employer / pack** — e.g. St. Elisabeth · anaesthesia. Wrong pack → wrong codes or times. **Required.**
+2. **LOGA3** (optional) — tenant URL + login, only for portal fetch. Skip for file import / OCR.
+3. **Google** — optional; you can add it later under Export.
 
-**File import** only needs the employer pack. **LOGA3 fetch** also needs tenant URL and login.
+**File import / OCR** only need the employer pack. **LOGA3 fetch** also needs tenant URL and login.
 
 ---
 

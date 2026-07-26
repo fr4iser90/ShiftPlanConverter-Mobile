@@ -1,8 +1,8 @@
 import { ingestArtifacts } from '../ingest/ingestArtifacts';
 import type { AutomationCommand } from './loga3/automation';
 import type { AutomationBridge } from './webview/bridge';
-import { getPackById, getPreferredSourceId } from '../packs';
-import { loadActiveSourceId } from '../state/activeSource';
+import { getPackById } from '../packs';
+import { resolveActiveSourceId } from '../state/activeSource';
 import { getSnapshot } from '../state/store';
 import { requireSource } from './index';
 import type { SourceArtifact, SourceCredentials, SourcePeriod } from './types';
@@ -37,7 +37,7 @@ export async function runSourceAndIngest(
 ): Promise<RunSourceIngestResult> {
   const snap = getSnapshot();
   const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
-  const sourceId = opts.sourceId || (await loadActiveSourceId(getPreferredSourceId(pack)));
+  const sourceId = opts.sourceId || (await resolveActiveSourceId(pack));
   const source = requireSource(sourceId);
 
   if (source.needsCredentials && (!opts.credentials?.username || !opts.credentials?.password)) {
@@ -100,5 +100,5 @@ export async function runSourceAndIngest(
 export async function resolveDefaultSourceId(): Promise<string> {
   const snap = getSnapshot();
   const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
-  return loadActiveSourceId(getPreferredSourceId(pack));
+  return resolveActiveSourceId(pack);
 }

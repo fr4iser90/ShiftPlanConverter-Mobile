@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +27,8 @@ import {
   setGoogleCalendarId,
   subscribe,
 } from '@/src/state/store';
+import { getPackById, isSourceSupportedByPack } from '@/src/packs';
+import { saveActiveSourceId } from '@/src/state/activeSource';
 import { WorkplacePicker } from '@/src/ui/WorkplacePicker';
 import { getSetupStatus } from '@/src/setup/status';
 import {
@@ -46,7 +47,26 @@ import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
 import { theme } from '@/src/ui/theme';
 
-type Step = 0 | 1 | 2 | 3;
+/** 0 = workplace (required) · 1 = LOGA3 (optional) · 2 = Google (optional) */
+type Step = 0 | 1 | 2;
+
+async function preferNonLoga3Source(hospitalId: string | null | undefined): Promise<void> {
+  const pack = hospitalId ? getPackById(hospitalId) : null;
+  if (isSourceSupportedByPack(pack, 'local-files')) {
+    await saveActiveSourceId('local-files');
+    return;
+  }
+  if (isSourceSupportedByPack(pack, 'camera-ocr')) {
+    await saveActiveSourceId('camera-ocr');
+  }
+}
+
+async function preferLoga3Source(hospitalId: string | null | undefined): Promise<void> {
+  const pack = hospitalId ? getPackById(hospitalId) : null;
+  if (isSourceSupportedByPack(pack, 'loga3-webview')) {
+    await saveActiveSourceId('loga3-webview');
+  }
+}
 
 export default function SetupScreen() {
   const [, setTick] = useState(0);
@@ -102,10 +122,9 @@ export default function SetupScreen() {
     }
     await hydrateGoogleUi();
     const st = await getSetupStatus();
-    if (!st.urlOk) setStep(0);
-    else if (!st.credentialsOk) setStep(1);
-    else if (!st.workplaceOk) setStep(2);
-    else setStep(3);
+    if (!st.workplaceOk) setStep(0);
+    else if (!st.loga3Ready) setStep(1);
+    else setStep(2);
   }, [hydrateGoogleUi]);
 
   useFocusEffect(
@@ -114,10 +133,22 @@ export default function SetupScreen() {
     }, [hydrateFields])
   );
 
-  const saveStepUrl = async () => {
+  const goLoga3Step = () => {
+    if (!isWorkplaceConfigured(snap)) {
+      Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
+      return;
+    }
+    setStep(1);
+  };
+
+  const saveLoga3AndContinue = async () => {
     const next = url.trim();
     if (!isValidLoga3BaseUrl(next)) {
       Alert.alert(t('setupTenant'), t('setupUrlInvalid'));
+      return;
+    }
+    if (!username.trim() || !password) {
+      Alert.alert(t('loginTitle'), t('setupLoginRequired'));
       return;
     }
     try {
@@ -126,24 +157,18 @@ export default function SetupScreen() {
       Alert.alert(t('setupTenant'), t('setupUrlInvalid'));
       return;
     }
-    setStep(1);
-  };
-
-  const saveStepLogin = async () => {
-    if (!username.trim() || !password) {
-      Alert.alert(t('loginTitle'), t('setupLoginRequired'));
-      return;
-    }
     await saveCredentials({ username: username.trim(), password });
+    await preferLoga3Source(snap.hospitalId);
     setStep(2);
   };
 
-  const goGoogleStep = () => {
+  const skipLoga3 = async () => {
     if (!isWorkplaceConfigured(snap)) {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    setStep(3);
+    await preferNonLoga3Source(snap.hospitalId);
+    setStep(2);
   };
 
   const onGoogleConnect = async () => {
@@ -172,8 +197,8 @@ export default function SetupScreen() {
       return;
     }
     const st = await getSetupStatus();
-    if (!st.complete) {
-      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+    if (!st.workplaceReady) {
+      Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
       return;
     }
     if (calendarId) await setGoogleCalendarId(calendarId);
@@ -185,19 +210,31 @@ export default function SetupScreen() {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled">
+      keyboardShouldPersistTaps="handled"
+    >
       <ScreenTitle>{t('setupTitle')}</ScreenTitle>
       <Meta>{t('setupIntro')}</Meta>
 
       <View style={styles.steps}>
-        <StepDot n={1} active={step === 0} done={step > 0} label={t('setupStepUrl')} />
-        <StepDot n={2} active={step === 1} done={step > 1} label={t('setupStepLogin')} />
-        <StepDot n={3} active={step === 2} done={step > 2} label={t('setupStepWorkplace')} />
-        <StepDot n={4} active={step === 3} done={false} label={t('setupStepGoogle')} />
+        <StepDot n={1} active={step === 0} done={step > 0} label={t('setupStepWorkplace')} />
+        <StepDot n={2} active={step === 1} done={step > 1} label={t('setupStepLoga3')} />
+        <StepDot n={3} active={step === 2} done={false} label={t('setupStepGoogle')} />
       </View>
 
       {step === 0 && (
         <AppCard>
+          <SectionTitle>{t('setupWorkplace')}</SectionTitle>
+          <Meta>{t('workplaceHint')}</Meta>
+          <WorkplacePicker />
+          <AppButton title={t('setupNext')} onPress={goLoga3Step} />
+        </AppCard>
+      )}
+
+      {step === 1 && (
+        <AppCard>
+          <SectionTitle>{t('setupLoga3OptionalTitle')}</SectionTitle>
+          <Text style={styles.optional}>{t('setupLoga3Optional')}</Text>
+          <Meta>{t('setupLoga3OptionalHint')}</Meta>
           <SectionTitle>{t('setupTenant')}</SectionTitle>
           <Meta>{t('setupTenantHint')}</Meta>
           <TextInput
@@ -209,12 +246,6 @@ export default function SetupScreen() {
             placeholder="https://…/loga3/#"
             placeholderTextColor={theme.color.inkFaint}
           />
-          <AppButton title={t('setupNext')} onPress={() => void saveStepUrl()} />
-        </AppCard>
-      )}
-
-      {step === 1 && (
-        <AppCard>
           <SectionTitle>{t('setupStepLogin')}</SectionTitle>
           <Meta>{t('setupLoginHint')}</Meta>
           <TextInput
@@ -235,25 +266,28 @@ export default function SetupScreen() {
             onChangeText={setPassword}
           />
           <View style={styles.row}>
-            <AppButton title={t('setupBack')} variant="secondary" onPress={() => setStep(0)} style={styles.flexBtn} />
-            <AppButton title={t('setupNext')} onPress={() => void saveStepLogin()} style={styles.flexBtn} />
+            <AppButton
+              title={t('setupBack')}
+              variant="secondary"
+              onPress={() => setStep(0)}
+              style={styles.flexBtn}
+            />
+            <AppButton
+              title={t('setupSkip')}
+              variant="ghost"
+              onPress={() => void skipLoga3()}
+              style={styles.flexBtn}
+            />
+            <AppButton
+              title={t('setupNext')}
+              onPress={() => void saveLoga3AndContinue()}
+              style={styles.flexBtn}
+            />
           </View>
         </AppCard>
       )}
 
       {step === 2 && (
-        <AppCard>
-          <SectionTitle>{t('setupWorkplace')}</SectionTitle>
-          <Meta>{t('workplaceHint')}</Meta>
-          <WorkplacePicker />
-          <View style={styles.row}>
-            <AppButton title={t('setupBack')} variant="secondary" onPress={() => setStep(1)} style={styles.flexBtn} />
-            <AppButton title={t('setupNext')} onPress={goGoogleStep} style={styles.flexBtn} />
-          </View>
-        </AppCard>
-      )}
-
-      {step === 3 && (
         <AppCard>
           <SectionTitle>{t('setupGoogle')}</SectionTitle>
           <Meta>{t('setupGoogleHint')}</Meta>
@@ -289,8 +323,18 @@ export default function SetupScreen() {
             />
           )}
           <View style={styles.row}>
-            <AppButton title={t('setupBack')} variant="secondary" onPress={() => setStep(2)} style={styles.flexBtn} />
-            <AppButton title={t('setupSkip')} variant="ghost" onPress={() => void finish()} style={styles.flexBtn} />
+            <AppButton
+              title={t('setupBack')}
+              variant="secondary"
+              onPress={() => setStep(1)}
+              style={styles.flexBtn}
+            />
+            <AppButton
+              title={t('setupSkip')}
+              variant="ghost"
+              onPress={() => void finish()}
+              style={styles.flexBtn}
+            />
             <AppButton title={t('setupFinish')} onPress={() => void finish()} style={styles.flexBtn} />
           </View>
         </AppCard>
@@ -368,5 +412,4 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.sm,
     fontSize: 12,
   },
-  calList: { gap: 6, marginTop: 4 },
 });

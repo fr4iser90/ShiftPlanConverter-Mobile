@@ -7,7 +7,7 @@ import {
   setLocale,
   setRichDetails,
   setThemePref,
-  subscribe,
+  subscribeKeys,
   type AppLocale,
   type ThemePref,
 } from '@/src/state/store';
@@ -32,7 +32,13 @@ export default function SettingsAppearanceScreen() {
   const [widgetPrefs, setWidgetPrefs] = useState<WidgetPrefs>(DEFAULT_WIDGET_PREFS);
   const snap = getSnapshot();
 
-  useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
+  useEffect(
+    () =>
+      subscribeKeys(['locale', 'themePref', 'richDetails', 'entries'], () =>
+        setTick((n) => n + 1)
+      ),
+    []
+  );
   useEffect(() => {
     void loadWidgetPrefs().then(setWidgetPrefs);
   }, []);

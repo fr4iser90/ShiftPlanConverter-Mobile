@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,17 +20,19 @@ import { Loga3WebView } from '@/src/sources/loga3/Loga3WebView';
 import type { AutomationCommand, AutomationMessage } from '@/src/sources/loga3/automation';
 import { AutomationBridge } from '@/src/sources/webview/bridge';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
-import { getMappingForScope } from '@/src/packs';
+import { getMappingForScope, getPackById, isSourceSupportedByPack } from '@/src/packs';
 import { ingestArtifacts } from '@/src/ingest/ingestArtifacts';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
-import { getGoogleCalendarId, getSnapshot, subscribe } from '@/src/state/store';
+import { getGoogleCalendarId, getSnapshot, subscribeKeys } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   takeSmokeFetchIntent,
   peekSmokeFetchIntent,
   setMatrixStatus,
 } from '@/src/setup/smokeFetchIntent';
-import { loadActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
+import { takeOcrSmokeIntent, peekOcrSmokeIntent } from '@/src/setup/ocrSmokeIntent';
+import { resolveActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
+import { loadOcrLayoutId, saveOcrLayoutId } from '@/src/state/ocrLayout';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '@/src/state/quickPrefs';
 import {
   getLastSuccessfulFetchAt,
@@ -38,13 +41,36 @@ import {
 } from '@/src/schedule/prefs';
 import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
-import { listSources } from '@/src/sources';
+import { listSourcesForPack } from '@/src/sources';
+import { runCameraOcr } from '@/src/sources/cameraOcr';
+import {
+  captureOcrImage,
+  consumeOcrPickerLaunchPending,
+  isDocumentScannerAvailable,
+  noteOcrPickerLaunch,
+  takePendingOcrImageUri,
+  type OcrCaptureMode,
+} from '@/src/sources/ocr/capture';
+import {
+  DEFAULT_OCR_LAYOUT_ID,
+  listOcrLayouts,
+  type OcrLayoutId,
+} from '@/src/sources/ocr/layouts';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
+import {
+  loadOcrPreferredName,
+  saveOcrPreferredName,
+} from '@/src/state/ocrPreferredName';
+import { rememberOcrNameAlias } from '@/src/state/ocrNameAliases';
+import { resolveConfirmedRosterLabel } from '@/src/sources/ocr/names';
+import { OcrCompareReview } from '@/src/ui/OcrCompareReview';
 import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { openErrorReportMail } from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { OcrNamePickerModal } from '@/src/ui/OcrNamePickerModal';
 import { Screen } from '@/src/ui/Screen';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
@@ -167,6 +193,12 @@ function makeFetchStyles(theme: AppTheme) {
       color: theme.color.ink,
       fontSize: 15,
     },
+    ocrTextArea: {
+      minHeight: 160,
+      fontFamily: 'monospace',
+      fontSize: 13,
+      lineHeight: 18,
+    },
     statusBar: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -181,6 +213,9 @@ function makeFetchStyles(theme: AppTheme) {
     statusBarBusy: {
       backgroundColor: theme.color.primaryTint,
       borderColor: theme.color.cardAccentBorder,
+    },
+    fetchFormBusy: {
+      opacity: 0.45,
     },
     statusText: {
       flex: 1,
@@ -247,6 +282,13 @@ export default function FetchScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [status, setStatus] = useState(t('statusReady'));
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
+  const ocrCaptureInFlightRef = useRef(false);
+  /** True while gallery/camera picker is open (for Android pending-result recovery). */
+  const ocrPickerAwaitingRef = useRef(false);
+  /** Survives only while JS lives; set when we open picker so AppState does not probe on cold start. */
+  const ocrExpectPendingRef = useRef(false);
   const [webReady, setWebReady] = useState(false);
   const [webLayoutW, setWebLayoutW] = useState(windowWidth);
   const [selected, setSelected] = useState<YearMonth[]>(() =>
@@ -256,14 +298,39 @@ export default function FetchScreen() {
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
   const [activeSourceId, setActiveSourceId] = useState('loga3-webview');
   const [googleConfigured, setGoogleConfigured] = useState(false);
-  const sources = useMemo(() => listSources(), []);
+  const isLoga3Source = activeSourceId === 'loga3-webview';
   const isLocalSource = activeSourceId === 'local-files';
+  const isCameraOcrSource = activeSourceId === 'camera-ocr';
+  const [ocrText, setOcrText] = useState('');
+  const [ocrMatrix, setOcrMatrix] = useState<MonthMatrixGrid | null>(null);
+  const [ocrImageUri, setOcrImageUri] = useState<string | null>(null);
+  const [ocrMatchedName, setOcrMatchedName] = useState<string | null>(null);
+  const [ocrSettingsName, setOcrSettingsName] = useState<string | null>(null);
+  const [ocrRowCandidates, setOcrRowCandidates] = useState<
+    { id: string; label: string; yCenter: number; height: number }[]
+  >([]);
+  const [ocrLayoutId, setOcrLayoutId] = useState<OcrLayoutId>(DEFAULT_OCR_LAYOUT_ID);
+  const ocrLayouts = useMemo(() => listOcrLayouts(), []);
+  const [ocrNamePick, setOcrNamePick] = useState<{
+    candidates: { id: string; label: string; yCenter: number; height: number }[];
+    suggestedId?: string | null;
+    preferredLabel?: string | null;
+  } | null>(null);
+  const ocrNameResolverRef = useRef<((result: { id: string; label: string } | null) => void) | null>(
+    null
+  );
+  const scannerAvailable = useMemo(() => isDocumentScannerAvailable(), []);
   const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void }>(null);
   const bridgeRef = useRef(new AutomationBridge());
   const readyRef = useRef(false);
   const schedulePromptedRef = useRef(false);
   const seededWindowRef = useRef(false);
   const snap = getSnapshot();
+  const pack = useMemo(
+    () => (snap.hospitalId ? getPackById(snap.hospitalId) : null),
+    [snap.hospitalId]
+  );
+  const sources = useMemo(() => listSourcesForPack(pack), [pack]);
 
   useEffect(() => {
     setWebLayoutW(windowWidth);
@@ -289,10 +356,18 @@ export default function FetchScreen() {
 
   const webHostWidth = webLayoutW > 0 ? webLayoutW : windowWidth;
 
-  useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
   useEffect(() => {
-    readyRef.current = webReady;
-  }, [webReady]);
+    return subscribeKeys(
+      ['entries', 'locale', 'themePref', 'hospitalId', 'groupId', 'areaId', 'preset', 'summary'],
+      () => setTick((n) => n + 1)
+    );
+  }, []);
+  useEffect(() => {
+    if (!isLoga3Source) {
+      setWebReady(false);
+      readyRef.current = false;
+    }
+  }, [isLoga3Source]);
 
   const refreshSetup = useCallback(async () => {
     const st = await getSetupStatus();
@@ -306,6 +381,8 @@ export default function FetchScreen() {
       setYear(new Date().getFullYear());
     }
     setGoogleConfigured(!!(await getGoogleCalendarId()));
+    setOcrLayoutId(await loadOcrLayoutId());
+    setOcrSettingsName(await loadOcrPreferredName());
     if (st.credentialsOk) {
       setCreds(await loadCredentials());
     } else {
@@ -320,6 +397,7 @@ export default function FetchScreen() {
   const onPickSource = useCallback(
     async (id: string) => {
       if (busy || id === activeSourceId) return;
+      if (!isSourceSupportedByPack(pack, id)) return;
       setActiveSourceId(id);
       await saveActiveSourceId(id);
       const st = await getSetupStatus();
@@ -327,7 +405,16 @@ export default function FetchScreen() {
       if (st.credentialsOk) setCreds(await loadCredentials());
       else setCreds(null);
     },
-    [busy, activeSourceId]
+    [busy, activeSourceId, pack]
+  );
+
+  const onPickOcrLayout = useCallback(
+    async (id: OcrLayoutId) => {
+      if (busy || id === ocrLayoutId) return;
+      setOcrLayoutId(id);
+      await saveOcrLayoutId(id);
+    },
+    [busy, ocrLayoutId]
   );
 
   const applySettingsWindow = useCallback((prefs?: QuickUpdatePrefs | null) => {
@@ -433,6 +520,153 @@ export default function FetchScreen() {
       setBusy(false);
     }
   };
+
+  /** OCR: capture → name pick (auto if remembered) → text only (never ingest). */
+  const requestOcrName = useCallback(
+    (req: {
+      candidates: { id: string; label: string; yCenter: number; height: number }[];
+      suggestedId?: string | null;
+      preferredLabel?: string | null;
+    }) => {
+      return new Promise<{ id: string; label: string } | null>((resolve) => {
+        ocrNameResolverRef.current = resolve;
+        setOcrNamePick(req);
+      });
+    },
+    []
+  );
+
+  const finishOcrName = useCallback((result: { id: string; label: string } | null) => {
+    const resolve = ocrNameResolverRef.current;
+    ocrNameResolverRef.current = null;
+    setOcrNamePick(null);
+    resolve?.(result);
+  }, []);
+
+  const onCameraOcr = async (captureMode: OcrCaptureMode, imageUri?: string) => {
+    // One picker at a time — stacked taps left status stuck on “Galerie öffnen…”.
+    if (ocrCaptureInFlightRef.current) return;
+    ocrCaptureInFlightRef.current = true;
+
+    let captured = imageUri || null;
+    const smokeUri = !!imageUri;
+    try {
+      if (!captured) {
+        // CRITICAL (Android): open the system picker in the same user-gesture turn.
+        // Any await/setTimeout before launchImageLibraryAsync often means “nothing happens”.
+        ocrPickerAwaitingRef.current = true;
+        ocrExpectPendingRef.current = true;
+        noteOcrPickerLaunch();
+        try {
+          captured = await captureOcrImage(captureMode);
+          // Got a result in-process — no Activity-destroy recovery needed.
+          if (captured) {
+            ocrExpectPendingRef.current = false;
+            consumeOcrPickerLaunchPending();
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          setStatus(t('fjResultErrorLine', { msg }));
+          alertErrorWithReport(t('sourceCameraOcr'), msg, 'Camera OCR');
+          ocrExpectPendingRef.current = false;
+          consumeOcrPickerLaunchPending();
+          return;
+        } finally {
+          ocrPickerAwaitingRef.current = false;
+        }
+        if (!captured) {
+          setStatus(t('sourceLocalCancelled'));
+          return;
+        }
+        setStatus(
+          captureMode === 'gallery'
+            ? t('sourceOcrStatusGalleryPicked')
+            : t('sourceOcrStatusPreparing')
+        );
+      }
+
+      // Paint busy/gray UI BEFORE heavy prepare/OCR — otherwise JS work blocks the
+      // first frame and it looks like ~5s of “nothing” after picking a photo.
+      setBusy(true);
+      setStatus(t('sourceOcrStatusPreparing'));
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      try {
+        const result = await runCameraOcr({
+          captureMode,
+          imageUri: captured,
+          layoutId: ocrLayoutId,
+          pickRosterName: requestOcrName,
+          onStatus: (p) => setStatus(p.line),
+        });
+        if (!result.artifacts.length && !result.errors.length) {
+          setStatus(t('sourceLocalCancelled'));
+          return;
+        }
+        if (result.errors.length && !result.artifacts.length) {
+          const msg = result.errors.join(' · ');
+          setStatus(msg);
+          if (!(smokeUri && /EACCES|Permission denied/i.test(msg))) {
+            Alert.alert(t('sourceCameraOcr'), msg);
+          }
+          return;
+        }
+        const text =
+          result.artifacts.find((a) => a.kind === 'text' && 'text' in a)?.text || '';
+        setOcrText(text);
+        setOcrMatrix(result.matrix ?? null);
+        setOcrImageUri(result.imageUri ?? null);
+        setOcrMatchedName(result.selectedName ?? null);
+        setOcrSettingsName(await loadOcrPreferredName());
+        setOcrRowCandidates(
+          (result.matrix?.rows || []).map((r) => ({
+            id: r.name
+              .normalize('NFD')
+              .replace(/\p{M}/gu, '')
+              .toLowerCase()
+              .replace(/[^a-z0-9,]+/g, ' ')
+              .trim(),
+            label: r.name,
+            yCenter: r.yCenter,
+            height: 0,
+          }))
+        );
+        if (!text && !result.matrix) setStatus(t('sourceOcrEmpty'));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setStatus(t('fjResultErrorLine', { msg }));
+        if (!(smokeUri && /EACCES|Permission denied/i.test(msg))) {
+          alertErrorWithReport(t('sourceCameraOcr'), msg, 'Camera OCR');
+        }
+      } finally {
+        setBusy(false);
+      }
+    } finally {
+      ocrCaptureInFlightRef.current = false;
+      ocrPickerAwaitingRef.current = false;
+    }
+  };
+
+  // Android may destroy MainActivity after the photo picker — recover the chosen image once.
+  // Never probe ImagePicker on cold start (that crashed when opening from the launcher).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const fromRef = ocrExpectPendingRef.current;
+      ocrExpectPendingRef.current = false;
+      const fromMod = consumeOcrPickerLaunchPending();
+      if (!fromRef && !fromMod) return;
+      if (ocrCaptureInFlightRef.current) return;
+      void (async () => {
+        const uri = await takePendingOcrImageUri();
+        if (!uri || ocrCaptureInFlightRef.current) return;
+        void onCameraOcr('gallery', uri);
+      })();
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ocrLayoutId]);
 
   /** Phone: login only + dump live LOGA3 selectors (no export / no Zeitprotokoll clicks). */
   const onDumpLiveSelectors = async () => {
@@ -631,8 +865,8 @@ export default function FetchScreen() {
     useCallback(() => {
       void refreshSetup();
       void (async () => {
-        if (busy || schedulePromptedRef.current) return;
-        const active = await loadActiveSourceId('loga3-webview');
+        if (busyRef.current || schedulePromptedRef.current) return;
+        const active = await resolveActiveSourceId(pack);
         if (active !== 'loga3-webview') return;
         const prefs = await loadSchedulePrefs();
         if (!prefs.promptOnOpen || prefs.intervalDays <= 0) return;
@@ -649,18 +883,31 @@ export default function FetchScreen() {
           },
         ]);
       })();
-    }, [refreshSetup, busy, setup, creds, quickPrefs])
+      // Only on focus — do NOT re-run when setup/creds change (that re-pushed Setup and made it wobble).
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshSetup])
   );
 
-  // Emulator matrix: deep-link smoke sets months + autofetch (AsyncStorage, polled)
+  // Emulator matrix: deep-link smoke sets months + autofetch (poll only while intent exists)
   useEffect(() => {
     let cancelled = false;
     let started = false;
+    let iv: ReturnType<typeof setInterval> | null = null;
+
+    const stopPoll = () => {
+      if (iv) {
+        clearInterval(iv);
+        iv = null;
+      }
+    };
 
     const tryAutofetch = async () => {
-      if (cancelled || started || busy) return;
+      if (cancelled || started || busyRef.current) return;
       const pending = await peekSmokeFetchIntent();
-      if (!pending?.autofetch) return;
+      if (!pending?.autofetch) {
+        stopPoll();
+        return;
+      }
 
       // Smoke may land before setup hydrate — refresh until complete
       const st = await getSetupStatus();
@@ -674,8 +921,12 @@ export default function FetchScreen() {
       setCreds(c);
 
       const intent = await takeSmokeFetchIntent();
-      if (!intent?.autofetch) return;
+      if (!intent?.autofetch) {
+        stopPoll();
+        return;
+      }
       started = true;
+      stopPoll();
       setSelected(intent.months.map((m) => ({ month: m, year: intent.year })));
       setYear(intent.year);
       const months = intent.months;
@@ -727,14 +978,100 @@ export default function FetchScreen() {
       }
     };
 
-    void tryAutofetch();
-    const iv = setInterval(() => {
+    const armIfNeeded = async () => {
+      if (cancelled || started) return;
+      const pending = await peekSmokeFetchIntent();
+      if (!pending?.autofetch) return;
       void tryAutofetch();
-    }, 1500);
+      if (!iv) {
+        iv = setInterval(() => {
+          void tryAutofetch();
+        }, 1500);
+      }
+    };
+
+    void armIfNeeded();
+    // Late deep-link: short discovery window, then idle unless intent appeared
+    const discover = setInterval(() => {
+      void armIfNeeded();
+    }, 2000);
+    const discoverStop = setTimeout(() => clearInterval(discover), 12000);
     return () => {
       cancelled = true;
-      clearInterval(iv);
+      stopPoll();
+      clearInterval(discover);
+      clearTimeout(discoverStop);
     };
+  }, []);
+
+  // Dev/e2e: shiftplan://ocr-smoke?uri=file://… — poll only while an intent exists
+  useEffect(() => {
+    let cancelled = false;
+    let started = false;
+    let iv: ReturnType<typeof setInterval> | null = null;
+
+    const stopPoll = () => {
+      if (iv) {
+        clearInterval(iv);
+        iv = null;
+      }
+    };
+
+    const tryOcrSmoke = async () => {
+      if (cancelled || started || busyRef.current) return;
+      const pending = await peekOcrSmokeIntent();
+      if (!pending?.uri) {
+        stopPoll();
+        return;
+      }
+      const intent = await takeOcrSmokeIntent();
+      if (!intent?.uri) {
+        stopPoll();
+        return;
+      }
+      started = true;
+      stopPoll();
+      setActiveSourceId('camera-ocr');
+      void saveActiveSourceId('camera-ocr');
+      if (intent.layoutId) {
+        setOcrLayoutId(intent.layoutId as OcrLayoutId);
+        void saveOcrLayoutId(intent.layoutId);
+      }
+      try {
+        await onCameraOcr('gallery', intent.uri);
+      } catch (e) {
+        // Smoke paths must not spam the user with EACCES alerts on every reload.
+        const msg = e instanceof Error ? e.message : String(e);
+        // eslint-disable-next-line no-console
+        console.warn('[ocr-smoke] failed', msg);
+        setStatus(msg);
+      }
+    };
+
+    const armIfNeeded = async () => {
+      if (cancelled || started) return;
+      const pending = await peekOcrSmokeIntent();
+      if (!pending?.uri) return;
+      void tryOcrSmoke();
+      if (!iv) {
+        iv = setInterval(() => {
+          void tryOcrSmoke();
+        }, 1000);
+      }
+    };
+
+    void armIfNeeded();
+    const discover = setInterval(() => {
+      void armIfNeeded();
+    }, 1500);
+    const discoverStop = setTimeout(() => clearInterval(discover), 12000);
+    return () => {
+      cancelled = true;
+      stopPoll();
+      clearInterval(discover);
+      clearTimeout(discoverStop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!setup) {
@@ -796,8 +1133,11 @@ export default function FetchScreen() {
           </Text>
         </View>
 
-        {!busy ? (
-          <>
+        <View
+          pointerEvents={busy ? 'none' : 'auto'}
+          style={busy ? styles.fetchFormBusy : undefined}
+          accessibilityElementsHidden={busy}
+        >
             <AppCard accent>
               <SectionTitle>{t('sourcePick')}</SectionTitle>
               <View style={styles.monthGrid}>
@@ -808,7 +1148,9 @@ export default function FetchScreen() {
                       ? t('sourceLoga3')
                       : s.id === 'local-files'
                         ? t('sourceLocalFiles')
-                        : t(s.labelKey as 'sourceLoga3');
+                        : s.id === 'camera-ocr'
+                          ? t('sourceCameraOcr')
+                          : t(s.labelKey as 'sourceLoga3');
                   return (
                     <Pressable
                       key={s.id}
@@ -824,7 +1166,7 @@ export default function FetchScreen() {
                 })}
               </View>
 
-              {!isLocalSource ? (
+              {isLoga3Source ? (
                 <>
                   <SectionTitle>{t('selectMonths')}</SectionTitle>
                   <Meta>{t('fetchHint')}</Meta>
@@ -873,7 +1215,7 @@ export default function FetchScreen() {
                   />
                   {!setup.complete ? <Meta>{t('setupLoga3Hint')}</Meta> : null}
                 </>
-              ) : (
+              ) : isLocalSource ? (
                 <>
                   <Meta>{t('fetchHintLocal')}</Meta>
                   <AppButton
@@ -886,7 +1228,176 @@ export default function FetchScreen() {
                     <Meta>{t('setupIncompleteWorkplace')}</Meta>
                   ) : null}
                 </>
-              )}
+              ) : isCameraOcrSource ? (
+                <>
+                  <Meta>{t('sourceCameraOcrHint')}</Meta>
+                  <SectionTitle>{t('sourceCameraOcrLayout')}</SectionTitle>
+                  <View style={styles.monthGrid}>
+                    {ocrLayouts.map((layout) => {
+                      const on = ocrLayoutId === layout.id;
+                      return (
+                        <Pressable
+                          key={layout.id}
+                          disabled={busy}
+                          onPress={() => void onPickOcrLayout(layout.id)}
+                          style={[styles.sourceChip, on && styles.sourceChipOn]}
+                        >
+                          <Text style={[styles.sourceChipText, on && styles.sourceChipTextOn]}>
+                            {t(layout.labelKey as 'ocrLayoutRaw')}
+                            {layout.status === 'stub' ? ' · …' : ''}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Meta>
+                    {t(
+                      (ocrLayouts.find((l) => l.id === ocrLayoutId)?.hintKey ||
+                        'ocrLayoutRawHint') as 'ocrLayoutRawHint'
+                    )}
+                  </Meta>
+                  {ocrLayouts.find((l) => l.id === ocrLayoutId)?.status === 'stub' ? (
+                    <Meta>{t('sourceCameraOcrLayoutStub', { layout: ocrLayoutId })}</Meta>
+                  ) : null}
+                  <AppButton
+                    title={t('sourceCameraOcrGo')}
+                    onPress={() =>
+                      void onCameraOcr(scannerAvailable ? 'scan' : 'camera')
+                    }
+                    disabled={busy}
+                    busy={busy}
+                  />
+                  <AppButton
+                    title={t('sourceCameraOcrGoGallery')}
+                    variant="ghost"
+                    onPress={() => void onCameraOcr('gallery')}
+                    disabled={busy}
+                  />
+                  {!scannerAvailable ? <Meta>{t('sourceOcrScannerMissing')}</Meta> : null}
+                  <Meta>
+                    {ocrSettingsName
+                      ? t('sourceOcrSettingsName', { name: ocrSettingsName })
+                      : t('sourceOcrSettingsNameMissing')}
+                  </Meta>
+                  <AppButton
+                    title={t('sourceOcrOpenSettingsName')}
+                    variant="ghost"
+                    compact
+                    onPress={() => router.push('/(tabs)/settings/ocr' as Href)}
+                    disabled={busy}
+                  />
+                  {ocrMatrix || ocrText || ocrImageUri ? (
+                    <>
+                      <SectionTitle>{t('sourceCameraOcrResult')}</SectionTitle>
+                      {ocrMatrix || ocrImageUri ? (
+                        <OcrCompareReview
+                          imageUri={ocrImageUri}
+                          grid={ocrMatrix}
+                          matchedName={ocrMatchedName}
+                          title={
+                            ocrMatchedName && ocrMatrix
+                              ? t('sourceOcrMatrixTitleMine', {
+                                  name: ocrMatchedName,
+                                  people: ocrMatrix.rows.length,
+                                })
+                              : ocrMatrix
+                                ? t('sourceOcrMatrixTitleAll')
+                                : undefined
+                          }
+                        />
+                      ) : (
+                        <TextInput
+                          style={[styles.input, styles.ocrTextArea]}
+                          multiline
+                          editable={!busy}
+                          value={ocrText}
+                          onChangeText={setOcrText}
+                          textAlignVertical="top"
+                        />
+                      )}
+                      {ocrMatrix && ocrRowCandidates.length ? (
+                        <AppButton
+                          title={t('sourceOcrPickMyRow')}
+                          variant="ghost"
+                          compact
+                          onPress={() => {
+                            void (async () => {
+                              const preferred = await loadOcrPreferredName();
+                              const picked = await requestOcrName({
+                                candidates: ocrRowCandidates,
+                                suggestedId: null,
+                                preferredLabel: preferred,
+                              });
+                              if (!picked) return;
+                              const orig = ocrRowCandidates.find((c) => c.id === picked.id);
+                              const label = resolveConfirmedRosterLabel({
+                                preferred,
+                                ocrLabel: orig?.label || picked.label,
+                                pickedLabel: picked.label,
+                              });
+                              setOcrMatchedName(label);
+                              setOcrMatrix((prev) => {
+                                if (!prev || !orig) return prev;
+                                if (orig.label === label) return prev;
+                                return {
+                                  ...prev,
+                                  rows: prev.rows.map((r) =>
+                                    r.name === orig.label ? { ...r, name: label } : r
+                                  ),
+                                };
+                              });
+                              setOcrRowCandidates((prev) =>
+                                prev.map((c) => (c.id === picked.id ? { ...c, label } : c))
+                              );
+                              await saveOcrPreferredName(label);
+                              setOcrSettingsName(label);
+                              if (orig && orig.label !== label) {
+                                await rememberOcrNameAlias(orig.label, label);
+                              }
+                              setStatus(
+                                t('sourceOcrStatusDoneMatrixNamed', {
+                                  name: label,
+                                  rows: ocrMatrix.rows.length,
+                                })
+                              );
+                            })();
+                          }}
+                          disabled={busy}
+                        />
+                      ) : null}
+                      {ocrMatchedName ? (
+                        <AppButton
+                          title={t('sourceOcrClearWrongName')}
+                          variant="ghost"
+                          compact
+                          onPress={() => {
+                            setOcrMatchedName(null);
+                            setStatus(
+                              t('sourceOcrStatusDoneMatrix', {
+                                rows: ocrMatrix?.rows.length || 0,
+                              })
+                            );
+                          }}
+                          disabled={busy}
+                        />
+                      ) : null}
+                      <AppButton
+                        title={t('sourceCameraOcrClear')}
+                        variant="ghost"
+                        compact
+                        onPress={() => {
+                          setOcrText('');
+                          setOcrMatrix(null);
+                          setOcrImageUri(null);
+                          setOcrMatchedName(null);
+                          setOcrRowCandidates([]);
+                        }}
+                        disabled={busy}
+                      />
+                    </>
+                  ) : null}
+                </>
+              ) : null}
             </AppCard>
 
             {__DEV__ ? (
@@ -914,11 +1425,9 @@ export default function FetchScreen() {
                 )}
               </>
             ) : null}
-          </>
-        ) : null}
+        </View>
 
-        {/* WebView stays mounted (ready for LOGA3); chrome only when that source is active */}
-        {!isLocalSource ? (
+        {!isLoga3Source ? null : (
           <Pressable style={styles.webToggle} onPress={toggleShowWeb} disabled={busy}>
             <Text style={styles.webToggleText}>
               {webExpanded ? t('webViewToggleOpen') : t('webViewToggleClosed')}
@@ -929,37 +1438,44 @@ export default function FetchScreen() {
                   : ` · ${t('webViewStatusLoading')}`}
             </Text>
           </Pressable>
-        ) : null}
-        <View
-          style={[
-            styles.webPanel,
-            !isLocalSource && webExpanded
-              ? { height: webPanelHeight }
-              : styles.webPanelCollapsed,
-          ]}
-          onLayout={(e) => {
-            const w = e.nativeEvent.layout.width;
-            if (w > 1) setWebLayoutW(w);
-          }}
-          pointerEvents={!isLocalSource && webExpanded ? 'auto' : 'none'}
-          accessibilityElementsHidden={isLocalSource || !webExpanded}
-        >
-          <Loga3WebView
-            ref={webRef}
-            layoutWidth={webHostWidth}
-            onMessage={onAutomationMessage}
-            onReady={() => {
-              setWebReady(true);
-              readyRef.current = true;
+        )}
+        {isLoga3Source ? (
+          <View
+            style={[
+              styles.webPanel,
+              webExpanded ? { height: webPanelHeight } : styles.webPanelCollapsed,
+            ]}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 1) setWebLayoutW(w);
             }}
-          />
-        </View>
-
+            pointerEvents={webExpanded ? 'auto' : 'none'}
+            accessibilityElementsHidden={!webExpanded}
+          >
+            <Loga3WebView
+              ref={webRef}
+              layoutWidth={webHostWidth}
+              onMessage={onAutomationMessage}
+              onReady={() => {
+                setWebReady(true);
+                readyRef.current = true;
+              }}
+            />
+          </View>
+        ) : null}
         <Text style={styles.footerMeta}>
           {snap.entries.length} {t('entriesCount')}
           {selected.length ? ` · ${selectionLabel}` : ''}
         </Text>
       </ScrollView>
+      <OcrNamePickerModal
+        visible={!!ocrNamePick}
+        candidates={ocrNamePick?.candidates || []}
+        suggestedId={ocrNamePick?.suggestedId}
+        preferredLabel={ocrNamePick?.preferredLabel}
+        onCancel={() => finishOcrName(null)}
+        onPick={(result) => finishOcrName(result)}
+      />
     </Screen>
   );
 }

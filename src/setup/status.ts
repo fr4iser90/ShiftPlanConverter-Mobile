@@ -1,19 +1,22 @@
+import { t } from '../i18n';
 import { loadCredentials } from '../sources/loga3/credentials';
 import { getLoga3BaseUrl, hydrateLoga3Env, isValidLoga3BaseUrl } from '../sources/loga3/env';
-import { loadActiveSourceId } from '../state/activeSource';
+import { resolveActiveSourceId } from '../state/activeSource';
 import { getSnapshot, hydrateStore, isWorkplaceConfigured } from '../state/store';
-import { getPackById, getPreferredSourceId } from '../packs';
-import { getSource } from '../sources';
+import { getPackById } from '../packs';
+import { getSourceMeta } from '../sources/meta';
 
 export type SetupStatus = {
   urlOk: boolean;
   credentialsOk: boolean;
   workplaceOk: boolean;
+  /** Tenant URL + login present (LOGA3 portal ready). */
+  loga3Ready: boolean;
   /** True when workplace is set and the active source's requirements are met. */
   complete: boolean;
-  /** Workplace ok — enough for local file import without LOGA3 login. */
+  /** Workplace ok — enough for local file import / OCR without LOGA3 login. */
   workplaceReady: boolean;
-  /** User-selected or pack-default source id. */
+  /** User-selected or pack-default source id (clamped to pack-supported). */
   preferredSourceId: string;
   /** Short label for Fetch header when configured */
   summary: string;
@@ -25,23 +28,41 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const urlOk = isValidLoga3BaseUrl(url);
   const creds = await loadCredentials();
   const credentialsOk = !!(creds?.username && creds?.password);
+  const loga3Ready = urlOk && credentialsOk;
   const snap = getSnapshot();
   const workplaceOk = isWorkplaceConfigured(snap);
   const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
-  const preferredSourceId = await loadActiveSourceId(getPreferredSourceId(pack));
-  const source = getSource(preferredSourceId);
+  const preferredSourceId = await resolveActiveSourceId(pack);
+  const source = getSourceMeta(preferredSourceId);
   const sourceReady = source
     ? (!source.needsCredentials || credentialsOk) &&
       (!source.needsWebView || urlOk)
-    : urlOk && credentialsOk;
+    : false;
   const parts = [pack?.name, snap.preset].filter(Boolean);
   return {
     urlOk,
     credentialsOk,
     workplaceOk,
+    loga3Ready,
     workplaceReady: workplaceOk,
     preferredSourceId,
     complete: workplaceOk && sourceReady,
     summary: parts.length ? parts.join(' · ') : '',
   };
+}
+
+/** Short status line for Settings hub / setup screen. */
+export function formatSetupStatusMeta(st: SetupStatus): string {
+  if (!st.workplaceReady) return t('setupIncompleteWorkplace');
+  if (st.complete && st.loga3Ready) {
+    return `${t('setupComplete')}: ${st.summary}`;
+  }
+  if (st.complete) {
+    return `${t('setupComplete')}: ${st.summary}`;
+  }
+  // Pack set, but active source still needs LOGA3 (or incomplete portal).
+  if (!st.loga3Ready) {
+    return `${t('setupReadyImport')}${st.summary ? ` · ${st.summary}` : ''}`;
+  }
+  return `${t('setupComplete')}: ${st.summary}`;
 }

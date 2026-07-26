@@ -1,7 +1,23 @@
-import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { t } from '../i18n';
 import type { Source, SourceArtifact, SourceRunOpts, SourceRunResult } from './types';
+
+async function pickDocuments() {
+  // Lazy: do not load native module until the user taps import (Setup must stay light).
+  const DocumentPicker = await import('expo-document-picker');
+  return DocumentPicker.getDocumentAsync({
+    type: [
+      'application/pdf',
+      'text/csv',
+      'text/calendar',
+      'text/plain',
+      'application/octet-stream',
+      '*/*',
+    ],
+    copyToCacheDirectory: true,
+    multiple: true,
+  });
+}
 
 async function readUriBytes(uri: string): Promise<Uint8Array> {
   const file = new File(uri);
@@ -25,18 +41,7 @@ export const localFilesSource: Source = {
   labelKey: 'sourceLocalFiles',
   async run(opts: SourceRunOpts): Promise<SourceRunResult> {
     opts.onStatus?.({ line: t('sourceLocalRunning') });
-    const picked = await DocumentPicker.getDocumentAsync({
-      type: [
-        'application/pdf',
-        'text/csv',
-        'text/calendar',
-        'text/plain',
-        'application/octet-stream',
-        '*/*',
-      ],
-      copyToCacheDirectory: true,
-      multiple: true,
-    });
+    const picked = await pickDocuments();
     if (picked.canceled || !picked.assets?.length) {
       return { artifacts: [], errors: [] };
     }

@@ -49,6 +49,44 @@ if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'react-native-android
   ]);
 }
 
+if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'expo-image-picker')) {
+  plugins.push([
+    'expo-image-picker',
+    {
+      cameraPermission:
+        'ShiftPlan Converter fotografiert den Dienstplan für die Erkennung direkt auf dem Gerät.',
+      photosPermission:
+        'ShiftPlan Converter liest ein Dienstplan-Foto für die Erkennung direkt auf dem Gerät.',
+    },
+  ]);
+}
+if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'expo-mlkit-ocr')) {
+  plugins.push(['expo-mlkit-ocr', { iosEngine: 'auto' }]);
+}
+if (
+  !plugins.some((p) =>
+    (Array.isArray(p) ? p[0] : p) === 'react-native-document-scanner-plugin'
+  )
+) {
+  plugins.push([
+    'react-native-document-scanner-plugin',
+    {
+      cameraPermission:
+        'ShiftPlan Converter scannt den Dienstplan (Kanten + Entzerrung) direkt auf dem Gerät.',
+    },
+  ]);
+}
+if (!plugins.some((p) => (Array.isArray(p) ? p[0] : p) === 'expo-build-properties')) {
+  plugins.push([
+    'expo-build-properties',
+    {
+      ios: {
+        deploymentTarget: '16.4',
+      },
+    },
+  ]);
+}
+
 module.exports = {
   expo: {
     ...appJson.expo,

@@ -72,6 +72,29 @@ export function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * Re-render only when selected snapshot fields change (reference / value).
+ * Avoids waking Abrufen/Calendar on every unrelated store write.
+ */
+export function subscribeKeys(
+  keys: (keyof AppStateSnapshot)[],
+  listener: () => void
+): () => void {
+  let prev = cache;
+  return subscribe(() => {
+    const next = cache;
+    let changed = false;
+    for (const k of keys) {
+      if (next[k] !== prev[k]) {
+        changed = true;
+        break;
+      }
+    }
+    prev = next;
+    if (changed) listener();
+  });
+}
+
 export function getSnapshot(): AppStateSnapshot {
   return cache;
 }
@@ -124,17 +147,17 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       themePrefRaw === 'light' || themePrefRaw === 'dark' || themePrefRaw === 'system'
         ? themePrefRaw
         : 'system';
-    const [entries, rawText, summary, summaries] = await Promise.all([
-      parseJsonEnc<ShiftEntry[]>(entriesRaw, []),
-      decryptUtf8(rawTextEnc),
-      parseJsonEnc<MonthSummary | null>(summaryRaw, null),
-      parseJsonEnc<MonthSummary[]>(summariesRaw, []),
-    ]);
+
+    // Workplace keys are plaintext — apply them even if encrypted fields fail to decrypt.
     cache = {
       ...cache,
-      entries,
-      rawText,
-      userMappings: mappingsRaw ? JSON.parse(mappingsRaw) : {},
+      userMappings: (() => {
+        try {
+          return mappingsRaw ? (JSON.parse(mappingsRaw) as Record<string, string>) : {};
+        } catch {
+          return {};
+        }
+      })(),
       locale: locale === 'en' ? 'en' : 'de',
       themePref,
       richDetails: rich === '1',
@@ -142,26 +165,45 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       hospitalId: hospitalId || '',
       groupId: groupId || '',
       areaId: areaId || '',
-      summary,
-      summaries,
     };
-    // Migrate legacy plaintext sensitive keys → encrypted at rest.
-    if (entriesRaw && !entriesRaw.startsWith('enc:v1:')) {
-      await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+
+    try {
+      const [entries, rawText, summary, summaries] = await Promise.all([
+        parseJsonEnc<ShiftEntry[]>(entriesRaw, []),
+        decryptUtf8(rawTextEnc),
+        parseJsonEnc<MonthSummary | null>(summaryRaw, null),
+        parseJsonEnc<MonthSummary[]>(summariesRaw, []),
+      ]);
+      cache = {
+        ...cache,
+        entries,
+        rawText,
+        summary,
+        summaries,
+      };
+      // Migrate legacy plaintext sensitive keys → encrypted at rest.
+      if (entriesRaw && !entriesRaw.startsWith('enc:v1:')) {
+        await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+      }
+      if (rawTextEnc && !rawTextEnc.startsWith('enc:v1:') && rawText) {
+        await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(rawText));
+      }
+      if (summaryRaw && !summaryRaw.startsWith('enc:v1:')) {
+        await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(summary)));
+      }
+      if (summariesRaw && !summariesRaw.startsWith('enc:v1:')) {
+        await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
+      }
+    } catch {
+      // Keep workplace; encrypted payloads can retry next session.
     }
-    if (rawTextEnc && !rawTextEnc.startsWith('enc:v1:') && rawText) {
-      await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(rawText));
-    }
-    if (summaryRaw && !summaryRaw.startsWith('enc:v1:')) {
-      await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(summary)));
-    }
-    if (summariesRaw && !summariesRaw.startsWith('enc:v1:')) {
-      await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
-    }
+    hydrated = true;
   } catch {
-    // keep defaults
+    // Do NOT stick hydrated=true on empty cache — that forced Setup on every open.
+    hydrated = false;
+    notify();
+    return cache;
   }
-  hydrated = true;
   notify();
   pingHomeWidgets(cache.entries);
   return cache;

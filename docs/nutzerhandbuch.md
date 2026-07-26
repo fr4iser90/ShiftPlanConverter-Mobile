@@ -23,12 +23,11 @@ Es gibt **keinen** Fr4iser-Server für dein Passwort oder deinen Dienstplan.
 
 Unter **Einstellungen → Einrichtung** (oder beim ersten Start):
 
-1. **Tenant-URL** — die LOGA3-Adresse deiner Einrichtung (oft im Browser-Lesezeichen).
-2. **Kennung / Kennwort** — wie im Browser; bleiben lokal im Secure Store.
-3. **Arbeitgeber / Pack** — z. B. St. Elisabeth · Anästhesie. Falsches Pack → falsche Codes oder Zeiten.
-4. **Google** — optional, kannst du später unter Export nachholen.
+1. **Arbeitgeber / Pack** — z. B. St. Elisabeth · Anästhesie. Falsches Pack → falsche Codes oder Zeiten. **Pflicht.**
+2. **LOGA3** (optional) — Tenant-URL + Login, nur für Portal-Abruf. Für Datei/OCR überspringen.
+3. **Google** — optional, kannst du später unter Export nachholen.
 
-Für **Datei-Import** reicht der Arbeitgeber/Pack. **LOGA3-Abruf** braucht zusätzlich Tenant-URL und Login.
+Für **Datei-Import / OCR** reicht der Arbeitgeber/Pack. **LOGA3-Abruf** braucht zusätzlich Tenant-URL und Login.
 
 ---
 

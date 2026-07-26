@@ -164,19 +164,27 @@ async function connectGoogleNative(): Promise<string> {
     // ignore
   }
 
-  const result = await GoogleSignin.signIn();
-  if (result.type !== 'success') {
-    throw new Error(t('googleOauthCancelled'));
-  }
-
-  // Ensure Calendar scopes (may prompt again)
   try {
-    await GoogleSignin.addScopes({ scopes: SCOPES });
-  } catch {
-    // already granted or unavailable — continue and fail on API if needed
-  }
+    const result = await GoogleSignin.signIn();
+    if (result.type !== 'success') {
+      throw new Error(t('googleOauthCancelled'));
+    }
 
-  return takeNativeAccessToken();
+    // Ensure Calendar scopes (may prompt again)
+    try {
+      await GoogleSignin.addScopes({ scopes: SCOPES });
+    } catch {
+      // already granted or unavailable — continue and fail on API if needed
+    }
+
+    return takeNativeAccessToken();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/DEVELOPER_ERROR/i.test(msg)) {
+      throw new Error(t('googleDeveloperError'));
+    }
+    throw e instanceof Error ? e : new Error(msg);
+  }
 }
 
 /** Web / fallback: browser OAuth (needs https redirect on Web client — not custom schemes). */

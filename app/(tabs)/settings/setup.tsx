@@ -4,7 +4,7 @@ import { router, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
 import { clearCredentials } from '@/src/sources/loga3/credentials';
-import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
+import { formatSetupStatusMeta, getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import { wipeAllLocalData } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
@@ -29,9 +29,7 @@ export default function SettingsSetupScreen() {
         <AppCard>
           <SectionTitle>{t('setupTitle')}</SectionTitle>
           <Meta>
-            {setup?.complete
-              ? `${t('setupComplete')}: ${setup.summary}`
-              : t('setupIncomplete')}
+            {setup ? formatSetupStatusMeta(setup) : t('setupIncompleteWorkplace')}
           </Meta>
           <AppButton title={t('openSetup')} onPress={() => router.push(SETUP_HREF)} />
         </AppCard>

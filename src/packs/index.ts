@@ -63,8 +63,34 @@ export function getParserIdForPack(pack: PackConfig | null | undefined): string 
   return pack?.parserId?.trim() || DEFAULT_PARSER_ID;
 }
 
+/** Product-safe default when no pack / empty preferred. */
+const FALLBACK_SOURCE_ID = 'local-files';
+
+/**
+ * Sources offered on Fetch for this pack.
+ * Missing/empty list → file + LOGA3 + OCR (dev-friendly until packs declare explicitly).
+ */
+export function getSupportedSourceIds(pack: PackConfig | null | undefined): string[] {
+  const raw = pack?.supportedSourceIds
+    ?.map((s) => String(s || '').trim())
+    .filter(Boolean);
+  if (raw?.length) return raw;
+  return ['local-files', 'loga3-webview', 'camera-ocr'];
+}
+
+export function isSourceSupportedByPack(
+  pack: PackConfig | null | undefined,
+  sourceId: string | null | undefined
+): boolean {
+  if (!sourceId) return false;
+  return getSupportedSourceIds(pack).includes(sourceId);
+}
+
 export function getPreferredSourceId(pack: PackConfig | null | undefined): string {
-  return pack?.preferredSourceId?.trim() || 'loga3-webview';
+  const supported = getSupportedSourceIds(pack);
+  const preferred = pack?.preferredSourceId?.trim();
+  if (preferred && supported.includes(preferred)) return preferred;
+  return supported[0] || FALLBACK_SOURCE_ID;
 }
 
 export function getMappingForScope(
