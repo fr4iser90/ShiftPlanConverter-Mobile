@@ -121,6 +121,10 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrCompareTitle: 'Recognized table and photo',
   sourceOcrCompareHint:
     'Table on top, original photo below for comparison. Tap the photo for full screen. Calendar only after you deliberately import — this is review only.',
+  sourceOcrCompareDisplayLabel: 'Show cells as',
+  sourceOcrCompareDisplayCodes: 'Codes',
+  sourceOcrCompareDisplayTimes: 'Times',
+  sourceOcrCompareDisplayBoth: 'Both',
   sourceOcrCompareTapFull: 'Tap = full photo',
   sourceOcrCompareClose: 'Close',
   sourceOcrComparePhotoA11y: 'Original roster photo',

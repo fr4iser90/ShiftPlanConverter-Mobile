@@ -7,6 +7,7 @@
  *
  * When the user's row is known, `refinePersonRowFromOcr` re-scoops that Y-band
  * with looser geometry and the same pack oracle (still one algorithm, not a retry chain).
+ * Refine only upgrades to known pack codes — never writes unmapped time mush.
  */
 import { mappingCode, resolveShiftMapping } from '../../convert/shiftMapping';
 import type { MappingValue } from '../../convert/types';
@@ -64,15 +65,28 @@ function listPackFingerprints(
 }
 
 /** OCR often uses o/O for 0 and glues times — keep digits only. */
-function cellDigits(raw: string): string {
+export function cellDigits(raw: string): string {
   return String(raw || '')
     .replace(/[oO]/g, '0')
     .replace(/[^\d]/g, '');
 }
 
+function hamming8(a: string, b: string): number {
+  if (a.length !== 8 || b.length !== 8) return 99;
+  let d = 0;
+  for (let i = 0; i < 8; i++) if (a[i] !== b[i]) d++;
+  return d;
+}
+
+function uniqueCode(hits: PackFingerprint[]): string | null {
+  const codes = [...new Set(hits.map((h) => h.code))];
+  return codes.length === 1 ? codes[0] : null;
+}
+
 /**
  * Match mashed digit soup against pack time keys (oracle).
- * Prefers exact 8-digit fingerprint containment; then unique start-HHMM hit.
+ * Prefers exact 8-digit fingerprint; sliding windows; Hamming≤1 if unique;
+ * then unique start/end HHMM.
  */
 export function matchDigitsToPackCode(
   digits: string,
@@ -83,28 +97,56 @@ export function matchDigitsToPackCode(
   const exact = fingerprints.filter((f) => digits.includes(f.digits) || f.digits.includes(digits));
   if (exact.length === 1) return exact[0].code;
   if (exact.length > 1) {
-    // Prefer full 8-digit containment over partial
     const full = exact.filter((f) => digits.includes(f.digits));
-    if (full.length === 1) return full[0].code;
+    const u = uniqueCode(full);
+    if (u) return u;
   }
 
+  // Sliding 8-digit windows (OCR often prepends/appends junk digits).
   if (digits.length >= 8) {
-    const slice = digits.slice(0, 8);
-    const hit = fingerprints.filter((f) => f.digits === slice);
-    if (hit.length === 1) return hit[0].code;
+    const windows: string[] = [];
+    for (let i = 0; i + 8 <= digits.length; i++) windows.push(digits.slice(i, i + 8));
+    const windowHits = fingerprints.filter((f) => windows.includes(f.digits));
+    const u = uniqueCode(windowHits);
+    if (u) return u;
+
+    // One-digit OCR typo (13→18 etc.) — only if a single pack code wins.
+    const fuzzy: PackFingerprint[] = [];
+    for (const w of windows) {
+      for (const f of fingerprints) {
+        if (hamming8(w, f.digits) <= 1) fuzzy.push(f);
+      }
+    }
+    const uf = uniqueCode(fuzzy);
+    if (uf) return uf;
   }
 
-  // Unique start time (first 4 digits) → resolve with nearest end via pack resolver later
   if (digits.length >= 4) {
     const startDigits = digits.slice(0, 4);
     const startHits = fingerprints.filter((f) => f.digits.startsWith(startDigits));
-    if (startHits.length === 1) return startHits[0].code;
+    const us = uniqueCode(startHits);
+    if (us) return us;
+
     if (digits.length >= 8) {
       const endDigits = digits.slice(4, 8);
       const both = fingerprints.filter(
         (f) => f.digits.startsWith(startDigits) && f.digits.endsWith(endDigits)
       );
-      if (both.length === 1) return both[0].code;
+      const ub = uniqueCode(both);
+      if (ub) return ub;
+
+      // Unique end time alone (last 4 of an 8-digit window)
+      const endHits = fingerprints.filter((f) => f.digits.endsWith(endDigits));
+      const ue = uniqueCode(endHits);
+      if (ue) return ue;
+    } else if (digits.length === 4) {
+      // Lone HHMM: unique as start OR as end (not both different codes)
+      const asStart = fingerprints.filter((f) => f.digits.startsWith(digits));
+      const asEnd = fingerprints.filter((f) => f.digits.endsWith(digits));
+      const u1 = uniqueCode(asStart);
+      const u2 = uniqueCode(asEnd);
+      if (u1 && (!u2 || u1 === u2)) return u1;
+      if (u2 && !u1) return u2;
     }
   }
   return null;
@@ -121,6 +163,10 @@ function findKnownCodeInText(t: string, codes: Set<string>): string | null {
     if (re.test(upper)) return c;
   }
   return null;
+}
+
+function isPackCode(v: string, codes: Set<string>): boolean {
+  return !!v && codes.has(v.trim().toUpperCase());
 }
 
 /**
@@ -148,7 +194,10 @@ export function applyPackMappingToCell(
     const end = `${range[3]}:${range[4]}`;
     const hit = resolveShiftMapping(start, end, map);
     if (hit.code) return hit.code;
-    return t;
+    // Reversed OCR (end-start printed/swapped)
+    const rev = resolveShiftMapping(end, start, map);
+    if (rev.code) return rev.code;
+    // Fall through to digit oracle (typos inside an otherwise HH:MM-HH:MM shape)
   }
 
   const asCode = findKnownCodeInText(t, codes);
@@ -162,18 +211,18 @@ export function applyPackMappingToCell(
     .replace(/8/g, 'B');
   if (confused !== t.toUpperCase() && codes.has(confused)) return confused;
 
-  // Pack-oracle on digit soup (Zeiten ohne sauberes HH:MM-HH:MM).
   const digits = cellDigits(t);
   const fromDigits = matchDigitsToPackCode(digits, fps);
   if (fromDigits) return fromDigits;
 
-  // Last chance: format-like reconstruction then resolve
   if (digits.length >= 8) {
     const start = `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
     const end = `${digits.slice(4, 6)}:${digits.slice(6, 8)}`;
     if (Object.keys(map).length) {
       const hit = resolveShiftMapping(start, end, map);
       if (hit.code) return hit.code;
+      const rev = resolveShiftMapping(end, start, map);
+      if (rev.code) return rev.code;
     }
   }
 
@@ -210,9 +259,8 @@ function nameKey(s: string): string {
 }
 
 /**
- * After the user row is known: re-scoop that Y-band per day column (looser geometry)
- * and re-apply pack oracle. Only upgrades empty/unmapped cells to known pack codes.
- * Same algorithm as the grid build — not a second layout path.
+ * After the user row is known: re-scoop that Y-band per day column and re-apply pack oracle.
+ * Only upgrades to known pack codes — never writes unmapped neighbor-row time mush.
  */
 export function refinePersonRowFromOcr(
   grid: MonthMatrixGrid,
@@ -222,7 +270,7 @@ export function refinePersonRowFromOcr(
   colors?: Record<string, string> | null
 ): MonthMatrixGrid {
   const centers = grid.colCenters;
-  if (!centers?.length || !lines.length || !personName) return grid;
+  if (!centers?.length || !personName) return grid;
 
   const key = nameKey(personName);
   const rowIdx = grid.rows.findIndex(
@@ -234,33 +282,58 @@ export function refinePersonRowFromOcr(
   const codes = collectPackCodes(presetMapping, colors);
   const nameMaxX = grid.nameMaxX ?? 0;
   const colGap = grid.colGap ?? 40;
-  const rowYPad = (grid.rowYPad ?? 28) * 1.55;
-  const xTol = colGap * 1.65;
+  // Tighter than before — neighbor rows were leaking times into empty cells.
+  const rowYPad = (grid.rowYPad ?? 28) * 0.95;
+  const xTol = colGap * 1.55;
 
   const nextCells = centers.map((cx, i) => {
     const prev = row.cells[i] || '';
     const prevMapped = applyPackMappingToCell(prev, presetMapping, codes);
-    if (prevMapped && codes.has(prevMapped.toUpperCase())) return prevMapped;
+    if (isPackCode(prevMapped, codes)) return prevMapped;
 
-    const candidates = lines.filter((l) => {
-      const xc = xCenter(l);
-      if (nameMaxX > 0 && xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
-      if (Math.abs(yCenter(l) - row.yCenter) > rowYPad) return false;
-      return Math.abs(xc - cx) < xTol;
-    });
-    if (!candidates.length) return prevMapped || prev;
+    if (!lines.length) return '';
 
-    const texts = candidates
-      .sort((a, b) => a.boundingBox.y - b.boundingBox.y)
-      .map((l) => cleanCell(l.text))
+    const candidates = lines
+      .filter((l) => {
+        const xc = xCenter(l);
+        if (nameMaxX > 0 && xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
+        if (Math.abs(yCenter(l) - row.yCenter) > rowYPad) return false;
+        return Math.abs(xc - cx) < xTol;
+      })
+      .map((l) => ({ l, dy: Math.abs(yCenter(l) - row.yCenter) }))
+      .sort((a, b) => a.dy - b.dy || a.l.boundingBox.y - b.l.boundingBox.y);
+
+    if (!candidates.length) {
+      // No geometry hit: keep pack codes, drop unmapped leftovers.
+      return isPackCode(prevMapped, codes) ? prevMapped : '';
+    }
+
+    // Prefer any single token that maps to a pack code (Kürzel printed on the plan).
+    for (const { l } of candidates) {
+      const tok = cleanCell(l.text);
+      if (!tok || looksLikeDayHeader(tok)) continue;
+      const mappedTok = applyPackMappingToCell(tok, presetMapping, codes);
+      if (isPackCode(mappedTok, codes)) return mappedTok;
+    }
+
+    // Keep tokens near the closest hit for joined Zeit cells (start/end on two lines).
+    const nearestDy = candidates[0].dy;
+    const band = Math.max(16, rowYPad * 0.7);
+    const tight = candidates.filter((c) => c.dy <= nearestDy + band);
+    const texts = tight
+      .map(({ l }) => cleanCell(l.text))
       .filter((t) => t && !looksLikeDayHeader(t));
     const joined = formatShiftCell([...new Set(texts)]);
     const mapped = applyPackMappingToCell(joined || texts.join(' '), presetMapping, codes);
-    if (mapped && codes.has(mapped.toUpperCase())) return mapped;
-    // Prefer any improvement over empty
-    if (!prev && mapped) return mapped;
-    if (!prev && joined) return joined;
-    return prevMapped || prev;
+    if (isPackCode(mapped, codes)) return mapped;
+
+    // Digit oracle on concatenated tokens (07.35- on one line, 1550 on the next).
+    const allDigits = cellDigits(texts.join(''));
+    const fromDigits = matchDigitsToPackCode(allDigits, listPackFingerprints(presetMapping));
+    if (fromDigits) return fromDigits;
+
+    // Focused row: never keep unmapped time mush — empty is clearer than a wrong range.
+    return '';
   });
 
   const rows = grid.rows.slice();

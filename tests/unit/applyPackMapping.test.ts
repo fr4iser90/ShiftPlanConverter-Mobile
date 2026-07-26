@@ -46,6 +46,11 @@ describe('applyPackMapping', () => {
     expect(applyPackMappingToCell('13152130', anaesthesie)).toBe('S');
   });
 
+  it('tolerates one-digit OCR typos and reversed ranges via pack oracle', () => {
+    expect(applyPackMappingToCell('18152130', anaesthesie)).toBe('S');
+    expect(applyPackMappingToCell('15:50-07:35', anaesthesie)).toBe('F');
+  });
+
   it('matchDigitsToPackCode prefers unique pack fingerprints', () => {
     const fps = [
       { digits: '07351550', start: '07:35', end: '15:50', code: 'F' },
@@ -53,6 +58,7 @@ describe('applyPackMapping', () => {
     ];
     expect(matchDigitsToPackCode('07351550', fps)).toBe('F');
     expect(matchDigitsToPackCode('xx07351935yy', fps)).toBe('B36');
+    expect(matchDigitsToPackCode('18351935', fps)).toBe('B36');
   });
 
   it('maps every cell in a grid without touching names', () => {
@@ -96,5 +102,38 @@ describe('applyPackMapping', () => {
     const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('F');
     expect(out.rows[0].cells[1]).toBe('F');
+  });
+
+  it('refine clears unmapped garbage instead of keeping it', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Mo3'],
+      colCenters: [200],
+      nameMaxX: 80,
+      colGap: 40,
+      rowYPad: 20,
+      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: ['15:50-16:45'] }],
+    };
+    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', [], anaesthesie, colors);
+    expect(out.rows[0].cells[0]).toBe('');
+  });
+
+  it('refine does not paint unmapped neighbor-row time mush into empty cells', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Mo3'],
+      colCenters: [200],
+      nameMaxX: 80,
+      colGap: 40,
+      rowYPad: 28,
+      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: [''] }],
+    };
+    const lines: OcrLine[] = [
+      // Not a unique pack start/end — must stay empty
+      { text: '12:00', boundingBox: { x: 190, y: 70, width: 40, height: 12 } },
+      { text: '99:99-88:88', boundingBox: { x: 188, y: 105, width: 50, height: 12 } },
+    ];
+    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, anaesthesie, colors);
+    expect(out.rows[0].cells[0]).toBe('');
   });
 });

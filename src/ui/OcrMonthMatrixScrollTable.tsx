@@ -2,12 +2,17 @@ import { memo, useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '@/src/i18n';
+import type { MappingValue } from '@/src/convert/types';
+import {
+  formatOcrCellForDisplay,
+  type OcrCellDisplayMode,
+} from '@/src/sources/ocr/cellDisplay';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 
 const NAME_W = 118;
-const COL_W = 52;
+const COL_W = 56;
 const ROW_H = 34;
 const HEAD_H = 36;
 
@@ -15,6 +20,9 @@ type Props = {
   grid: MonthMatrixGrid;
   matchedName?: string | null;
   title?: string;
+  displayMode?: OcrCellDisplayMode;
+  presetMapping?: Record<string, MappingValue> | null;
+  colors?: Record<string, string> | null;
 };
 
 function nameKey(s: string): string {
@@ -26,14 +34,26 @@ function nameKey(s: string): string {
     .trim();
 }
 
-function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
+function OcrMonthMatrixScrollTableInner({
+  grid,
+  matchedName,
+  title,
+  displayMode = 'codes',
+  presetMapping = null,
+  colors = null,
+}: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const matchKey = matchedName ? nameKey(matchedName) : '';
+  const colW = displayMode === 'both' ? 72 : COL_W;
+  const rowH = displayMode === 'both' ? 40 : ROW_H;
 
   if (!grid.rows.length || !grid.headers.length) return null;
 
-  const daysWidth = grid.headers.length * COL_W;
+  const daysWidth = grid.headers.length * colW;
+
+  const cellText = (raw: string) =>
+    formatOcrCellForDisplay(raw, displayMode, presetMapping, colors);
 
   return (
     <View style={styles.wrap}>
@@ -52,7 +72,6 @@ function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
           removeClippedSubviews
         >
           <View style={styles.tableRow}>
-            {/* Frozen name column */}
             <View style={styles.nameCol}>
               <View style={[styles.cell, styles.headCell, styles.nameCell, { height: HEAD_H }]}>
                 <Text style={styles.headText} numberOfLines={1}>
@@ -67,7 +86,7 @@ function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
                     style={[
                       styles.cell,
                       styles.nameCell,
-                      { height: ROW_H },
+                      { height: rowH },
                       mine && styles.matchedRow,
                     ]}
                   >
@@ -79,7 +98,6 @@ function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
               })}
             </View>
 
-            {/* Days: scroll sideways like the wall plan */}
             <ScrollView
               horizontal
               style={styles.hScroll}
@@ -92,7 +110,10 @@ function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
               <View>
                 <View style={[styles.daysRow, { height: HEAD_H }]}>
                   {grid.headers.map((h, i) => (
-                    <View key={`${h}-${i}`} style={[styles.cell, styles.headCell, styles.dayCell]}>
+                    <View
+                      key={`${h}-${i}`}
+                      style={[styles.cell, styles.headCell, styles.dayCell, { width: colW }]}
+                    >
                       <Text style={styles.headText} numberOfLines={1}>
                         {h}
                       </Text>
@@ -104,15 +125,27 @@ function OcrMonthMatrixScrollTableInner({ grid, matchedName, title }: Props) {
                   return (
                     <View
                       key={`d-${r.name}-${r.yCenter}`}
-                      style={[styles.daysRow, { height: ROW_H }, mine && styles.matchedRow]}
+                      style={[styles.daysRow, { height: rowH }, mine && styles.matchedRow]}
                     >
-                      {r.cells.map((c, i) => (
-                        <View key={`${r.name}-${i}`} style={[styles.cell, styles.dayCell]}>
-                          <Text style={styles.dayText} numberOfLines={1}>
-                            {c || '·'}
-                          </Text>
-                        </View>
-                      ))}
+                      {r.cells.map((c, i) => {
+                        const shown = cellText(c);
+                        return (
+                          <View
+                            key={`${r.name}-${i}`}
+                            style={[styles.cell, styles.dayCell, { width: colW }]}
+                          >
+                            <Text
+                              style={[
+                                styles.dayText,
+                                displayMode === 'both' && styles.dayTextBoth,
+                              ]}
+                              numberOfLines={displayMode === 'both' ? 2 : 1}
+                            >
+                              {shown || '·'}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   );
                 })}
@@ -166,7 +199,6 @@ function makeStyles(theme: AppTheme) {
     },
     nameCell: { width: NAME_W, paddingHorizontal: 6 },
     dayCell: {
-      width: COL_W,
       borderRightWidth: StyleSheet.hairlineWidth,
       borderRightColor: theme.color.border,
       alignItems: 'center',
@@ -192,6 +224,11 @@ function makeStyles(theme: AppTheme) {
       fontSize: 11,
       fontWeight: '500',
       fontVariant: ['tabular-nums'],
+      textAlign: 'center',
+    },
+    dayTextBoth: {
+      fontSize: 9,
+      lineHeight: 11,
     },
     matchedRow: {
       backgroundColor: theme.color.primaryTint,
