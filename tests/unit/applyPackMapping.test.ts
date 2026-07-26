@@ -58,7 +58,7 @@ describe('applyPackMapping', () => {
     ];
     expect(matchDigitsToPackCode('07351550', fps)).toBe('F');
     expect(matchDigitsToPackCode('xx07351935yy', fps)).toBe('B36');
-    expect(matchDigitsToPackCode('18351935', fps)).toBe('B36');
+    expect(matchDigitsToPackCode('17351935', fps)).toBe('B36'); // one digit off
   });
 
   it('maps every cell in a grid without touching names', () => {
