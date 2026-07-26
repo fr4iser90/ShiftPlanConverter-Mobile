@@ -17,6 +17,7 @@ import {
   looksLikeDayHeader,
   looksLikeShiftCell,
   median,
+  nearestColIndex,
   xCenter,
   yCenter,
 } from './geometry';
@@ -107,12 +108,15 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     if (!people.length) continue;
 
     const yMid = g.reduce((s, l) => s + yCenter(l), 0) / g.length;
-    const cells = colCenters.map((cx) => {
+    const xTol = colGap * 0.85;
+    const cells = colCenters.map((cx, colIndex) => {
       const candidates = merged.filter((l) => {
         const xc = xCenter(l);
         if (xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
         if (Math.abs(yCenter(l) - yMid) > rowYPad) return false;
-        return Math.abs(xc - cx) < colGap * 1.35;
+        if (Math.abs(xc - cx) > xTol) return false;
+        // One OCR token belongs to exactly one day column (nearest center).
+        return nearestColIndex(xc, colCenters) === colIndex;
       });
       if (!candidates.length) return '';
       const texts = candidates

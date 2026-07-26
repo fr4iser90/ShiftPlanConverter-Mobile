@@ -8,6 +8,22 @@ export function xCenter(l: OcrLine): number {
   return l.boundingBox.x + l.boundingBox.width / 2;
 }
 
+/** Day column that owns this X (Voronoi) — one token → one column, no bleed. */
+export function nearestColIndex(xc: number, centers: number[]): number {
+  if (!centers.length) return -1;
+  let best = 0;
+  let bestD = Math.abs(xc - centers[0]);
+  for (let i = 1; i < centers.length; i++) {
+    const d = Math.abs(xc - centers[i]);
+    // Tie → prefer the right-hand column (left-aligned text sits left of its column center).
+    if (d < bestD || (d === bestD && i > best)) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
 /** Cluster sorted numbers into groups (gap > threshold → new cluster). */
 export function clusterSorted(values: { v: number; item: OcrLine }[], gap: number): OcrLine[][] {
   if (!values.length) return [];
