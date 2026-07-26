@@ -15,6 +15,8 @@ export async function loadOcrLayoutId(
 ): Promise<OcrLayoutId> {
   try {
     const raw = (await AsyncStorage.getItem(KEY))?.trim();
+    // Legacy: raw-review was removed as a layout (text-only is fallback only).
+    if (raw === 'raw-review' || raw === 'text-only') return fallback;
     if (raw && getOcrLayout(raw)) return raw as OcrLayoutId;
   } catch {
     // ignore

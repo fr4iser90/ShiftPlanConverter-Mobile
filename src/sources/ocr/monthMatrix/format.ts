@@ -2,23 +2,29 @@ import { isPlausiblePersonName } from '../names';
 import { cleanCell } from './geometry';
 import type { MonthMatrixGrid, MonthMatrixMetrics } from './types';
 
-const SHIFT_CODE_RE =
-  /^(U|K|N|F|S|ST|FT|MO|OP|OP-N|URLAUB|KRANK|KROAU|FEIERTAG|RU|FK\d?|B\d{1,2}|M\d|F\d|S\d|N\d)$/i;
-
 function isPlausibleClock(hh: number, mm: number): boolean {
   return hh >= 0 && hh <= 23 && mm >= 0 && mm <= 59;
 }
 
-/** Prefer a shift code; otherwise one compact time — never a mashed OCR blob. */
+function looksLikeCodeToken(t: string): boolean {
+  const raw = String(t || '').trim();
+  const u = raw.toUpperCase().replace(/\s+/g, '');
+  if (!u || u.length > 12) return false;
+  if (/^(Mo|Di|Mi|Do|Fr|Sa|So)\d*$/i.test(u)) return false;
+  if (/^[A-ZÄÖÜ][a-zäöüß]{2,}/.test(raw)) return false;
+  if (/^[A-ZÄÖÜ]{1,3}\d{1,2}$/.test(u)) return true;
+  if (/^[A-ZÄÖÜ]{1,2}$/.test(u)) return true;
+  if (/^[A-ZÄÖÜ]{2,3}-[A-ZÄÖÜ0-9]{1,3}$/.test(u)) return true;
+  if (/^[A-ZÄÖÜ]{2,8}$/.test(u) && raw === raw.toUpperCase()) return true;
+  return false;
+}
+
+/** Prefer a code-shaped token; otherwise one compact time — never mashed OCR. */
 export function formatShiftCell(parts: string[]): string {
   if (!parts.length) return '';
-  const codes = parts.filter((t) => SHIFT_CODE_RE.test(t));
+  const codes = parts.filter((t) => looksLikeCodeToken(t));
   if (codes.length) {
-    const c = codes[0].toUpperCase();
-    if (/^URLAUB$/i.test(c)) return 'U';
-    if (/^KRANK$/i.test(c)) return 'K';
-    if (/^FEIERTAG$/i.test(c)) return 'FT';
-    return c;
+    return codes[0].toUpperCase().replace(/\s+/g, '');
   }
 
   const cleaned = parts

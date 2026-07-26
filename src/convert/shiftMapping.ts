@@ -33,22 +33,36 @@ export type ResolvedShiftMapping = {
   inferred: boolean;
 };
 
+export type ResolveShiftMappingOpts = {
+  /**
+   * When true (default): Loga Ist-Zeiten may map to the nearest planned end
+   * with the same start (early leave still → F).
+   * When false: OCR / wall-plan — exact start-end keys only (no inference).
+   */
+  allowInfer?: boolean;
+};
+
 /**
  * Resolve a shift code for an Ist-Zeit range.
  *
- * Exact mapping wins. Otherwise: same start time → nearest planned end
+ * Exact mapping wins. Otherwise (if allowInfer): same start time → nearest planned end
  * (prefer planned end ≥ actual end = earlier gehen still gets F/F1/…).
  * Truly unknown starts stay unmapped (code null).
  */
 export function resolveShiftMapping(
   start: string,
   end: string,
-  mapping: Record<string, MappingValue>
+  mapping: Record<string, MappingValue>,
+  opts?: ResolveShiftMappingOpts
 ): ResolvedShiftMapping {
   const exactKey = `${start}-${end}`;
   const exact = mappingCode(mapping[exactKey]);
   if (exact.code) {
     return { code: exact.code, isValidated: exact.isValidated, inferred: false };
+  }
+
+  if (opts?.allowInfer === false) {
+    return { code: null, isValidated: false, inferred: false };
   }
 
   type Cand = { code: string; endMin: number };

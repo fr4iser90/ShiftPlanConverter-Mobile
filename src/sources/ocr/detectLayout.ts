@@ -1,78 +1,80 @@
 /**
  * Single-shot layout detection for OCR `auto`.
  *
- * One OCR result → score candidates → pick the winner once.
- * Not a retry chain: never “month failed → try list → try week”.
+ * Preferred order (pro): image lattice first → OCR text cues only if image weak.
+ * Never “month failed → try list → try week”.
+ * Weak score → text-only fallback (not a layout).
  */
-import { buildMonthMatrixGrid } from './monthMatrix';
 import type { OcrLine } from './recognize';
-import type { ConcreteOcrLayoutId } from './layouts';
+import { scoreDayPlan } from './layouts/day-plan';
+import type { ImageLayoutDetection } from './layouts/detectFromImage';
+import { scoreListProtocol } from './layouts/list-protocol';
+import { scoreMonthMatrix } from './layouts/month-matrix';
+import { scoreSingleCalendar } from './layouts/single-calendar';
+import {
+  OCR_TEXT_ONLY_FALLBACK,
+  type ConcreteOcrLayoutId,
+  type OcrTextOnlyFallbackId,
+} from './layouts';
+import { scoreWeekStrip } from './layouts/week-strip';
 
 export type OcrLayoutDetection = {
-  layoutId: ConcreteOcrLayoutId;
-  /** 0..1 confidence of the winner */
+  /** Concrete layout, or text-only fallback when structure is unclear. */
+  layoutId: ConcreteOcrLayoutId | OcrTextOnlyFallbackId;
+  /** 0..1 confidence of the winner (0 for text-only fallback). */
   score: number;
   scores: Record<ConcreteOcrLayoutId, number>;
   reason: string;
+  /** Where the winner came from */
+  source?: 'image' | 'ocr-text' | 'merged';
 };
 
-/** Below this, prefer raw-review over a weak structural guess. */
+/** Below this, prefer text-only fallback over a weak structural guess. */
 export const OCR_LAYOUT_AUTO_MIN_SCORE = 0.42;
 
-const DATE_LINE =
-  /\b\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?\b.*(?:\b\d{1,2}:\d{2}\b|\b[A-ZÄÖÜ]{1,5}\b)/i;
-const WEEKDAY_TOKEN = /\b(Mo|Di|Mi|Do|Fr|Sa|So|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/gi;
-
-function scoreMonthMatrix(lines: OcrLine[], pageWidth: number): number {
-  const grid = buildMonthMatrixGrid(lines, pageWidth);
-  if (!grid.ok || grid.headers.length < 3 || grid.rows.length < 1) return 0;
-
-  const cols = grid.headers.length;
-  const rows = grid.rows.length;
-  const filled = grid.rows.reduce(
-    (n, r) => n + r.cells.filter((c) => String(c || '').trim()).length,
-    0
-  );
-  const capacity = Math.max(1, rows * cols);
-  const fillRatio = filled / capacity;
-
-  // Full wall plans: ~28–31 days, many people.
-  const colScore = cols >= 20 ? 1 : cols >= 10 ? 0.75 : cols >= 7 ? 0.45 : 0.25;
-  const rowScore = rows >= 10 ? 1 : rows >= 5 ? 0.8 : rows >= 2 ? 0.55 : 0.3;
-  const cellScore = Math.min(1, fillRatio / 0.25);
-
-  return Math.min(1, 0.4 * colScore + 0.35 * rowScore + 0.25 * cellScore);
+function pickWinner(scores: Record<ConcreteOcrLayoutId, number>): {
+  layoutId: ConcreteOcrLayoutId;
+  score: number;
+} {
+  let layoutId: ConcreteOcrLayoutId = 'month-matrix';
+  let score = -1;
+  for (const id of Object.keys(scores) as ConcreteOcrLayoutId[]) {
+    if (scores[id] > score) {
+      score = scores[id];
+      layoutId = id;
+    }
+  }
+  return { layoutId, score };
 }
 
-function scoreListProtocol(text: string): number {
-  const lines = String(text || '')
-    .split(/\n/)
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (!lines.length) return 0;
-  let hits = 0;
-  for (const line of lines) {
-    if (DATE_LINE.test(line)) hits += 1;
+function asDetection(
+  scores: Record<ConcreteOcrLayoutId, number>,
+  source: OcrLayoutDetection['source'],
+  reasonPrefix?: string
+): OcrLayoutDetection {
+  const { layoutId, score } = pickWinner(scores);
+  if (score < OCR_LAYOUT_AUTO_MIN_SCORE) {
+    return {
+      layoutId: OCR_TEXT_ONLY_FALLBACK,
+      score: 0,
+      scores,
+      source,
+      reason:
+        reasonPrefix ||
+        `uncertain (best ${layoutId}=${score.toFixed(2)}) → text-only`,
+    };
   }
-  if (hits < 2) return hits === 1 ? 0.2 : 0;
-  return Math.min(1, 0.35 + hits / 12);
-}
-
-function scoreWeekStrip(text: string, lines: OcrLine[], pageWidth: number): number {
-  const matches = String(text || '').match(WEEKDAY_TOKEN) || [];
-  const unique = new Set(matches.map((m) => m.slice(0, 2).toLowerCase()));
-  if (unique.size < 4) return 0;
-
-  const grid = buildMonthMatrixGrid(lines, pageWidth);
-  // Week boards look matrix-like but ~5–9 day columns, not a full month.
-  if (grid.ok && grid.headers.length >= 5 && grid.headers.length <= 9 && grid.rows.length >= 2) {
-    return Math.min(1, 0.5 + unique.size * 0.06 + Math.min(0.25, grid.rows.length / 20));
-  }
-  return Math.min(0.5, 0.2 + unique.size * 0.05);
+  return {
+    layoutId,
+    score,
+    scores,
+    source,
+    reason: reasonPrefix || `${layoutId} score=${score.toFixed(2)}`,
+  };
 }
 
 /**
- * Detect layout from one OCR result. Always returns exactly one concrete id.
+ * Detect layout from one OCR result (text/geometry). Prefer image-first when available.
  */
 export function detectOcrLayout(ocr: {
   text: string;
@@ -81,34 +83,63 @@ export function detectOcrLayout(ocr: {
 }): OcrLayoutDetection {
   const scores: Record<ConcreteOcrLayoutId, number> = {
     'month-matrix': scoreMonthMatrix(ocr.lines, ocr.pageWidth),
-    'list-protocol': scoreListProtocol(ocr.text),
     'week-strip': scoreWeekStrip(ocr.text, ocr.lines, ocr.pageWidth),
-    'raw-review': 0.12,
+    'list-protocol': scoreListProtocol(ocr.text),
+    'day-plan': scoreDayPlan(ocr.text),
+    'single-calendar': scoreSingleCalendar(ocr.text, ocr.lines),
   };
+  return asDetection(scores, 'ocr-text');
+}
 
-  let layoutId: ConcreteOcrLayoutId = 'raw-review';
-  let score = scores['raw-review'];
-  for (const id of Object.keys(scores) as ConcreteOcrLayoutId[]) {
-    if (scores[id] > score) {
-      score = scores[id];
-      layoutId = id;
-    }
-  }
-
-  // Weak structural guess → raw review (clear path, not a second parser try).
-  if (layoutId !== 'raw-review' && score < OCR_LAYOUT_AUTO_MIN_SCORE) {
+/**
+ * Merge image lattice scores with OCR-text scores (max per id).
+ * Image-only confident month-matrix wins even when OCR text is garbage.
+ */
+export function mergeLayoutDetections(
+  image: ImageLayoutDetection | null | undefined,
+  ocrText: OcrLayoutDetection | null | undefined
+): OcrLayoutDetection {
+  if (image && image.layoutId !== OCR_TEXT_ONLY_FALLBACK && image.score >= OCR_LAYOUT_AUTO_MIN_SCORE) {
+    // Image structure is authoritative when confident.
     return {
-      layoutId: 'raw-review',
-      score: scores['raw-review'],
-      scores,
-      reason: `uncertain (best ${layoutId}=${score.toFixed(2)}) → raw-review`,
+      layoutId: image.layoutId,
+      score: image.score,
+      scores: image.scores,
+      source: 'image',
+      reason: image.reason,
     };
   }
 
-  return {
-    layoutId,
-    score,
-    scores,
-    reason: `${layoutId} score=${score.toFixed(2)}`,
-  };
+  if (!ocrText && image) {
+    return {
+      layoutId: image.layoutId,
+      score: image.score,
+      scores: image.scores,
+      source: 'image',
+      reason: image.reason,
+    };
+  }
+
+  if (!image && ocrText) return { ...ocrText, source: ocrText.source || 'ocr-text' };
+  if (!image || !ocrText) {
+    return {
+      layoutId: OCR_TEXT_ONLY_FALLBACK,
+      score: 0,
+      scores: {
+        'month-matrix': 0,
+        'week-strip': 0,
+        'list-protocol': 0,
+        'day-plan': 0,
+        'single-calendar': 0,
+      },
+      source: 'merged',
+      reason: 'no image/ocr layout signal → text-only',
+    };
+  }
+
+  const scores: Record<ConcreteOcrLayoutId, number> = { ...ocrText.scores };
+  for (const id of Object.keys(image.scores) as ConcreteOcrLayoutId[]) {
+    scores[id] = Math.max(scores[id] || 0, image.scores[id] || 0);
+  }
+  return asDetection(scores, 'merged', `merged image+ocr`);
 }

@@ -41,7 +41,7 @@ export const DEFAULT_SHIFT_ALARM_PREFS: ShiftAlarmPrefs = {
 export type MappingShiftOption = {
   code: string;
   label: string;
-  /** Planned window from mapping, e.g. 07:35–15:50 */
+  /** Planned window from pack mapping (HH:MM–HH:MM) */
   window: string;
   color?: string;
 };

@@ -32,12 +32,25 @@ describe('month matrix grid', () => {
     L('S', 650, 168, 20),
   ];
 
-  it('builds a name × day table like the wall plan', () => {
-    const grid = buildMonthMatrixGrid(lines, pageWidth);
+  it('recovers day columns from bare day-numbers + month/year when weekdays fail OCR', () => {
+    // März 2025 starts Saturday → day 1 = Sa, day 3 = Mo
+    const sparse: OcrLine[] = [
+      L('März', 400, 5, 50),
+      L('2025', 460, 5, 40),
+      ...Array.from({ length: 14 }, (_, i) => L(String(i + 1), 200 + i * 50, 25, 18)),
+      L('Nordmann', 10, 80, 70),
+      L('Alice', 10, 95, 50),
+      L('F', 300, 88, 20),
+      L('Suedmann', 10, 160, 70),
+      L('Bianca', 10, 175, 50),
+      L('U', 250, 168, 20),
+    ];
+    const grid = buildMonthMatrixGrid(sparse, pageWidth);
     expect(grid.ok).toBe(true);
-    expect(grid.headers.length).toBeGreaterThanOrEqual(3);
+    expect(grid.headers.length).toBeGreaterThanOrEqual(10);
+    expect(grid.headers[0]).toMatch(/^Sa1$/i);
+    expect(grid.headers.some((h) => /^Mo3$/i.test(h))).toBe(true);
     expect(grid.rows.length).toBeGreaterThanOrEqual(2);
-    expect(grid.rows.some((r) => /Nordmann/i.test(r.name))).toBe(true);
   });
 
   it('formats output as week chunks (aligned columns, all people)', () => {
@@ -82,6 +95,7 @@ describe('month matrix grid', () => {
     expect(splitGluedDayHeaderText('20Fr21SoP')).toEqual(['20', 'Fr21', 'So']);
     expect(splitGluedDayHeaderText('13F14')).toEqual(['13', 'Fr14']);
     expect(splitGluedDayHeaderText('Di4')).toEqual([]);
+    expect(splitGluedDayHeaderText('2025')).toEqual([]);
   });
 
   it('fills weekend day gaps between numbered OCR anchors', () => {
@@ -94,7 +108,7 @@ describe('month matrix grid', () => {
 
   it('hardens shift cell OCR mash into codes or plausible times', () => {
     expect(formatShiftCell(['U'])).toBe('U');
-    expect(formatShiftCell(['URLAUB'])).toBe('U');
+    expect(formatShiftCell(['URLAUB'])).toBe('URLAUB');
     expect(formatShiftCell(['B38'])).toBe('B38');
     expect(formatShiftCell(['07:35-15:50'])).toBe('07:35-15:50');
     expect(formatShiftCell(['07351550'])).toBe('07:35-15:50');
@@ -123,6 +137,31 @@ describe('month matrix grid', () => {
     expect(expanded.filter((l) => /Mi5|Do/.test(l.text)).length).toBeGreaterThanOrEqual(2);
     const grid = buildMonthMatrixGrid(glued, pageWidth);
     expect(grid.ok).toBe(true);
+    expect(grid.headers[0]).toBe('Sa1');
+    expect(grid.headers).toContain('So2');
     expect(grid.headers.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('recovers Sa1 when OCR emits SA+11 beside So2', () => {
+    const lines: OcrLine[] = [
+      L('SA', 100, 20, 20),
+      L('11', 122, 20, 12),
+      L('o2', 150, 20, 20),
+      L('Mo', 190, 20, 20),
+      L('3', 215, 20, 10),
+      L('Di4', 250, 20, 25),
+      L('Mi5', 290, 20, 25),
+      L('Do6', 330, 20, 25),
+      L('Nordmann', 10, 80, 70),
+      L('Alice', 10, 95, 50),
+      L('F', 100, 88, 20),
+      L('Suedmann', 10, 160, 70),
+      L('Bianca', 10, 175, 50),
+      L('U', 150, 168, 20),
+    ];
+    const grid = buildMonthMatrixGrid(lines, pageWidth);
+    expect(grid.ok).toBe(true);
+    expect(grid.headers[0]).toBe('Sa1');
+    expect(grid.headers[1]).toBe('So2');
   });
 });
