@@ -119,6 +119,10 @@ export const de = {
   sourceOcrCompareTitle: 'Erkannte Tabelle und Foto',
   sourceOcrCompareHint:
     'Oben die OCR-Tabelle, unten das Originalfoto zum Vergleich. Tippe das Foto für Vollbild. Kalender erst nach bewusster Übernahme — hier nur Kontrolle.',
+  sourceOcrCompareDisplayLabel: 'Zellen anzeigen',
+  sourceOcrCompareDisplayCodes: 'Kürzel',
+  sourceOcrCompareDisplayTimes: 'Zeiten',
+  sourceOcrCompareDisplayBoth: 'Beides',
   sourceOcrCompareTapFull: 'Tippen = Foto groß',
   sourceOcrCompareClose: 'Schließen',
   sourceOcrComparePhotoA11y: 'Originalfoto des Dienstplans',

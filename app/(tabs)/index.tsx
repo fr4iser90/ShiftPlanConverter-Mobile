@@ -1294,6 +1294,10 @@ export default function FetchScreen() {
                           imageUri={ocrImageUri}
                           grid={ocrMatrix}
                           matchedName={ocrMatchedName}
+                          presetMapping={
+                            packMapping?.presets?.[snap.preset || ''] ?? null
+                          }
+                          colors={packMapping?.colors ?? null}
                           title={
                             ocrMatchedName && ocrMatrix
                               ? t('sourceOcrMatrixTitleMine', {
