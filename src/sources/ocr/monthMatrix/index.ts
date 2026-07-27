@@ -12,6 +12,7 @@ export {
   collectDayColumns,
   collectDayColumnsFromDayNumbers,
   detectMonthYearFromOcr,
+  enforceCalendarColumnLabels,
 } from './dayHeaders';
 export {
   formatMonthMatrixTable,

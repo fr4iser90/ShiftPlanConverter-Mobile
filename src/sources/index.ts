@@ -19,10 +19,11 @@ export function listSources(): Source[] {
   return Object.values(REGISTRY);
 }
 
-/** Fetch chips for the current employer pack (supportedSourceIds). */
+/** Import chips for the current employer pack — order follows supportedSourceIds. */
 export function listSourcesForPack(pack: PackConfig | null | undefined): Source[] {
-  const allowed = new Set(getSupportedSourceIds(pack));
-  return listSources().filter((s) => allowed.has(s.id));
+  return getSupportedSourceIds(pack)
+    .map((id) => REGISTRY[id])
+    .filter((s): s is Source => !!s);
 }
 
 export function getSource(id: string | null | undefined): Source | null {

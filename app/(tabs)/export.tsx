@@ -10,6 +10,7 @@ import { getMappingForScope } from '@/src/packs';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleSyncCard } from '@/src/ui/GoogleSyncCard';
+import { ExportTargetSoonCard } from '@/src/ui/ExportTargetSoonCard';
 import { Screen } from '@/src/ui/Screen';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
@@ -95,7 +96,25 @@ export default function ExportScreen() {
           />
         </AppCard>
 
-        <GoogleSyncCard showSync />
+        <GoogleSyncCard
+          title={t('settingsHubGoogle')}
+          hint={t('exportGoogleHint')}
+          showSync
+        />
+
+        <ExportTargetSoonCard
+          title={t('settingsHubOutlook')}
+          hint={t('exportOutlookHint')}
+          connectLabel={t('outlookConnect')}
+          syncLabel={t('outlookSync')}
+        />
+
+        <ExportTargetSoonCard
+          title={t('settingsHubApple')}
+          hint={t('exportAppleHint')}
+          connectLabel={t('appleConnect')}
+          syncLabel={t('appleSync')}
+        />
       </ScrollView>
     </Screen>
   );

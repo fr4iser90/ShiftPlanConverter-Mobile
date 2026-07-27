@@ -1,77 +1,55 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ScrollView } from 'react-native';
+import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import {
-  DEFAULT_QUICK_PREFS,
-  loadQuickPrefs,
-  saveQuickPrefs,
-  type QuickUpdatePrefs,
-} from '@/src/state/quickPrefs';
+import { loadQuickPrefs } from '@/src/state/quickPrefs';
+import { loadOcrPreferredName } from '@/src/state/ocrPreferredName';
 import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
-import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
+import { AppCard } from '@/src/ui/AppCard';
+import { SettingsMenuRow } from '@/src/ui/SettingsMenuRow';
 import { Screen } from '@/src/ui/Screen';
-import { SettingsStepper } from '@/src/ui/SettingsStepper';
 import { makeSettingsStyles } from '@/src/ui/settingsStyles';
 import { useTheme } from '@/src/ui/useTheme';
 
-export default function SettingsFetchScreen() {
+export default function SettingsImportHubScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeSettingsStyles(theme), [theme]);
-  const [quick, setQuick] = useState<QuickUpdatePrefs>(DEFAULT_QUICK_PREFS);
+  const [windowMeta, setWindowMeta] = useState('');
+  const [nameMeta, setNameMeta] = useState('');
 
-  useEffect(() => {
-    void loadQuickPrefs().then(setQuick);
-  }, []);
-
-  const patchQuick = async (patch: Partial<QuickUpdatePrefs>) => {
-    setQuick(await saveQuickPrefs(patch));
-  };
-
-  const windowPreview = useMemo(
-    () => formatMonthWindow(buildMonthWindow(quick.prevMonths, quick.nextMonths)),
-    [quick.prevMonths, quick.nextMonths]
+  useFocusEffect(
+    useCallback(() => {
+      void (async () => {
+        const quick = await loadQuickPrefs();
+        setWindowMeta(
+          formatMonthWindow(buildMonthWindow(quick.prevMonths, quick.nextMonths))
+        );
+        const name = await loadOcrPreferredName();
+        setNameMeta(name ? name : t('settingsHubOcrMeta'));
+      })();
+    }, [])
   );
+
+  const go = (path: string) => router.push(`/(tabs)/settings/${path}` as Href);
 
   return (
     <Screen>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-        <AppCard>
-          <SectionTitle>{t('quickPrefsTitle')}</SectionTitle>
-          <Meta>{t('quickPrefsHint')}</Meta>
-          <Text style={styles.window}>
-            {t('quickUpdateWindow')}: {windowPreview}
-          </Text>
-          <SettingsStepper
-            label={t('quickPrefsPrev')}
-            value={quick.prevMonths}
-            onChange={(n) => void patchQuick({ prevMonths: n })}
+        <AppCard style={styles.menuCard}>
+          <SettingsMenuRow
+            title={t('settingsImportWindow')}
+            meta={windowMeta || t('settingsHubFetchMeta')}
+            onPress={() => go('import-window')}
             styles={styles}
           />
-          <SettingsStepper
-            label={t('quickPrefsNext')}
-            value={quick.nextMonths}
-            onChange={(n) => void patchQuick({ nextMonths: n })}
+          <SettingsMenuRow
+            title={t('settingsHubOcr')}
+            meta={nameMeta || t('settingsHubOcrMeta')}
+            onPress={() => go('ocr')}
             styles={styles}
+            last
           />
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{t('quickPrefsGoogle')}</Text>
-            <Switch
-              value={quick.syncGoogle}
-              onValueChange={(v) => void patchQuick({ syncGoogle: v })}
-              trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
-              thumbColor="#fff"
-            />
-          </View>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{t('quickPrefsOfferIcs')}</Text>
-            <Switch
-              value={quick.offerIcsAfterFetch}
-              onValueChange={(v) => void patchQuick({ offerIcsAfterFetch: v })}
-              trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
-              thumbColor="#fff"
-            />
-          </View>
         </AppCard>
       </ScrollView>
     </Screen>

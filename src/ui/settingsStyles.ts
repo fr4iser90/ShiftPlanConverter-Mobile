@@ -58,6 +58,16 @@ export function makeSettingsStyles(theme: AppTheme) {
       textAlignVertical: 'top' as const,
     },
     menuCard: { paddingVertical: 4, gap: 0 },
+    menuSectionLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.color.inkMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      paddingHorizontal: 4,
+      paddingTop: 10,
+      paddingBottom: 4,
+    },
     menuRow: {
       flexDirection: 'row',
       alignItems: 'center',

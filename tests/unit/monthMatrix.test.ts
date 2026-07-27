@@ -5,6 +5,7 @@ import {
   splitGluedDayHeaderText,
   expandGluedDayHeaderTokens,
   fillCalendarDayGaps,
+  enforceCalendarColumnLabels,
 } from '../../src/sources/ocr/monthMatrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
@@ -163,5 +164,66 @@ describe('month matrix grid', () => {
     expect(grid.ok).toBe(true);
     expect(grid.headers[0]).toBe('Sa1');
     expect(grid.headers[1]).toBe('So2');
+  });
+
+  it('enforceCalendarColumnLabels fixes Sa11 and dropped tens (Mi2→Mi12)', () => {
+    const centers = [100, 140, 180, 220, 260, 300, 340, 380, 420, 460, 500, 540];
+    const headers = [
+      'Sa11',
+      'So2',
+      'Mo3',
+      'Di4',
+      'Mi5',
+      'Do6',
+      'Fr7',
+      'Sa8',
+      'So9',
+      'Mo10',
+      'Di11',
+      'Mi2',
+    ];
+    const fixed = enforceCalendarColumnLabels(centers, headers, {
+      year: 2025,
+      month: 2,
+    });
+    expect(fixed.headers[0]).toBe('Sa1');
+    expect(fixed.headers[1]).toBe('So2');
+    expect(fixed.headers).toContain('Mi12');
+    expect(fixed.headers.every((h) => !/^Sa11$/i.test(h))).toBe(true);
+    // Weekdays forced from Feb 2025 calendar (Sat=1)
+    expect(fixed.headers.find((h) => /^Mo3$/i.test(h))).toBeTruthy();
+  });
+
+  it('rebuilds coherent headers from Februar cue when OCR mash shifts days', () => {
+    // Mimic phone-crop failure mode: Sa11 + later Mi2, with month/year present.
+    const mashed: OcrLine[] = [
+      L('Februar', 400, 4, 60),
+      L('2025', 470, 4, 40),
+      L('Sa11', 100, 22, 36),
+      L('So2', 145, 22, 28),
+      L('Mo3', 190, 22, 28),
+      L('Di4', 235, 22, 28),
+      L('Mi5', 280, 22, 28),
+      L('Do6', 325, 22, 28),
+      L('Fr7', 370, 22, 28),
+      L('Sa8', 415, 22, 28),
+      L('So9', 460, 22, 28),
+      L('Mo10', 505, 22, 32),
+      L('Di11', 550, 22, 32),
+      L('Mi2', 595, 22, 28),
+      L('Do13', 640, 22, 32),
+      L('Fr14', 685, 22, 32),
+      L('Nordmann', 10, 80, 70),
+      L('Alice', 10, 95, 50),
+      L('F', 190, 88, 20),
+      L('Suedmann', 10, 160, 70),
+      L('Bianca', 10, 175, 50),
+      L('U', 145, 168, 20),
+    ];
+    const grid = buildMonthMatrixGrid(mashed, pageWidth);
+    expect(grid.ok).toBe(true);
+    expect(grid.headers[0]).toBe('Sa1');
+    expect(grid.headers).toContain('Mi12');
+    expect(grid.headers.some((h) => /^Sa11$/i.test(h))).toBe(false);
   });
 });

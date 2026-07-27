@@ -414,7 +414,7 @@ export function collectDayColumns(
       g.find((a) => isWd(a.label) && /\d/.test(a.label)) || g.find((a) => isWd(a.label));
     return labeled?.label || g[0].label;
   });
-  return fillCalendarDayGaps(centers, headers);
+  return enforceCalendarColumnLabels(centers, headers, detectMonthYearFromOcr(lines));
 }
 
 /** Parse "März 2025" / "March 2025" / "02/2026" style cues from OCR. */
@@ -482,6 +482,108 @@ function germanWeekdayForDate(year: number, month: number, day: number): string 
   // JS: 0=Sun … 6=Sat → German roster labels
   const map = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
   return map[new Date(year, month - 1, day).getDay()];
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+type DayCol = { x: number; label: string; day: number | null; wd: string | null };
+
+/**
+ * Fix OCR day-number traps that shift every column after them:
+ * - Sa+"11" → Sa1 (stem of 1 doubled next to So2)
+ * - Mi2 after Di11 → Mi12 (dropped tens digit)
+ * Then, when month/year is known, force weekday labels from the calendar
+ * (X positions stay; labels are rewritten — one path, no second parser).
+ */
+export function enforceCalendarColumnLabels(
+  centers: number[],
+  headers: string[],
+  cal: { year: number; month: number } | null
+): { centers: number[]; headers: string[] } {
+  if (centers.length !== headers.length || centers.length < 2) {
+    return { centers, headers };
+  }
+
+  const cols: DayCol[] = centers.map((x, i) => {
+    const p = parseHeaderDay(headers[i]);
+    return { x, label: headers[i], day: p.day, wd: p.wd };
+  });
+
+  // Sa11 / So11 next to day-2 Sunday → day 1
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    if (c.day !== 11 || !c.wd || !/^(Sa|So)$/i.test(c.wd)) continue;
+    const right = cols.slice(i + 1, i + 4).find((o) => o.day != null);
+    if (right && (right.day === 2 || (right.wd === 'So' && right.day == null))) {
+      cols[i] = { ...c, day: 1, label: `${c.wd}1` };
+    }
+  }
+
+  // Dropped tens digit: … Di11, Mi2 → Mi12 (single digit that should continue the decade)
+  for (let i = 1; i < cols.length; i++) {
+    const prev = cols[i - 1];
+    const cur = cols[i];
+    if (prev.day == null || cur.day == null) continue;
+    if (cur.day >= 10 || cur.day < 1) continue;
+    if (cur.day > prev.day) continue; // still ascending in the same decade
+    const repaired = cur.day + 10 * Math.floor(prev.day / 10);
+    // Prefer +10 when it continues the sequence (prev+1), else +10 if prev was 10–19 and cur < prev
+    if (repaired === prev.day + 1 && repaired <= 31) {
+      const wd = cur.wd || (prev.wd ? shiftWeekday(prev.wd, 1) : null);
+      cols[i] = {
+        ...cur,
+        day: repaired,
+        wd,
+        label: wd ? `${wd}${repaired}` : String(repaired),
+      };
+    } else if (prev.day >= 10 && cur.day < prev.day && cur.day + 10 <= 31) {
+      const d = cur.day + 10;
+      if (d === prev.day + 1 || d === prev.day + 2) {
+        const wd = cur.wd || (prev.wd ? shiftWeekday(prev.wd, d - prev.day) : null);
+        cols[i] = { ...cur, day: d, wd, label: wd ? `${wd}${d}` : String(d) };
+      }
+    }
+  }
+
+  // Impossible day numbers (>31) → drop day, keep X for gap fill
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i].day != null && (cols[i].day! < 1 || cols[i].day! > 31)) {
+      cols[i] = { ...cols[i], day: null, label: cols[i].wd || cols[i].label };
+    }
+  }
+
+  // With calendar: force WD from date; keep day numbers (after repair).
+  if (cal) {
+    const maxDay = daysInMonth(cal.year, cal.month);
+    for (let i = 0; i < cols.length; i++) {
+      const c = cols[i];
+      if (c.day == null || c.day < 1 || c.day > maxDay) continue;
+      const wd = germanWeekdayForDate(cal.year, cal.month, c.day);
+      cols[i] = { ...c, wd, label: `${wd}${c.day}` };
+    }
+  } else {
+    // No month/year: still repair WD from previous numbered column when inconsistent.
+    for (let i = 1; i < cols.length; i++) {
+      const prev = [...cols.slice(0, i)].reverse().find((c) => c.day != null && c.wd);
+      const cur = cols[i];
+      if (!prev?.day || !prev.wd || cur.day == null) continue;
+      const step = cur.day - prev.day;
+      if (step < 0 || step > 6) continue;
+      const expectWd = shiftWeekday(prev.wd, step);
+      if (!cur.wd || cur.wd.toLowerCase() !== expectWd.toLowerCase()) {
+        cols[i] = { ...cur, wd: expectWd, label: `${expectWd}${cur.day}` };
+      }
+    }
+  }
+
+  const centersOut = cols.map((c) => c.x);
+  const headersOut = cols.map((c) =>
+    c.day != null && c.wd ? `${c.wd}${c.day}` : c.label
+  );
+  // Gap fill after label repair (may insert missing weekend columns).
+  return fillCalendarDayGaps(centersOut, headersOut);
 }
 
 /**
@@ -566,7 +668,7 @@ export function collectDayColumnsFromDayNumbers(
     }
     return String(c.day);
   });
-  return fillCalendarDayGaps(centers, headers);
+  return enforceCalendarColumnLabels(centers, headers, cal);
 }
 
 /**

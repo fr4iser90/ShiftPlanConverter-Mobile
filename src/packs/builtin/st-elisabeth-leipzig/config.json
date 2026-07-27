@@ -1,17 +1,17 @@
 {
   "name": "St. Elisabeth Leipzig",
-  "hint": "Aktuell freigeschaltet: Pflegedienst · OP-Bereich · Preset Anästhesie. Andere Bereiche folgen — dafür „Unterstützung anfragen“ nutzen.",
+  "hint": "Rolle Anästhesie (Pflege · OP). Weitere Rollen/Bereiche: Unterstützung anfragen.",
   "parserId": "st-elisabeth-zeitprotokoll-pdf",
-  "preferredSourceId": "loga3-webview",
-  "supportedSourceIds": ["loga3-webview", "local-files", "camera-ocr"],
+  "preferredSourceId": "local-files",
+  "supportedSourceIds": ["local-files", "camera-ocr", "loga3-webview"],
   "groups": [
     {
       "id": "pflege",
-      "label": "Pflegedienst",
+      "label": "Pflege",
       "areas": [
         {
           "id": "op-bereich",
-          "label": "OP-Bereich",
+          "label": "OP",
           "mapping": "mappings/pflege/op.json",
           "supported": true,
           "defaultPreset": "Anästhesie"

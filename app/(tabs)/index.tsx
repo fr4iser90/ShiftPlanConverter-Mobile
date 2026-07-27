@@ -20,10 +20,9 @@ import { Loga3WebView } from '@/src/sources/loga3/Loga3WebView';
 import type { AutomationCommand, AutomationMessage } from '@/src/sources/loga3/automation';
 import { AutomationBridge } from '@/src/sources/webview/bridge';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
-import { getMappingForScope, getPackById, isSourceSupportedByPack } from '@/src/packs';
-import { ingestArtifacts } from '@/src/ingest/ingestArtifacts';
+import { getMappingForScope, getPackById, getPreferredSourceId, isSourceSupportedByPack } from '@/src/packs';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
-import { getGoogleCalendarId, getSnapshot, subscribeKeys } from '@/src/state/store';
+import { getSnapshot, subscribeKeys } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   takeSmokeFetchIntent,
@@ -98,18 +97,6 @@ function alertErrorWithReport(title: string, msg: string, context: string) {
   ]);
 }
 
-const FIXTURE_TEXT = [
-  'Abrechnungsmonat 09/2026',
-  'Zeitabrechnung',
-  'Tag von bis Dauer Pause PEP',
-  'Übertrag aus Vormonat 26,14',
-  '11 Mo KO* 11:35 GE* 19:50 0,30 7,45 4,24 15,27 11,03 24,05',
-  '14 Di KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 27,26',
-  '15 Mi KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 30,47',
-  '16 Do KO* 07:35 GE* 15:50 0,30 7,45 4,24 7,45 3,21 34,08',
-  '17 Fr KO* 08:30 GE* 16:45 0,30 7,45 4,24 7,45 3,21 37,29',
-].join('\n');
-
 function makeFetchStyles(theme: AppTheme) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: theme.color.canvas },
@@ -142,6 +129,14 @@ function makeFetchStyles(theme: AppTheme) {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
+    },
+    ocrActionRow: {
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'stretch',
+    },
+    ocrActionBtn: {
+      flex: 1,
     },
     monthChip: {
       width: 48,
@@ -176,6 +171,9 @@ function makeFetchStyles(theme: AppTheme) {
     sourceChipOn: {
       backgroundColor: theme.color.primary,
       borderColor: theme.color.primary,
+    },
+    sourceChipLocked: {
+      opacity: 0.45,
     },
     sourceChipText: {
       fontSize: 13,
@@ -233,11 +231,6 @@ function makeFetchStyles(theme: AppTheme) {
       color: theme.color.inkFaint,
       marginTop: 2,
     },
-    advancedToggle: { paddingVertical: 4 },
-    advancedToggleText: {
-      ...theme.type.caption,
-      color: theme.color.inkMuted,
-    },
     webToggle: {
       marginTop: 4,
       paddingHorizontal: theme.space.md,
@@ -279,7 +272,6 @@ export default function FetchScreen() {
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
   const [showWeb, setShowWeb] = useState(true);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [status, setStatus] = useState(t('statusReady'));
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -296,8 +288,7 @@ export default function FetchScreen() {
   );
   const [year, setYear] = useState(new Date().getFullYear());
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
-  const [activeSourceId, setActiveSourceId] = useState('loga3-webview');
-  const [googleConfigured, setGoogleConfigured] = useState(false);
+  const [activeSourceId, setActiveSourceId] = useState('local-files');
   const isLoga3Source = activeSourceId === 'loga3-webview';
   const isLocalSource = activeSourceId === 'local-files';
   const isCameraOcrSource = activeSourceId === 'camera-ocr';
@@ -310,7 +301,12 @@ export default function FetchScreen() {
     { id: string; label: string; yCenter: number; height: number }[]
   >([]);
   const [ocrLayoutId, setOcrLayoutId] = useState<OcrLayoutId>(DEFAULT_OCR_LAYOUT_ID);
-  const ocrLayouts = useMemo(() => listOcrLayouts(), []);
+  // Release UI: hide stub layouts (week/list/day/…) — keep current if already selected.
+  const ocrLayouts = useMemo(
+    () =>
+      listOcrLayouts().filter((l) => l.status !== 'stub' || l.id === ocrLayoutId),
+    [ocrLayoutId]
+  );
   const [ocrNamePick, setOcrNamePick] = useState<{
     candidates: { id: string; label: string; yCenter: number; height: number }[];
     suggestedId?: string | null;
@@ -371,8 +367,19 @@ export default function FetchScreen() {
 
   const refreshSetup = useCallback(async () => {
     const st = await getSetupStatus();
+    const snapNow = getSnapshot();
+    const packNow = snapNow.hospitalId ? getPackById(snapNow.hospitalId) : null;
+    let sourceId = st.preferredSourceId;
+    // Never leave LOGA3 selected when portal login/URL is incomplete.
+    if (sourceId === 'loga3-webview' && !st.loga3Ready) {
+      sourceId = isSourceSupportedByPack(packNow, 'local-files')
+        ? 'local-files'
+        : getPreferredSourceId(packNow);
+      if (sourceId === 'loga3-webview') sourceId = 'local-files';
+      await saveActiveSourceId(sourceId);
+    }
     setSetup(st);
-    setActiveSourceId(st.preferredSourceId);
+    setActiveSourceId(sourceId);
     const prefs = await loadQuickPrefs();
     setQuickPrefs(prefs);
     if (!seededWindowRef.current) {
@@ -380,7 +387,6 @@ export default function FetchScreen() {
       setSelected(buildMonthWindow(prefs.prevMonths, prefs.nextMonths));
       setYear(new Date().getFullYear());
     }
-    setGoogleConfigured(!!(await getGoogleCalendarId()));
     setOcrLayoutId(await loadOcrLayoutId());
     setOcrSettingsName(await loadOcrPreferredName());
     if (st.credentialsOk) {
@@ -394,10 +400,39 @@ export default function FetchScreen() {
     router.push(SETUP_HREF);
   }, []);
 
+  const showLoga3LockedAlert = useCallback((st: SetupStatus) => {
+    const detail =
+      !st.urlOk && !st.credentialsOk
+        ? t('sourceLoga3MissingBoth')
+        : !st.urlOk
+          ? t('sourceLoga3MissingUrl')
+          : t('sourceLoga3MissingCreds');
+    Alert.alert(t('sourceLoga3LockedTitle'), detail, [
+      { text: t('sourceLoga3LockedCancel'), style: 'cancel' },
+      { text: t('openSetup'), onPress: () => router.push(SETUP_HREF) },
+    ]);
+  }, []);
+
   const onPickSource = useCallback(
     async (id: string) => {
-      if (busy || id === activeSourceId) return;
+      if (busy) return;
       if (!isSourceSupportedByPack(pack, id)) return;
+      if (id === 'loga3-webview') {
+        const st = await getSetupStatus();
+        setSetup(st);
+        if (!st.loga3Ready) {
+          showLoga3LockedAlert(st);
+          if (activeSourceId === 'loga3-webview') {
+            const fallback = isSourceSupportedByPack(pack, 'local-files')
+              ? 'local-files'
+              : 'camera-ocr';
+            setActiveSourceId(fallback);
+            await saveActiveSourceId(fallback);
+          }
+          return;
+        }
+      }
+      if (id === activeSourceId) return;
       setActiveSourceId(id);
       await saveActiveSourceId(id);
       const st = await getSetupStatus();
@@ -405,7 +440,7 @@ export default function FetchScreen() {
       if (st.credentialsOk) setCreds(await loadCredentials());
       else setCreds(null);
     },
-    [busy, activeSourceId, pack]
+    [busy, activeSourceId, pack, showLoga3LockedAlert]
   );
 
   const onPickOcrLayout = useCallback(
@@ -429,9 +464,8 @@ export default function FetchScreen() {
     return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
   }, [snap.hospitalId, snap.groupId, snap.areaId]);
 
-  const quickWillSyncGoogle = !!(
-    quickPrefs?.syncGoogle && googleConfigured
-  );
+  // Pref: sync configured calendar targets after fetch (Google today; more later).
+  const quickWillSync = !!quickPrefs?.syncGoogle;
 
   const selectionLabel = useMemo(() => formatMonthWindow(selected), [selected]);
 
@@ -458,23 +492,6 @@ export default function FetchScreen() {
         Alert.alert('ICS', String(e));
       }
     })();
-  };
-
-  const onConvertFixture = async () => {
-    if (!setup?.workplaceReady || !packMapping || !snap.preset) {
-      Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
-      return;
-    }
-    try {
-      const ingested = await ingestArtifacts(
-        [{ kind: 'text', month: 9, year: 2026, text: FIXTURE_TEXT }],
-        { replaceEntries: true }
-      );
-      setStatus(t('fjOfflineFixture', { count: ingested.entries.length }));
-      Alert.alert('Fixture', t('fixtureLoaded', { count: ingested.entries.length }));
-    } catch (e) {
-      Alert.alert(t('alertError'), String(e));
-    }
   };
 
   const onImportFiles = async () => {
@@ -667,67 +684,6 @@ export default function FetchScreen() {
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ocrLayoutId]);
-
-  /** Phone: login only + dump live LOGA3 selectors (no export / no Zeitprotokoll clicks). */
-  const onDumpLiveSelectors = async () => {
-    if (!setup?.complete || !creds) {
-      Alert.alert(t('setupTitle'), t('setupIncomplete'));
-      return;
-    }
-    setShowWeb(true);
-    setBusy(true);
-    setStatus('Live-Selektoren: WebView + Login…');
-    try {
-      await waitUntilReady();
-      await warmBridge();
-      const bridge = bridgeRef.current;
-      const inject = (cmd: AutomationCommand) => webRef.current?.run(cmd);
-      setStatus('Live-Selektoren: fillLogin…');
-      await bridge.run(
-        inject,
-        { type: 'fillLogin', username: creds.username, password: creds.password },
-        25000
-      );
-      await bridge.run(inject, { type: 'submitLogin' }, 20000);
-      setStatus('Live-Selektoren: warte Shell…');
-      const started = Date.now();
-      while (Date.now() - started < 120000) {
-        try {
-          const st = await bridge.probe(inject, { type: 'assertShellReady' }, 15000);
-          if (st.ok || st.oeffnenFound || st.pickerFound) break;
-        } catch {
-          // keep waiting
-        }
-        await bridge.delay(1500);
-      }
-      setStatus('Live-Selektoren: dump…');
-      const dump = await bridge.probe(inject, { type: 'dumpLiveSelectors' }, 30000);
-      const json = dump.sample || JSON.stringify({ note: dump.note, error: dump.error });
-      const FileSystem = await import('expo-file-system/legacy');
-      const base =
-        FileSystem.cacheDirectory || FileSystem.documentDirectory || '';
-      const path = `${base}loga3-live-selectors.json`;
-      await FileSystem.writeAsStringAsync(path, json);
-      // App-specific external dir is adb-pullable without run-as on many devices
-      try {
-        const ext = `${FileSystem.documentDirectory || ''}loga3-live-selectors.json`;
-        if (ext !== path) await FileSystem.writeAsStringAsync(ext, json);
-      } catch {
-        // ignore
-      }
-      setStatus(`Live-Selektoren ok → ${dump.note || ''} · ${path}`);
-      Alert.alert(
-        'Live-Selektoren',
-        `${dump.note || 'ok'}\n\nGespeichert.\nLogcat: LOGA3_LIVE_SELECTORS / [WebView]`
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setStatus(t('fjLiveSelectorsError', { msg }));
-      Alert.alert('Live selectors', msg);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const onAutomationMessage = useCallback((msg: AutomationMessage) => {
     bridgeRef.current.handleMessage(msg);
@@ -1108,7 +1064,7 @@ export default function FetchScreen() {
       >
         <View style={styles.headerRow}>
           <View style={{ flex: 1, gap: 4 }}>
-            <ScreenTitle>{`${t('tabFetch')} · WV`}</ScreenTitle>
+            <ScreenTitle>{t('tabFetch')}</ScreenTitle>
             <Text style={styles.summary} numberOfLines={2}>
               {setup.summary || t('setupWorkplace')}
             </Text>
@@ -1143,6 +1099,7 @@ export default function FetchScreen() {
               <View style={styles.monthGrid}>
                 {sources.map((s) => {
                   const on = activeSourceId === s.id;
+                  const loga3Locked = s.id === 'loga3-webview' && !setup.loga3Ready;
                   const label =
                     s.id === 'loga3-webview'
                       ? t('sourceLoga3')
@@ -1156,9 +1113,18 @@ export default function FetchScreen() {
                       key={s.id}
                       disabled={busy}
                       onPress={() => void onPickSource(s.id)}
-                      style={[styles.sourceChip, on && styles.sourceChipOn]}
+                      style={[
+                        styles.sourceChip,
+                        on && styles.sourceChipOn,
+                        loga3Locked && styles.sourceChipLocked,
+                      ]}
                     >
-                      <Text style={[styles.sourceChipText, on && styles.sourceChipTextOn]}>
+                      <Text
+                        style={[
+                          styles.sourceChipText,
+                          on && styles.sourceChipTextOn,
+                        ]}
+                      >
                         {label}
                       </Text>
                     </Pressable>
@@ -1173,7 +1139,7 @@ export default function FetchScreen() {
                   <Text style={styles.windowLine}>
                     {selectionLabel || '—'}
                     {' · '}
-                    {quickWillSyncGoogle ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
+                    {quickWillSync ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
                   </Text>
                   <View style={styles.monthGrid}>
                     {MONTHS.map((m) => {
@@ -1207,13 +1173,21 @@ export default function FetchScreen() {
                   />
                   <AppButton
                     title={
-                      quickWillSyncGoogle ? t('quickUpdateGoSync') : t('sourceLoga3Go')
+                      quickWillSync ? t('quickUpdateGoSync') : t('sourceLoga3Go')
                     }
                     onPress={() => void onFetch()}
-                    disabled={busy || !setup.complete}
+                    disabled={busy || !setup.loga3Ready}
                     busy={busy}
                   />
-                  {!setup.complete ? <Meta>{t('setupLoga3Hint')}</Meta> : null}
+                  {!setup.loga3Ready ? (
+                    <Meta>
+                      {!setup.urlOk && !setup.credentialsOk
+                        ? t('sourceLoga3MissingBoth')
+                        : !setup.urlOk
+                          ? t('sourceLoga3MissingUrl')
+                          : t('sourceLoga3MissingCreds')}
+                    </Meta>
+                  ) : null}
                 </>
               ) : isLocalSource ? (
                 <>
@@ -1231,6 +1205,28 @@ export default function FetchScreen() {
               ) : isCameraOcrSource ? (
                 <>
                   <Meta>{t('sourceCameraOcrHint')}</Meta>
+                  <View style={styles.ocrActionRow}>
+                    <AppButton
+                      title={
+                        scannerAvailable
+                          ? t('sourceCameraOcrGoScan')
+                          : t('sourceCameraOcrGoCamera')
+                      }
+                      onPress={() =>
+                        void onCameraOcr(scannerAvailable ? 'scan' : 'camera')
+                      }
+                      disabled={busy}
+                      busy={busy}
+                      style={styles.ocrActionBtn}
+                    />
+                    <AppButton
+                      title={t('sourceCameraOcrGoGallery')}
+                      variant="secondary"
+                      onPress={() => void onCameraOcr('gallery')}
+                      disabled={busy}
+                      style={styles.ocrActionBtn}
+                    />
+                  </View>
                   <SectionTitle>{t('sourceCameraOcrLayout')}</SectionTitle>
                   <View style={styles.monthGrid}>
                     {ocrLayouts.map((layout) => {
@@ -1244,36 +1240,11 @@ export default function FetchScreen() {
                         >
                           <Text style={[styles.sourceChipText, on && styles.sourceChipTextOn]}>
                             {t(layout.labelKey as 'ocrLayoutRaw')}
-                            {layout.status === 'stub' ? ' · …' : ''}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
-                  <Meta>
-                    {t(
-                      (ocrLayouts.find((l) => l.id === ocrLayoutId)?.hintKey ||
-                        'ocrLayoutRawHint') as 'ocrLayoutRawHint'
-                    )}
-                  </Meta>
-                  {ocrLayouts.find((l) => l.id === ocrLayoutId)?.status === 'stub' ? (
-                    <Meta>{t('sourceCameraOcrLayoutStub', { layout: ocrLayoutId })}</Meta>
-                  ) : null}
-                  <AppButton
-                    title={t('sourceCameraOcrGo')}
-                    onPress={() =>
-                      void onCameraOcr(scannerAvailable ? 'scan' : 'camera')
-                    }
-                    disabled={busy}
-                    busy={busy}
-                  />
-                  <AppButton
-                    title={t('sourceCameraOcrGoGallery')}
-                    variant="ghost"
-                    onPress={() => void onCameraOcr('gallery')}
-                    disabled={busy}
-                  />
-                  {!scannerAvailable ? <Meta>{t('sourceOcrScannerMissing')}</Meta> : null}
                   <Meta>
                     {ocrSettingsName
                       ? t('sourceOcrSettingsName', { name: ocrSettingsName })
@@ -1404,31 +1375,6 @@ export default function FetchScreen() {
               ) : null}
             </AppCard>
 
-            {__DEV__ ? (
-              <>
-                <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.advancedToggle}>
-                  <Text style={styles.advancedToggleText}>
-                    {showAdvanced ? `▾ ${t('advanced')}` : `▸ ${t('advanced')}`}
-                  </Text>
-                </Pressable>
-                {showAdvanced && (
-                  <AppCard>
-                    <AppButton
-                      title={t('convertFixture')}
-                      variant="ghost"
-                      onPress={() => void onConvertFixture()}
-                      disabled={busy}
-                    />
-                    <AppButton
-                      title="Live-Selektoren dump (Login only)"
-                      variant="ghost"
-                      onPress={() => void onDumpLiveSelectors()}
-                      disabled={busy}
-                    />
-                  </AppCard>
-                )}
-              </>
-            ) : null}
         </View>
 
         {!isLoga3Source ? null : (

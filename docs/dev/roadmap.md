@@ -1,6 +1,6 @@
 # Roadmap — offene Punkte
 
-Stand: 2026-07-25. Fertige Phasen (Scaffold, Live-Fetch für getestetes Pack, ICS/Google, Widgets, Rename) stehen in README + CHANGELOG — nicht hier.
+Stand: 2026-07-27. Fertige Phasen (Scaffold, Live-Fetch für getestetes Pack, ICS/Google, Widgets, Rename) stehen in README + CHANGELOG — nicht hier.
 
 ## Zielbild: generischer Converter
 
@@ -37,9 +37,25 @@ Detaillierter Refactor-Plan: [`refactor-sources.md`](refactor-sources.md).
 | **4 WebView shared** | done | Bridge/Wait/PDF-Poll/pdfStore unter `src/sources/webview/` (loga3 re-exportiert) |
 | **5 Local import** | done | `local-files` Source · Fetch tab „Datei“ |
 | **5b Camera OCR** | spike | On-device photo → OCR → raw text (no ingest) — [`ocr-camera-source.md`](ocr-camera-source.md) |
+| **5c OCR granular** | open | Layouts + Live-Status + Unsicherheit nachfragen + Region-Tap + Auto-Snapshots — siehe unten |
 | **6 2nd WebView** | open | nur bei konkretem zweiten AG |
 
 Nicht alles vor dem ersten Store-Build: Local-PDF ist der Store-Mehrwert; zweites Site-Plugin warten.
+
+## OCR granularer machen (5c)
+
+Ziel: Kamera-OCR nicht als Blackbox, sondern mit klaren Layouts, Live-Feedback und gezielter User-Hilfe bei Unsicherheit. Basis: [`ocr-camera-source.md`](ocr-camera-source.md).
+
+| Thema | Was |
+|-------|-----|
+| **Alle Standard-Layouts** | `month-matrix`, `week-strip`, `list-protocol`, `day-plan`, `single-calendar` (u. a.) wirklich nutzbar — nicht nur stubs; User kann Layout wählen oder `auto` |
+| **Live-Status an der Kamera** | Anzeigen, was erkannt wird und was gerade läuft (Layout, Name, Datum, Zellen/Score …) |
+| **Niedriger Score → nachfragen** | Bei Unsicherheit nicht raten: z. B. „Monats- oder Wochenmatrix?“; klare Entscheidung statt stiller Fallback-Kette |
+| **Region-Tap bei Fehlern** | Wenn Name/Datum/Bereich nicht erkannt: User tippt auf den Bereich (Name-Spalte, Datum, …) statt alles neu zu fotografieren |
+| **Auto-Snapshots bei Treffer** | Sobald etwas korrekt erkannt: gezielte Snapshots der relevanten Regionen, damit alles vollständig erfasst wird |
+| **Nachfotografieren bei Bedarf** | Bei unlesbarem Bereich: Prompt „Bereich X nochmal fotografieren“ (lesbar machen), nicht blind weiterparsen |
+
+Leitplanken (wie sonst): **ein Pfad** — bei Unklarheit fragen, nicht Layout A → fail → Layout B still probieren.
 
 ## Ops / Store (weiter offen)
 
