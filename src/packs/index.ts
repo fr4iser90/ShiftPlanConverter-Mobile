@@ -75,7 +75,7 @@ export function getSupportedSourceIds(pack: PackConfig | null | undefined): stri
     ?.map((s) => String(s || '').trim())
     .filter(Boolean);
   if (raw?.length) return raw;
-  return ['local-files', 'loga3-webview', 'camera-ocr'];
+  return ['local-files', 'camera-ocr', 'loga3-webview'];
 }
 
 export function isSourceSupportedByPack(

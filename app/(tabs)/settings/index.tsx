@@ -12,8 +12,6 @@ import {
   loadSchedulePrefs,
 } from '@/src/schedule/prefs';
 import { loadShiftAlarmPrefs } from '@/src/schedule/shiftAlarmPrefs';
-import { loadQuickPrefs } from '@/src/state/quickPrefs';
-import { buildMonthWindow, formatMonthWindow } from '@/src/sync/monthWindow';
 import { AppCard, ScreenTitle } from '@/src/ui/AppCard';
 import { SettingsMenuRow } from '@/src/ui/SettingsMenuRow';
 import { Screen } from '@/src/ui/Screen';
@@ -25,7 +23,6 @@ export default function SettingsHubScreen() {
   const styles = useMemo(() => makeSettingsStyles(theme), [theme]);
   const [, setTick] = useState(0);
   const [setup, setSetup] = useState<SetupStatus | null>(null);
-  const [fetchMeta, setFetchMeta] = useState('');
   const [remindMeta, setRemindMeta] = useState('');
   const snap = getSnapshot();
 
@@ -36,10 +33,6 @@ export default function SettingsHubScreen() {
       );
       void (async () => {
         setSetup(await getSetupStatus());
-        const quick = await loadQuickPrefs();
-        setFetchMeta(
-          formatMonthWindow(buildMonthWindow(quick.prevMonths, quick.nextMonths))
-        );
         const schedule = await loadSchedulePrefs();
         const last = await getLastSuccessfulFetchAt();
         const shift = await loadShiftAlarmPrefs();
@@ -88,26 +81,20 @@ export default function SettingsHubScreen() {
           />
           <SettingsMenuRow
             title={t('settingsHubFetch')}
-            meta={fetchMeta || t('settingsHubFetchMeta')}
+            meta={t('settingsHubFetchMeta')}
             onPress={() => go('fetch')}
             styles={styles}
           />
           <SettingsMenuRow
-            title={t('settingsHubGoogle')}
-            meta={t('settingsHubGoogleMeta')}
-            onPress={() => go('google')}
+            title={t('settingsHubExport')}
+            meta={t('settingsHubExportMeta')}
+            onPress={() => go('export')}
             styles={styles}
           />
           <SettingsMenuRow
             title={t('settingsHubReminders')}
             meta={remindMeta || t('settingsHubRemindersMeta')}
             onPress={() => go('reminders')}
-            styles={styles}
-          />
-          <SettingsMenuRow
-            title={t('settingsHubOcr')}
-            meta={t('settingsHubOcrMeta')}
-            onPress={() => go('ocr')}
             styles={styles}
           />
           <SettingsMenuRow

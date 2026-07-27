@@ -18,15 +18,15 @@ describe('parser registry', () => {
   it('pack config exposes parser + preferred source', () => {
     const pack = getBuiltinPackConfig();
     expect(getParserIdForPack(pack)).toBe('st-elisabeth-zeitprotokoll-pdf');
-    expect(getPreferredSourceId(pack)).toBe('loga3-webview');
+    expect(getPreferredSourceId(pack)).toBe('local-files');
   });
 
-  it('exposes supportedSourceIds for Fetch filtering', () => {
+  it('exposes supportedSourceIds for Import filtering (file → photo → LOGA3)', () => {
     const pack = getBuiltinPackConfig();
     expect(getSupportedSourceIds(pack)).toEqual([
-      'loga3-webview',
       'local-files',
       'camera-ocr',
+      'loga3-webview',
     ]);
     expect(isSourceSupportedByPack(pack, 'loga3-webview')).toBe(true);
     expect(isSourceSupportedByPack(pack, 'unknown-portal')).toBe(false);

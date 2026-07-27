@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   ScrollView,
@@ -25,9 +25,14 @@ import {
   getSnapshot,
   isWorkplaceConfigured,
   setGoogleCalendarId,
+  setWorkplace,
   subscribe,
 } from '@/src/state/store';
-import { getPackById, isSourceSupportedByPack } from '@/src/packs';
+import {
+  getPackById,
+  isSourceSupportedByPack,
+  listBuiltinPacks,
+} from '@/src/packs';
 import { saveActiveSourceId } from '@/src/state/activeSource';
 import { WorkplacePicker } from '@/src/ui/WorkplacePicker';
 import { getSetupStatus } from '@/src/setup/status';
@@ -45,9 +50,10 @@ import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
+import { ExportTargetSoonSetupBlock } from '@/src/ui/ExportTargetSoonCard';
 import { theme } from '@/src/ui/theme';
 
-/** 0 = workplace (required) · 1 = LOGA3 (optional) · 2 = Google (optional) */
+/** 0 = workplace · 1 = portal (optional, pack-dependent) · 2 = calendars (optional) */
 type Step = 0 | 1 | 2;
 
 async function preferNonLoga3Source(hospitalId: string | null | undefined): Promise<void> {
@@ -80,6 +86,11 @@ export default function SetupScreen() {
   const [primaryWarn, setPrimaryWarn] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const snap = getSnapshot();
+  const pack = useMemo(
+    () => (snap.hospitalId ? getPackById(snap.hospitalId) : null),
+    [snap.hospitalId]
+  );
+  const portalAvailable = isSourceSupportedByPack(pack, 'loga3-webview');
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
 
@@ -122,8 +133,11 @@ export default function SetupScreen() {
     }
     await hydrateGoogleUi();
     const st = await getSetupStatus();
+    const snapNow = getSnapshot();
+    const packNow = snapNow.hospitalId ? getPackById(snapNow.hospitalId) : null;
+    const hasPortal = isSourceSupportedByPack(packNow, 'loga3-webview');
     if (!st.workplaceOk) setStep(0);
-    else if (!st.loga3Ready) setStep(1);
+    else if (hasPortal && !st.loga3Ready) setStep(1);
     else setStep(2);
   }, [hydrateGoogleUi]);
 
@@ -133,12 +147,13 @@ export default function SetupScreen() {
     }, [hydrateFields])
   );
 
-  const goLoga3Step = () => {
+  const goAfterWorkplace = () => {
     if (!isWorkplaceConfigured(snap)) {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    setStep(1);
+    if (portalAvailable) setStep(1);
+    else setStep(2);
   };
 
   const saveLoga3AndContinue = async () => {
@@ -169,6 +184,29 @@ export default function SetupScreen() {
     }
     await preferNonLoga3Source(snap.hospitalId);
     setStep(2);
+  };
+
+  /** One tap: default pack + role, file/photo sources, skip portal & calendar. */
+  const finishFilesOnly = async () => {
+    if (!isWorkplaceConfigured(snap)) {
+      const p = listBuiltinPacks()[0];
+      if (!p) {
+        Alert.alert(t('setupWorkplace'), t('noPacksYet'));
+        return;
+      }
+      const g = p.groups[0];
+      const a = g?.areas.find((x) => x.supported) || g?.areas[0];
+      await setWorkplace({
+        hospitalId: p.id,
+        groupId: g?.id || '',
+        areaId: a?.id || '',
+        preset: a?.defaultPreset || '',
+      });
+    }
+    const hospitalId = getSnapshot().hospitalId;
+    await preferNonLoga3Source(hospitalId);
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
   };
 
   const onGoogleConnect = async () => {
@@ -217,8 +255,15 @@ export default function SetupScreen() {
 
       <View style={styles.steps}>
         <StepDot n={1} active={step === 0} done={step > 0} label={t('setupStepWorkplace')} />
-        <StepDot n={2} active={step === 1} done={step > 1} label={t('setupStepLoga3')} />
-        <StepDot n={3} active={step === 2} done={false} label={t('setupStepGoogle')} />
+        <StepDot
+          n={2}
+          active={step === 1}
+          done={step > 1}
+          label={portalAvailable ? t('setupStepLoga3') : t('setupStepGoogle')}
+        />
+        {portalAvailable ? (
+          <StepDot n={3} active={step === 2} done={false} label={t('setupStepGoogle')} />
+        ) : null}
       </View>
 
       {step === 0 && (
@@ -226,11 +271,17 @@ export default function SetupScreen() {
           <SectionTitle>{t('setupWorkplace')}</SectionTitle>
           <Meta>{t('workplaceHint')}</Meta>
           <WorkplacePicker />
-          <AppButton title={t('setupNext')} onPress={goLoga3Step} />
+          <AppButton title={t('setupNext')} onPress={goAfterWorkplace} />
+          <AppButton
+            title={t('setupFilesOnly')}
+            variant="ghost"
+            onPress={() => void finishFilesOnly()}
+          />
+          <Meta>{t('setupFilesOnlyHint')}</Meta>
         </AppCard>
       )}
 
-      {step === 1 && (
+      {step === 1 && portalAvailable && (
         <AppCard>
           <SectionTitle>{t('setupLoga3OptionalTitle')}</SectionTitle>
           <Text style={styles.optional}>{t('setupLoga3Optional')}</Text>
@@ -292,41 +343,59 @@ export default function SetupScreen() {
           <SectionTitle>{t('setupGoogle')}</SectionTitle>
           <Meta>{t('setupGoogleHint')}</Meta>
           <Text style={styles.optional}>{t('setupGoogleOptional')}</Text>
-          {googleEmail ? (
-            <Text style={styles.connected}>{t('googleConnectedAs', { email: googleEmail })}</Text>
-          ) : null}
-          {calendarId && calendars.length === 0 ? (
-            <Text style={styles.connected}>
-              {t('googleCalendarSaved', {
-                name: calendarId.includes('@') ? calendarId.split('@')[0]! : calendarId,
-              })}
-            </Text>
-          ) : null}
-          <AppButton
-            title={googleEmail || calendarId ? t('googleReconnect') : t('googleConnect')}
-            onPress={() => void onGoogleConnect()}
-            disabled={busyGoogle}
-            busy={busyGoogle}
-          />
-          {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
-          {(calendars.length > 0 || googleEmail) && (
-            <GoogleCalendarPicker
-              calendars={calendars}
-              calendarId={calendarId}
-              title={t('setupGooglePickCalendar')}
-              onChange={(list, id) => {
-                setCalendars(list);
-                setCalendarId(id);
-                const selected = list.find((c) => c.id === id);
-                setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
-              }}
+
+          <View style={styles.calTargets}>
+            <View style={styles.calTargetOn}>
+              <Text style={styles.calTargetTitle}>{t('settingsHubGoogle')}</Text>
+              {googleEmail ? (
+                <Text style={styles.connected}>
+                  {t('googleConnectedAs', { email: googleEmail })}
+                </Text>
+              ) : null}
+              {calendarId && calendars.length === 0 ? (
+                <Text style={styles.connected}>
+                  {t('googleCalendarSaved', {
+                    name: calendarId.includes('@') ? calendarId.split('@')[0]! : calendarId,
+                  })}
+                </Text>
+              ) : null}
+              <AppButton
+                title={googleEmail || calendarId ? t('googleReconnect') : t('googleConnect')}
+                onPress={() => void onGoogleConnect()}
+                disabled={busyGoogle}
+                busy={busyGoogle}
+              />
+              {primaryWarn && <Text style={styles.warn}>{t('primaryWarn')}</Text>}
+              {(calendars.length > 0 || googleEmail) && (
+                <GoogleCalendarPicker
+                  calendars={calendars}
+                  calendarId={calendarId}
+                  title={t('setupGooglePickCalendar')}
+                  onChange={(list, id) => {
+                    setCalendars(list);
+                    setCalendarId(id);
+                    const selected = list.find((c) => c.id === id);
+                    setPrimaryWarn(!!selected && isPrimaryCalendar(selected));
+                  }}
+                />
+              )}
+            </View>
+
+            <ExportTargetSoonSetupBlock
+              title={t('settingsHubOutlook')}
+              connectLabel={t('outlookConnect')}
             />
-          )}
+            <ExportTargetSoonSetupBlock
+              title={t('settingsHubApple')}
+              connectLabel={t('appleConnect')}
+            />
+          </View>
+
           <View style={styles.row}>
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep(1)}
+              onPress={() => setStep(portalAvailable ? 1 : 0)}
               style={styles.flexBtn}
             />
             <AppButton
@@ -407,9 +476,20 @@ const styles = StyleSheet.create({
   },
   warn: {
     color: theme.color.warn,
-    backgroundColor: theme.color.warnSoft,
-    padding: 10,
-    borderRadius: theme.radius.sm,
     fontSize: 12,
+  },
+  calTargets: { gap: 10, marginTop: 8 },
+  calTargetOn: {
+    gap: 8,
+    padding: theme.space.md,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.color.borderStrong,
+    backgroundColor: theme.color.surfaceMuted,
+  },
+  calTargetTitle: {
+    color: theme.color.ink,
+    fontWeight: '700',
+    fontSize: 15,
   },
 });

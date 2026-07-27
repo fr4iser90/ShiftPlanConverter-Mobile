@@ -1,5 +1,7 @@
 /**
  * Shared workplace / employer pack picker.
+ * When a pack has only one group/area, those levels stay hidden — user picks
+ * employer + role (preset). IDs stay pack-internal for mappings.
  */
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -24,6 +26,10 @@ export function WorkplacePicker() {
     snap.hospitalId && snap.groupId && snap.areaId
       ? listPresetsForScope(snap.hospitalId, snap.groupId, snap.areaId)
       : [];
+
+  const showGroups = (pack?.groups.length || 0) > 1;
+  const showAreas = (group?.areas.length || 0) > 1;
+  const showPresets = presets.length > 0;
 
   const pickHospital = async (p: PackConfig) => {
     const g = p.groups[0];
@@ -81,10 +87,16 @@ export function WorkplacePicker() {
             onPress={() => void pickHospital(p)}
           />
         ))}
+        <AppButton
+          compact
+          title={t('setupAddEmployerSoon')}
+          variant="ghost"
+          disabled
+        />
       </View>
       {!packs.length && <Text style={styles.meta}>{t('noPacksYet')}</Text>}
 
-      {pack && (
+      {pack && showGroups ? (
         <>
           <Text style={styles.label}>{t('group')}</Text>
           <View style={styles.rowWrap}>
@@ -99,9 +111,9 @@ export function WorkplacePicker() {
             ))}
           </View>
         </>
-      )}
+      ) : null}
 
-      {group && (
+      {group && showAreas ? (
         <>
           <Text style={styles.label}>{t('area')}</Text>
           <View style={styles.rowWrap}>
@@ -117,9 +129,9 @@ export function WorkplacePicker() {
             ))}
           </View>
         </>
-      )}
+      ) : null}
 
-      {area && presets.length > 0 && (
+      {area && showPresets ? (
         <>
           <Text style={styles.label}>{t('preset')}</Text>
           <View style={styles.rowWrap}>
@@ -134,7 +146,7 @@ export function WorkplacePicker() {
             ))}
           </View>
         </>
-      )}
+      ) : null}
 
       {pack?.hint ? <Text style={styles.meta}>{pack.hint}</Text> : null}
       <Text style={styles.meta}>{t('moreEmployersSoon')}</Text>
