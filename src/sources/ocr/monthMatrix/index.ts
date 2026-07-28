@@ -21,6 +21,14 @@ export {
   computeMonthMatrixMetrics,
 } from './format';
 export {
+  cleanCell,
+  looksLikeDayHeader,
+  normalizeHeader,
+  median,
+  xCenter,
+  yCenter,
+} from './geometry';
+export {
   clampSlope,
   estimateRowSlopeFromHeaders,
   expectedYAtX,

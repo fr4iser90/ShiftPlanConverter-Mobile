@@ -6,6 +6,7 @@ import {
   expandGluedDayHeaderTokens,
   fillCalendarDayGaps,
   enforceCalendarColumnLabels,
+  normalizeHeader,
 } from '../../src/sources/ocr/monthMatrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
@@ -115,6 +116,18 @@ describe('month matrix grid', () => {
     expect(formatShiftCell(['07351550'])).toBe('07:35-15:50');
     expect(formatShiftCell(['99:99-88:88'])).toBe('');
     expect(formatShiftCell(['/'])).toBe('');
+    expect(formatShiftCell(['F', '07:35-15:50'])).toBe('F');
+    expect(formatShiftCell(['F 07:35-15:50'])).toBe('F');
+    expect(formatShiftCell(['(KW 32)'])).toBe('');
+    expect(formatShiftCell(['(KW 32)', 'F'])).toBe('F');
+    expect(formatShiftCell(['(KW'])).toBe('');
+    expect(formatShiftCell(['(Kw35)'])).toBe('');
+  });
+
+  it('normalizes reverse day headers', () => {
+    expect(splitGluedDayHeaderText('24Di')).toEqual([]);
+    expect(normalizeHeader('24Di')).toBe('Di24');
+    expect(normalizeHeader('Mot7')).toBe('Mo17');
   });
 
   it('recovers columns from glued header OCR on a synthetic strip', () => {

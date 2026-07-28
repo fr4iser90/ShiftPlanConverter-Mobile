@@ -131,6 +131,46 @@ export function measureImageGrid(img: GrayImage): ImageGridMetrics {
   };
 }
 
+/** Local copy of layout min score — avoid circular import with detectFromImage. */
+const OCR_IMAGE_LAYOUT_MIN_SCORE_LOCAL = 0.42;
+
+/** Rotate gray buffer 90° clockwise (for upright probe — no second OCR). */
+export function rotateGrayCw90(img: GrayImage): GrayImage {
+  const w = img.height;
+  const h = img.width;
+  const data = new Uint8Array(w * h);
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const nx = img.height - 1 - y;
+      const ny = x;
+      data[ny * w + nx] = img.data[y * img.width + x]!;
+    }
+  }
+  return { width: w, height: h, data };
+}
+
+/**
+ * If the table lattice scores clearly better after ±90°, return that rotate.
+ * One path before OCR — EXIF bake alone can leave wall plans sideways.
+ */
+export function uprightRotateDegreesFromGray(img: GrayImage): 0 | 90 | -90 {
+  const base = measureImageGrid(img);
+  const cw = measureImageGrid(rotateGrayCw90(img));
+  const ccw = measureImageGrid(rotateGrayCw90(rotateGrayCw90(rotateGrayCw90(img))));
+  const candidates: { deg: 0 | 90 | -90; score: number }[] = [
+    { deg: 0, score: base.monthMatrixScore },
+    { deg: 90, score: cw.monthMatrixScore },
+    { deg: -90, score: ccw.monthMatrixScore },
+  ];
+  candidates.sort((a, b) => b.score - a.score);
+  const best = candidates[0]!;
+  const upright = candidates.find((c) => c.deg === 0)!;
+  if (best.deg === 0) return 0;
+  if (best.score < OCR_IMAGE_LAYOUT_MIN_SCORE_LOCAL) return 0;
+  if (best.score < upright.score + 0.12) return 0;
+  return best.deg;
+}
+
 /** Nearest-neighbor downscale so layout probe stays cheap on phone photos. */
 export function downscaleGray(img: GrayImage, maxWidth: number): GrayImage {
   if (img.width <= maxWidth) return img;

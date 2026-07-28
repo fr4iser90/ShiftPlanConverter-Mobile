@@ -10,6 +10,15 @@ import {
   xCenter,
   yCenter,
 } from './geometry';
+import { fitSlope } from './skew';
+
+function fitHeaderSlope(lines: OcrLine[]): number {
+  if (lines.length < 3) return 0;
+  return fitSlope(
+    lines.map((l) => xCenter(l)),
+    lines.map((l) => yCenter(l))
+  );
+}
 
 const WD_RE = /^(Mo|Di|Mi|Do|Fr|Sa|So)$/i;
 /** OCR often collapses Mi/Di/Fr/So to a single letter inside glued headers. */
@@ -32,6 +41,10 @@ function parseHeaderDay(label: string): { wd: string | null; day: number | null 
   const t = cleanCell(label).replace(/\s+/g, '');
   const full = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)(\d{1,2})$/i);
   if (full) return { wd: normalizeWd(full[1]), day: Number(full[2]) };
+  const rev = t.match(/^(\d{1,2})(Mo|Di|Mi|Do|Fr|Sa|So)$/i);
+  if (rev) return { wd: normalizeWd(rev[2]), day: Number(rev[1]) };
+  const ocr1 = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)[tlI|](\d)$/i);
+  if (ocr1) return { wd: normalizeWd(ocr1[1]), day: Number(`1${ocr1[2]}`) };
   const wdOnly = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)$/i);
   if (wdOnly) return { wd: normalizeWd(wdOnly[1]), day: null };
   if (/^\d{1,2}$/.test(t)) {
@@ -104,6 +117,20 @@ export function expandGluedDayHeaderTokens(lines: OcrLine[]): OcrLine[] {
     const o2 = raw.match(/^o(\d{1,2})$/i);
     if (o2) {
       out.push({ text: `So${o2[1]}`, boundingBox: { ...l.boundingBox } });
+      continue;
+    }
+    // "24Di" / "20Fr" → Di24 / Fr20 (atomic, do not split into day+wd).
+    const rev = raw.match(/^(\d{1,2})(Mo|Di|Mi|Do|Fr|Sa|So)$/i);
+    if (rev) {
+      const wd = `${rev[2][0].toUpperCase()}${rev[2].slice(1).toLowerCase()}`;
+      out.push({ text: `${wd}${rev[1]}`, boundingBox: { ...l.boundingBox } });
+      continue;
+    }
+    // "Mot7" / "Mol7" → Mo17 (OCR 1→t/l/I).
+    const ocr1 = raw.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)[tlI|](\d)$/i);
+    if (ocr1) {
+      const wd = `${ocr1[1][0].toUpperCase()}${ocr1[1].slice(1).toLowerCase()}`;
+      out.push({ text: `${wd}1${ocr1[2]}`, boundingBox: { ...l.boundingBox } });
       continue;
     }
     // Do not rewrite single-letter stubs (F/D/M/S) — those are often duty codes in the body.
@@ -321,43 +348,107 @@ export function fillCalendarDayGaps(
  * Prefer weekday+day labels; if OCR drops weekdays, recover from day-numbers
  * (+ optional month/year in the OCR for calendar weekday names).
  */
+export type DayColumns = {
+  centers: number[];
+  headers: string[];
+  /** Mean Y of the chosen header strip (page pixels). */
+  bandY: number;
+};
+
 export function collectDayColumns(
   lines: OcrLine[],
   pageWidth: number,
   nameMaxX: number
-): { centers: number[]; headers: string[] } {
-  const weekdays = lines.filter(
+): DayColumns {
+  const seedWeekdays = lines.filter(
     (l) =>
-      xCenter(l) >= nameMaxX * 0.85 &&
+      xCenter(l) >= nameMaxX * 0.55 &&
       (looksLikeDayHeader(l.text) || looksLikeWeekdayOnly(l.text))
   );
+  if (seedWeekdays.length < 2) {
+    return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
+  }
+
+  // Steep detection must ignore body weekday-noise (duty "Mo"/reverse crumbs).
+  const pageH = Math.max(
+    ...lines.map((l) => l.boundingBox.y + l.boundingBox.height),
+    1
+  );
+  const topish = seedWeekdays.filter((l) => yCenter(l) < pageH * 0.45);
+  const steepProbe = topish.length >= 4 ? topish : seedWeekdays;
+  const seedYs = steepProbe.map((l) => yCenter(l)).sort((a, b) => a - b);
+  const ySpan = seedYs[seedYs.length - 1]! - seedYs[0]!;
+  const seedSlope = fitHeaderSlope(steepProbe);
+  const steep =
+    (ySpan > Math.max(120, pageWidth * 0.06) && Math.abs(seedSlope) > 0.05) ||
+    Math.abs(seedSlope) > 0.12;
+  const xMin = nameMaxX * (steep ? 0.55 : 0.85);
+  const weekdays = steep
+    ? seedWeekdays
+    : seedWeekdays.filter((l) => xCenter(l) >= xMin);
   if (weekdays.length < 2) {
     return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
   }
 
   const ys = weekdays.map((l) => yCenter(l)).sort((a, b) => a - b);
-  const bandGaps: number[] = [];
-  for (let i = 1; i < ys.length; i++) bandGaps.push(ys[i] - ys[i - 1]);
-  const bandGap = Math.max(12, median(bandGaps.filter((g) => g > 0 && g < 80)) || 18);
-  const yBands = clusterSorted(
-    weekdays.map((l) => ({ v: yCenter(l), item: l })),
-    bandGap * 1.1
-  );
-  const headerBand = yBands.reduce((best, g) => (g.length > best.length ? g : best), yBands[0]);
-  const bandY =
-    headerBand.reduce((s, l) => s + yCenter(l), 0) / Math.max(1, headerBand.length);
-  const bandTol = Math.max(14, bandGap * 1.4);
 
-  const inBand = (l: OcrLine) => Math.abs(yCenter(l) - bandY) <= bandTol;
+  let headerBand: OcrLine[];
+  let bandY: number;
+  let bandTol: number;
+  let slopeForBand = seedSlope;
+
+  if (steep) {
+    // Skewed strip: cluster by residual from the header slope, not raw Y.
+    const x0 = median(weekdays.map((l) => xCenter(l)));
+    const y0 = median(weekdays.map((l) => yCenter(l)));
+    const residual = (l: OcrLine) =>
+      yCenter(l) - (y0 + seedSlope * (xCenter(l) - x0));
+    const residuals = weekdays.map(residual).sort((a, b) => a - b);
+    const bandGaps: number[] = [];
+    for (let i = 1; i < residuals.length; i++) {
+      bandGaps.push(residuals[i]! - residuals[i - 1]!);
+    }
+    const bandGap = Math.max(12, median(bandGaps.filter((g) => g > 0 && g < 80)) || 18);
+    const yBands = clusterSorted(
+      weekdays.map((l) => ({ v: residual(l), item: l })),
+      bandGap * 1.25
+    );
+    headerBand = yBands.reduce((best, g) => (g.length > best.length ? g : best), yBands[0]!);
+    bandY =
+      headerBand.reduce((s, l) => s + yCenter(l), 0) / Math.max(1, headerBand.length);
+    slopeForBand = fitHeaderSlope(headerBand) || seedSlope;
+    bandTol = Math.max(22, bandGap * 1.6, pageWidth * Math.abs(slopeForBand) * 0.08);
+  } else {
+    // Prefer raw-Y densest band (stable on mild photos). Widen tol with header slope.
+    const bandGaps: number[] = [];
+    for (let i = 1; i < ys.length; i++) bandGaps.push(ys[i]! - ys[i - 1]!);
+    const bandGap = Math.max(12, median(bandGaps.filter((g) => g > 0 && g < 80)) || 18);
+    const yBands = clusterSorted(
+      weekdays.map((l) => ({ v: yCenter(l), item: l })),
+      bandGap * 1.1
+    );
+    headerBand = yBands.reduce((best, g) => (g.length > best.length ? g : best), yBands[0]!);
+    bandY =
+      headerBand.reduce((s, l) => s + yCenter(l), 0) / Math.max(1, headerBand.length);
+    slopeForBand = fitHeaderSlope(headerBand);
+    const skewPad = Math.max(12, pageWidth * Math.abs(slopeForBand) * 0.55 + pageWidth * 0.004);
+    bandTol = Math.max(14, bandGap * 1.4, skewPad);
+  }
+
+  const xAnchor = median(headerBand.map((l) => xCenter(l)));
+  const inBand = (l: OcrLine) => {
+    const yExp = bandY + slopeForBand * (xCenter(l) - xAnchor);
+    return Math.abs(yCenter(l) - yExp) <= bandTol;
+  };
   const headerTokens = lines.filter(
-    (l) => xCenter(l) >= nameMaxX * 0.85 && inBand(l) && looksLikeDayHeader(l.text)
+    (l) => xCenter(l) >= xMin && inBand(l) && looksLikeDayHeader(l.text)
   );
   const loneWeekdays = lines.filter(
-    (l) => xCenter(l) >= nameMaxX * 0.85 && inBand(l) && looksLikeWeekdayOnly(l.text)
+    (l) => xCenter(l) >= xMin && inBand(l) && looksLikeWeekdayOnly(l.text)
   );
   const orphanDays = lines.filter(
     (l) =>
-      xCenter(l) >= nameMaxX &&
+      xCenter(l) >= xMin &&
       inBand(l) &&
       looksLikeDayNumber(l.text) &&
       !headerTokens.some(
@@ -388,7 +479,7 @@ export function collectDayColumns(
     .map((a) => a.x);
   const labeledGaps: number[] = [];
   for (let i = 1; i < labeledXs.length; i++) {
-    labeledGaps.push(labeledXs[i] - labeledXs[i - 1]);
+    labeledGaps.push(labeledXs[i]! - labeledXs[i - 1]!);
   }
   const minLabeledGap = Math.min(...labeledGaps.filter((g) => g > 8), pageWidth);
   const colGap = Math.max(10, Math.min(minLabeledGap * 0.55, pageWidth / 22));
@@ -399,8 +490,8 @@ export function collectDayColumns(
     const last = groups[groups.length - 1];
     if (
       last &&
-      a.x - last[last.length - 1].x <= colGap &&
-      !(isWd(last[last.length - 1].label) && isWd(a.label))
+      a.x - last[last.length - 1]!.x <= colGap &&
+      !(isWd(last[last.length - 1]!.label) && isWd(a.label))
     ) {
       last.push(a);
     } else {
@@ -412,9 +503,59 @@ export function collectDayColumns(
   const headers = groups.map((g) => {
     const labeled =
       g.find((a) => isWd(a.label) && /\d/.test(a.label)) || g.find((a) => isWd(a.label));
-    return labeled?.label || g[0].label;
+    return labeled?.label || g[0]!.label;
   });
-  return enforceCalendarColumnLabels(centers, headers, detectMonthYearFromOcr(lines));
+  const labeled = enforceCalendarColumnLabels(centers, headers, detectMonthYearFromOcr(lines));
+  const deduped = dedupeDayColumns(labeled.centers, labeled.headers);
+  return { ...deduped, bandY };
+}
+
+/**
+ * One column per calendar day. Drops OCR doubles (same day twice) keeping the
+ * better label (wd+day) and left-er X when tied.
+ */
+export function dedupeDayColumns(
+  centers: number[],
+  headers: string[]
+): { centers: number[]; headers: string[] } {
+  if (centers.length !== headers.length || centers.length < 2) {
+    return { centers, headers };
+  }
+  type Col = { x: number; label: string; day: number | null; score: number };
+  const cols: Col[] = centers.map((x, i) => {
+    const p = parseHeaderDay(headers[i]!);
+    const score =
+      (p.day != null ? 10 : 0) + (p.wd ? 5 : 0) + (/\d/.test(headers[i]!) ? 2 : 0);
+    return { x, label: headers[i]!, day: p.day, score };
+  });
+  const byDay = new Map<number, Col>();
+  const undated: Col[] = [];
+  for (const c of cols) {
+    if (c.day == null || c.day < 1 || c.day > 31) {
+      undated.push(c);
+      continue;
+    }
+    const prev = byDay.get(c.day);
+    if (!prev || c.score > prev.score || (c.score === prev.score && c.x < prev.x)) {
+      byDay.set(c.day, c);
+    }
+  }
+  const dated = [...byDay.values()].sort((a, b) => a.x - b.x);
+  // Keep undated only if they sit in an X-gap (rare weekday-only stubs).
+  const kept = dated.slice();
+  for (const u of undated) {
+    const near = kept.some((c) => Math.abs(c.x - u.x) < 18);
+    if (!near) kept.push(u);
+  }
+  kept.sort((a, b) => a.x - b.x);
+  // Prefer ascending day order when we have mostly numbered days.
+  if (dated.length >= Math.max(5, kept.length * 0.6)) {
+    return {
+      centers: dated.map((c) => c.x),
+      headers: dated.map((c) => c.label),
+    };
+  }
+  return { centers: kept.map((c) => c.x), headers: kept.map((c) => c.label) };
 }
 
 /** Parse "März 2025" / "March 2025" / "02/2026" style cues from OCR. */
@@ -593,19 +734,26 @@ export function collectDayColumnsFromDayNumbers(
   lines: OcrLine[],
   pageWidth: number,
   nameMaxX: number
-): { centers: number[]; headers: string[] } {
+): DayColumns {
+  const empty: DayColumns = { centers: [], headers: [], bandY: 0 };
   const nums = lines.filter(
     (l) => xCenter(l) >= nameMaxX * 0.55 && looksLikeDayNumber(l.text)
   );
-  if (nums.length < 8) return { centers: [], headers: [] };
+  if (nums.length < 8) return empty;
 
-  const ys = nums.map((l) => yCenter(l)).sort((a, b) => a - b);
+  // Skew-aware: cluster by residual from a seed slope fit on day numbers.
+  const seedSlope = fitHeaderSlope(nums);
+  const x0 = xCenter(nums[0]!);
+  const y0 = yCenter(nums[0]!);
+  const residual = (l: OcrLine) => yCenter(l) - (y0 + seedSlope * (xCenter(l) - x0));
+  const residuals = nums.map(residual).sort((a, b) => a - b);
   const gaps: number[] = [];
-  for (let i = 1; i < ys.length; i++) gaps.push(ys[i] - ys[i - 1]);
+  for (let i = 1; i < residuals.length; i++) gaps.push(residuals[i]! - residuals[i - 1]!);
   const bandGap = Math.max(10, median(gaps.filter((g) => g > 0 && g < 60)) || 14);
+  const skewPad = Math.max(16, pageWidth * 0.014);
   const yBands = clusterSorted(
-    nums.map((l) => ({ v: yCenter(l), item: l })),
-    bandGap * 1.15
+    nums.map((l) => ({ v: residual(l), item: l })),
+    Math.max(bandGap * 1.15, skewPad)
   );
   // Prefer the band with the most unique calendar days (header strip).
   let best = yBands[0] || [];
@@ -619,7 +767,9 @@ export function collectDayColumnsFromDayNumbers(
     }
   }
   const uniqDays = new Set(best.map((l) => Number(cleanCell(l.text))));
-  if (uniqDays.size < 8) return { centers: [], headers: [] };
+  if (uniqDays.size < 8) return empty;
+
+  const bandY = best.reduce((s, l) => s + yCenter(l), 0) / Math.max(1, best.length);
 
   const sorted = best
     .slice()
@@ -657,7 +807,7 @@ export function collectDayColumnsFromDayNumbers(
     });
   }
   cols.sort((a, b) => a.x - b.x);
-  if (cols.length < 8) return { centers: [], headers: [] };
+  if (cols.length < 8) return empty;
 
   const cal = detectMonthYearFromOcr(lines);
   const centers = cols.map((c) => c.x);
@@ -668,11 +818,15 @@ export function collectDayColumnsFromDayNumbers(
     }
     return String(c.day);
   });
-  return enforceCalendarColumnLabels(centers, headers, cal);
+  const labeled = enforceCalendarColumnLabels(centers, headers, cal);
+  const deduped = dedupeDayColumns(labeled.centers, labeled.headers);
+  return { ...deduped, bandY };
 }
 
 /**
  * Left edge of the day grid = just left of the leftmost day-header token.
+ * On heavily skewed photos the leftmost header dips into the name column —
+ * use a robust low percentile instead of the absolute min.
  */
 export function inferNameMaxX(lines: OcrLine[], pageWidth: number): number {
   const fallback = pageWidth * 0.22;
@@ -683,12 +837,22 @@ export function inferNameMaxX(lines: OcrLine[], pageWidth: number): number {
       looksLikeDayNumber(l.text)
   );
   if (dayHeaders.length >= 2) {
-    // Prefer tokens in the upper third (header strip) when using bare day numbers.
     const pageH = Math.max(...lines.map((l) => l.boundingBox.y + l.boundingBox.height), 1);
     const top = dayHeaders.filter((l) => yCenter(l) < pageH * 0.35);
-    const use = top.length >= 5 ? top : dayHeaders;
-    const leftmost = Math.min(...use.map((l) => l.boundingBox.x));
-    return Math.max(pageWidth * 0.08, leftmost - 8);
+    const seed = top.length >= 5 ? top : dayHeaders;
+    const slope = fitHeaderSlope(seed.length >= 3 ? seed : dayHeaders);
+    const ySpanSeed =
+      Math.max(...seed.map((l) => yCenter(l))) - Math.min(...seed.map((l) => yCenter(l)));
+    const steep = Math.abs(slope) > 0.08 && ySpanSeed > pageWidth * 0.1;
+    // Steep diagonal: top-third alone is only the right end of the strip — use all headers.
+    const use = steep ? dayHeaders : seed;
+    const xs = use.map((l) => l.boundingBox.x).sort((a, b) => a - b);
+    const idx = steep
+      ? Math.min(xs.length - 1, Math.max(0, Math.floor(xs.length * 0.2)))
+      : 0;
+    const left = xs[idx]!;
+    const cap = steep ? pageWidth * 0.38 : pageWidth * 0.32;
+    return Math.max(pageWidth * 0.08, Math.min(left - 8, cap));
   }
   return fallback;
 }

@@ -16,7 +16,7 @@ import {
 } from '../state/ocrNameAliases';
 import { getSnapshot } from '../state/store';
 import { captureOcrImage, type OcrCaptureMode } from './ocr/capture';
-import { deskewDegreesFromOcrLines, rotateImageDegrees } from './ocr/deskew';
+import { deskewDegreesFromGray, deskewDegreesFromOcrLines, rotateImageDegrees } from './ocr/deskew';
 import { maybeDumpOcrGeometry } from './ocr/geometryDump';
 import {
   applyOcrLayoutPostprocess,
@@ -27,7 +27,11 @@ import {
   OCR_TEXT_ONLY_FALLBACK,
   type OcrLayoutId,
 } from './ocr/layouts';
-import { detectLayoutFromImageUri } from './ocr/layouts/detectFromImage';
+import {
+  detectLayoutFromImageUri,
+  loadGrayImageForLayout,
+} from './ocr/layouts/detectFromImage';
+import { uprightRotateDegreesFromGray } from './ocr/layouts/imageGrid';
 import { detectOcrLayout, mergeLayoutDetections } from './ocr/detectLayout';
 import { analyzeLayoutUncertainty } from './ocr/layoutUncertainty';
 import { packAllowedConcreteLayouts } from './ocr/packLayouts';
@@ -96,9 +100,9 @@ export type CameraOcrRunOpts = SourceRunOpts & {
   assistOcrRegion?: (req: OcrRegionAssistRequest) => Promise<OcrRegionAssistResult>;
   autoSelectPreferred?: boolean;
   /**
-   * Optional D: if gallery/camera photo is mildly skewed, rotate once and OCR again.
-   * Default **false** — Scan mode already deskews; B+C geometry handles mild tilt.
-   * Enable explicitly when you want a straighten pass.
+   * Force post-OCR deskew even for mild tilts (&lt;4°).
+   * Steep header skew (≥4°) already auto-straightens once on gallery/camera.
+   * Scan mode skips deskew (document scanner warps).
    */
   autoDeskew?: boolean;
 };
@@ -227,6 +231,41 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     // Keep original URI — OCR may still work on full-res.
   }
 
+  // Content upright (±90°) + mild deskew from pixel lattice — before any OCR.
+  // One rotate path only (no second OCR). Scan mode already warps.
+  let preOcrDeskewed = false;
+  if (mode !== 'scan') {
+    try {
+      const gray = await loadGrayImageForLayout(uri);
+      if (gray) {
+        const turn = uprightRotateDegreesFromGray(gray);
+        let probe = gray;
+        if (turn) {
+          const rotated = await rotateImageDegrees(uri, turn);
+          if (rotated) {
+            uri = rotated;
+            sourceImageUri = rotated;
+            // Refresh probe after ±90 (cheap CW chain for ±90 only).
+            const again = await loadGrayImageForLayout(uri);
+            if (again) probe = again;
+          }
+        }
+        const skewDeg = deskewDegreesFromGray(probe);
+        if (skewDeg) {
+          opts.onStatus?.({ line: t('sourceOcrStatusDeskew') });
+          const straightened = await rotateImageDegrees(uri, -skewDeg);
+          if (straightened) {
+            uri = straightened;
+            sourceImageUri = straightened;
+            preOcrDeskewed = true;
+          }
+        }
+      }
+    } catch {
+      // Keep prepared URI.
+    }
+  }
+
   // Pro order: layout from image lattice first (not OCR text).
   let imageLayout: Awaited<ReturnType<typeof detectLayoutFromImageUri>> = null;
   if (isAutoOcrLayout(requestedLayoutId)) {
@@ -243,40 +282,39 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     let ocr = await recognizeImageText(uri);
     maybeDumpOcrGeometry(ocr);
 
-    // Optional D (off by default): one mild rotate + OCR. Scan already warps.
-    const wantDeskew = opts.autoDeskew === true && mode !== 'scan';
-    if (wantDeskew && ocr.lines.length) {
-      const deg = deskewDegreesFromOcrLines(ocr.lines, ocr.pageWidth || 1);
-      if (deg) {
-        opts.onStatus?.({ line: t('sourceOcrStatusDeskew') });
-        const straightened = await rotateImageDegrees(uri, -deg);
-        if (straightened) {
-          try {
-            const ocr2 = await recognizeImageText(straightened);
-            if (ocr2.lines.length) {
-              uri = straightened;
-              sourceImageUri = straightened;
-              ocr = ocr2;
-              maybeDumpOcrGeometry(ocr);
-            }
-          } catch {
-            // Keep first OCR — deskew is optional refinement.
+    // Steep header lattice → one straighten + OCR (gallery/camera). Scan already warps.
+    // Pre-OCR pixel deskew covers clean ruled tilts; this catches perspective header strips
+    // where edge-projection stays flat but day labels run on a diagonal.
+    const deg = deskewDegreesFromOcrLines(ocr.lines, ocr.pageWidth || 1);
+    const wantDeskew =
+      mode !== 'scan' &&
+      !preOcrDeskewed &&
+      deg !== 0 &&
+      (opts.autoDeskew === true || Math.abs(deg) >= 4);
+    if (wantDeskew) {
+      opts.onStatus?.({ line: t('sourceOcrStatusDeskew') });
+      const straightened = await rotateImageDegrees(uri, -deg);
+      if (straightened) {
+        try {
+          const ocr2 = await recognizeImageText(straightened);
+          if (ocr2.lines.length) {
+            uri = straightened;
+            sourceImageUri = straightened;
+            ocr = ocr2;
+            maybeDumpOcrGeometry(ocr);
           }
+        } catch {
+          // Keep first OCR — deskew is optional refinement.
         }
       }
     }
 
-    // Persist for adb pull / e2e. Always in __DEV__; release only with explicit flag.
-    const dumpEnv =
-      typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_OCR_DUMP_GEOMETRY === '1';
-    // eslint-disable-next-line no-undef
-    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
-    if (dumpEnv || isDev) {
-      try {
-        await persistOcrGeometryDump(ocr);
-      } catch {
-        // dump is best-effort
-      }
+    // Always persist local geometry dump (app cache) for adb pull / case reports.
+    // On-device only — never uploaded.
+    try {
+      await persistOcrGeometryDump(ocr);
+    } catch {
+      // dump is best-effort
     }
     if (!ocr.text && !ocr.lines.length) {
       // Image may still have locked a layout — keep it for the fail path.
@@ -408,7 +446,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     let grid =
       layoutId === 'week-strip'
         ? buildWeekStripGrid(workingLines, ocr.pageWidth)
-        : buildMonthMatrixGrid(workingLines, ocr.pageWidth);
+        : buildMonthMatrixGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
 
     // Region assist when matrix/names fail (month or week).
     async function maybeAssistRegion(
@@ -429,7 +467,11 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           grid =
             layoutId === 'week-strip'
               ? buildWeekStripGrid(workingLines, Math.max(ocr.pageWidth, regionOcr.pageWidth))
-              : buildMonthMatrixGrid(workingLines, Math.max(ocr.pageWidth, regionOcr.pageWidth));
+              : buildMonthMatrixGrid(
+                  workingLines,
+                  Math.max(ocr.pageWidth, regionOcr.pageWidth),
+                  Math.max(ocr.pageHeight || 0, regionOcr.pageHeight || 0) || undefined
+                );
           return true;
         } catch {
           return false;
@@ -446,7 +488,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
         grid =
           layoutId === 'week-strip'
             ? buildWeekStripGrid(workingLines, ocr.pageWidth)
-            : buildMonthMatrixGrid(workingLines, ocr.pageWidth);
+            : buildMonthMatrixGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
         return true;
       }
       return false;

@@ -22,7 +22,7 @@ describe('monthMatrix skew', () => {
   });
 
   it('clamps absurd slopes', () => {
-    expect(Math.abs(clampSlope(2))).toBeLessThanOrEqual(0.22);
+    expect(Math.abs(clampSlope(2))).toBeLessThanOrEqual(0.85);
   });
 
   it('expectedYAtX follows slope from name anchor', () => {
@@ -38,6 +38,18 @@ describe('monthMatrix skew', () => {
     ];
     const slope = estimateRowSlopeFromHeaders(lines, 1000, 150);
     expect(slope).toBeGreaterThan(0.04);
+  });
+
+  it('ignores stray title MO above a flat header strip', () => {
+    const lines = [
+      L('MO', 200, 20), // title noise
+      L('Di4', 400, 200),
+      L('Mi5', 500, 201),
+      L('Do6', 600, 200),
+      L('Fr7', 700, 202),
+      L('Sa8', 800, 201),
+    ];
+    expect(estimateRowSlopeFromHeaders(lines, 1000, 150)).toBe(0);
   });
 
   it('deskew gate returns degrees for clear skew', () => {

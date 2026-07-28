@@ -34,12 +34,29 @@ import type { MatrixRow, MonthMatrixGrid } from './types';
  * Build name×day grid from OCR geometry.
  * Row anchors come from the left name column first (avoids shift-cell Y bridging).
  * Mild photo skew: cells use yExpected = yName + slope·(x − xAnchor).
+ *
+ * @param pageHeight Optional image height (OCR page). Prefer this over last-glyph Y
+ *   so focusTable does not under-estimate the page and over-clip name rows.
  */
-export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): MonthMatrixGrid {
+export function buildMonthMatrixGrid(
+  lines: OcrLine[],
+  pageWidth: number,
+  pageHeight?: number
+): MonthMatrixGrid {
   const empty: MonthMatrixGrid = { headers: [], rows: [], ok: false };
   if (!lines.length) return empty;
 
-  const pageH = Math.max(...lines.map((l) => l.boundingBox.y + l.boundingBox.height), 1);
+  const contentBottom = Math.max(
+    ...lines.map((l) => l.boundingBox.y + l.boundingBox.height),
+    1
+  );
+  // Prefer real image height when known. Content-bottom alone underestimates pageH and
+  // makes focusTable over-clip (patrick2: glyphs to 1825 on a 2250 image).
+  const pageH = Math.max(
+    contentBottom,
+    pageHeight && pageHeight > 0 ? pageHeight : 0,
+    Math.round(pageWidth * 0.72)
+  );
   const focused = focusLinesOnMonthTable(lines, pageWidth, pageH);
   const workLines = focused.lines;
   const wHint = focused.pageWidth || pageWidth;
@@ -57,12 +74,13 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
   const dayCols = collectDayColumns(merged, w, nameMaxX);
   const colCenters = dayCols.centers;
   const filledHeaders = dayCols.headers;
+  const headerBandY = dayCols.bandY;
   if (colCenters.length < 3) {
     return empty;
   }
   const xs = colCenters;
   const gaps: number[] = [];
-  for (let i = 1; i < xs.length; i++) gaps.push(xs[i] - xs[i - 1]);
+  for (let i = 1; i < xs.length; i++) gaps.push(xs[i]! - xs[i - 1]!);
   const colGap = Math.max(12, median(gaps) || w / 28);
 
   const pageSlope = estimateRowSlopeFromHeaders(merged, w, nameMaxX);
@@ -85,7 +103,7 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     .slice()
     .sort((a, b) => a - b);
   const nameGaps: number[] = [];
-  for (let i = 1; i < nameYs.length; i++) nameGaps.push(nameYs[i] - nameYs[i - 1]);
+  for (let i = 1; i < nameYs.length; i++) nameGaps.push(nameYs[i]! - nameYs[i - 1]!);
   const medNameGap = median(nameGaps.filter((g) => g > 0 && g < nameMedH * 8));
   const nameRowGap = Math.max(
     nameMedH * 0.85,
@@ -101,7 +119,7 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
   nameGroups = splitTrailingLastNameGroups(nameGroups);
   nameGroups = pairLoneNameFragments(nameGroups, pairGap);
 
-  const rowYPad = Math.max(nameMedH * 2.4, medH * 1.1);
+  const rowYPad = Math.max(nameMedH * 2.8, medH * 1.35);
   const rows: MatrixRow[] = [];
   const rowSlopes: number[] = [];
   for (const g of nameGroups) {
@@ -114,6 +132,8 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
 
     const yMid = g.reduce((s, l) => s + yCenter(l), 0) / g.length;
     const xAnchor = g.reduce((s, l) => s + xCenter(l), 0) / g.length;
+    const yNameTop = Math.min(...g.map((l) => l.boundingBox.y));
+    const yNameBot = Math.max(...g.map((l) => l.boundingBox.y + l.boundingBox.height));
     const slope = refineRowSlopeNearAnchor(
       merged,
       yMid,
@@ -128,6 +148,9 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
       const candidates = merged.filter((l) => {
         const xc = xCenter(l);
         if (xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
+        const t = cleanCell(l.text);
+        // Week-number crumbs under Mo columns — not duty cells.
+        if (/^\(?\s*kw/i.test(t)) return false;
         const yExp = expectedYAtX(yMid, xAnchor, xc, slope);
         if (Math.abs(yCenter(l) - yExp) > rowYPad) return false;
         return owningColIndex(l, colCenters, nameMaxX, w) === colIndex;
@@ -141,7 +164,7 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     });
 
     for (const name of people) {
-      rows.push({ name, yCenter: yMid, cells: cells.slice() });
+      rows.push({ name, yCenter: yMid, cells: cells.slice(), yNameTop, yNameBot });
     }
   }
 
@@ -158,5 +181,6 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     colGap,
     rowYPad,
     rowSlope,
+    headerBandY: headerBandY > 0 ? headerBandY : undefined,
   };
 }

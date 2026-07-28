@@ -8,6 +8,9 @@ export type MatrixRow = {
   name: string;
   yCenter: number;
   cells: string[]; // aligned to column headers (same length)
+  /** Optional tight vertical extent of the name glyphs (page px) for overlays. */
+  yNameTop?: number;
+  yNameBot?: number;
 };
 
 export type MonthMatrixGrid = {
@@ -27,6 +30,8 @@ export type MonthMatrixGrid = {
    * Used for cell assign + highlight overlay.
    */
   rowSlope?: number;
+  /** Y center of the day-header strip (page pixels) — for overlay / crops. */
+  headerBandY?: number;
 };
 
 /** Compact quality stats for status UI (one-shot; no second OCR). */

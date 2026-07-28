@@ -20,14 +20,16 @@ function rowHeightPx(grid: MonthMatrixGrid, index: number): number {
   const r = grid.rows[index];
   if (!r) return 36;
   const next = grid.rows[index + 1];
-  if (next) return Math.max(16, Math.abs(next.yCenter - r.yCenter));
   const prev = grid.rows[index - 1];
-  if (prev) return Math.max(16, Math.abs(r.yCenter - prev.yCenter));
-  return grid.rowYPad ? grid.rowYPad * 2 : 36;
+  const gaps: number[] = [];
+  if (next) gaps.push(Math.abs(next.yCenter - r.yCenter));
+  if (prev) gaps.push(Math.abs(r.yCenter - prev.yCenter));
+  if (gaps.length) return Math.max(16, Math.min(...gaps) * 0.78);
+  return grid.rowYPad ? grid.rowYPad * 1.6 : 36;
 }
 
 /**
- * Estimate name-column / day-header boxes from grid geometry (page = full image px).
+ * Axis-aligned crop boxes (snapshots). Slightly padded union of skewed regions.
  */
 export function estimateRegionBoxes(
   grid: MonthMatrixGrid,
@@ -35,28 +37,39 @@ export function estimateRegionBoxes(
   pageHeight: number
 ): { name: OcrRegionSnapshot['box']; header: OcrRegionSnapshot['box'] } | null {
   if (!grid.ok || !pageWidth || !pageHeight || !grid.rows.length) return null;
+  const slope = grid.rowSlope || 0;
   const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
   const rh0 = rowHeightPx(grid, 0);
-  const firstTop = grid.rows[0]!.yCenter - rh0 / 2;
-  const lastBottom =
-    grid.rows[grid.rows.length - 1]!.yCenter + rowHeightPx(grid, grid.rows.length - 1) / 2;
+  const yFirst = grid.rows[0]!.yCenter;
+  const yLast = grid.rows[grid.rows.length - 1]!.yCenter;
+  const yTop = yFirst - rh0 * 0.55;
+  const yBot = yLast + rowHeightPx(grid, grid.rows.length - 1) * 0.5;
+  // Widest name edge along the column (for crop AABB).
+  const xRightTop = Math.max(nameMaxX, nameMaxX - slope * (yTop - yFirst));
+  const xRightBot = Math.max(24, nameMaxX - slope * (yBot - yFirst));
+  const nameRight = Math.max(xRightTop, xRightBot) + 8;
 
-  // Header sits just above the first person row (weekday/day numbers).
-  const headerBandPx = Math.min(64, Math.max(22, rh0 * 0.75, (grid.rowYPad || 18) * 1.1));
-  const headerBottom = Math.max(headerBandPx, firstTop);
-  const headerTop = Math.max(0, headerBottom - headerBandPx);
+  const headerBand = Math.min(48, Math.max(18, rh0 * 0.55));
+  const yHeaderAtRef =
+    grid.headerBandY && grid.headerBandY > 0
+      ? grid.headerBandY
+      : yFirst - rh0 * 0.85;
+  const yHLeft = yHeaderAtRef - headerBand / 2;
+  const yHRight = yHeaderAtRef + slope * (pageWidth - nameMaxX) - headerBand / 2;
+  const headerTop = Math.min(yHLeft, yHRight);
+  const headerBottom = Math.max(yHLeft, yHRight) + headerBand;
 
   const nameBox = {
     x: clamp01(0),
-    y: clamp01(headerTop / pageHeight),
-    width: clamp01(Math.max(0.14, (nameMaxX + 8) / pageWidth)),
-    height: clamp01(Math.min(0.95, (lastBottom - headerTop) / pageHeight)),
+    y: clamp01(yTop / pageHeight),
+    width: clamp01(Math.max(0.1, nameRight / pageWidth)),
+    height: clamp01(Math.min(0.95, (yBot - yTop) / pageHeight)),
   };
   const headerBox = {
     x: clamp01(nameMaxX / pageWidth),
     y: clamp01(headerTop / pageHeight),
     width: clamp01(1 - nameMaxX / pageWidth),
-    height: clamp01(Math.max(0.025, (headerBottom - headerTop) / pageHeight)),
+    height: clamp01(Math.max(0.02, (headerBottom - headerTop) / pageHeight)),
   };
   return { name: nameBox, header: headerBox };
 }

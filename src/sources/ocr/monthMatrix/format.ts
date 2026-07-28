@@ -19,17 +19,46 @@ function looksLikeCodeToken(t: string): boolean {
   return false;
 }
 
+function isCalendarWeekCrumb(t: string): boolean {
+  const s = String(t || '').trim();
+  // "(KW 32)", "(Kw35)", split OCR "(KW" / "KW32)" / bare "KW".
+  if (/^\(?\s*kw\b/i.test(s)) return true;
+  if (/^kw\s*\d{0,2}\)?$/i.test(s)) return true;
+  if (/^\(?\s*kw\s*\d{1,2}\s*\)?$/i.test(s)) return true;
+  return false;
+}
+
 /** Prefer a code-shaped token; otherwise one compact time — never mashed OCR. */
 export function formatShiftCell(parts: string[]): string {
   if (!parts.length) return '';
-  const codes = parts.filter((t) => looksLikeCodeToken(t));
+
+  // Split "F 07:35-15:50" / "M2 11:00-19:15" into code + rest.
+  const expanded: string[] = [];
+  for (const raw of parts) {
+    const t = cleanCell(raw);
+    if (!t) continue;
+    // Calendar-week crumbs in body (Mo column under header) — drop.
+    if (isCalendarWeekCrumb(t)) continue;
+    const mixed = t.match(/^([A-Za-zÄÖÜäöüß]{1,3}\d{0,2})\s+(.+)$/);
+    if (mixed && looksLikeCodeToken(mixed[1])) {
+      expanded.push(mixed[1], mixed[2]);
+      continue;
+    }
+    expanded.push(t);
+  }
+  if (!expanded.length) return '';
+
+  const codes = expanded.filter((t) => looksLikeCodeToken(t));
   if (codes.length) {
+    // Prefer shortest duty-like code (F, M2, FK9) over long all-caps noise.
+    codes.sort((a, b) => a.length - b.length);
     return codes[0].toUpperCase().replace(/\s+/g, '');
   }
 
-  const cleaned = parts
+  const cleaned = expanded
     .map(cleanCell)
     .filter(Boolean)
+    .filter((t) => !isCalendarWeekCrumb(t))
     .filter((t) => !/^[#|\\/]+$/.test(t))
     .filter((t) => !/^\d{1,2}#$/.test(t))
     // Lone slash / off-day marker
@@ -38,6 +67,7 @@ export function formatShiftCell(parts: string[]): string {
   if (!cleaned.length) return '';
 
   const joined = cleaned.join(' ').replace(/\s+/g, ' ').trim();
+  if (isCalendarWeekCrumb(joined)) return '';
   const range = joined.match(/(\d{1,2})[:.]?(\d{2})\s*[-–]\s*(\d{1,2})[:.]?(\d{2})/);
   if (range) {
     const hh1 = Number(range[1]);

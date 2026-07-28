@@ -49,6 +49,8 @@ export function looksLikeDayHeader(text?: string | null): boolean {
   if (!t) return false;
   if (/^(Mo|Di|Mi|Do|Fr|Sa|So)\s*\d{1,2}$/i.test(t)) return true;
   if (/^(Mo|Di|Mi|Do|Fr|Sa|So)\d{1,2}$/i.test(t)) return true;
+  // OCR sometimes emits day-before-weekday: "24Di", "20Fr".
+  if (/^\d{1,2}\s*(Mo|Di|Mi|Do|Fr|Sa|So)$/i.test(t)) return true;
   return false;
 }
 
@@ -72,6 +74,17 @@ export function normalizeHeader(text: string): string {
   if (m) return `${m[1].slice(0, 1).toUpperCase()}${m[1].slice(1).toLowerCase()}${m[2]}`;
   const m2 = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)(\d{1,2})$/i);
   if (m2) return `${m2[1][0].toUpperCase()}${m2[1].slice(1).toLowerCase()}${m2[2]}`;
+  // "24Di" / "Mot7" (1→t) → Di24 / Mo17
+  const rev = t.match(/^(\d{1,2})(Mo|Di|Mi|Do|Fr|Sa|So)$/i);
+  if (rev) {
+    const wd = `${rev[2][0].toUpperCase()}${rev[2].slice(1).toLowerCase()}`;
+    return `${wd}${rev[1]}`;
+  }
+  const ocr1 = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)[tlI|](\d)$/i);
+  if (ocr1) {
+    const wd = `${ocr1[1][0].toUpperCase()}${ocr1[1].slice(1).toLowerCase()}`;
+    return `${wd}1${ocr1[2]}`;
+  }
   if (/^\d{1,2}$/.test(t)) return t;
   return cleanCell(text).slice(0, 8);
 }
