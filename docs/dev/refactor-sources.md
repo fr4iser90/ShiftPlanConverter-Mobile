@@ -95,7 +95,7 @@ interface Source {
 | Host-Shell: inject, onMessage, cookies | Creds/URL-Keys |
 | Viewport `{ desktopWidth, scale }` | Konkrete 1280 + UA |
 
-LOGA3-Plugin: `src/sources/loga3/` (kein Compat-Shim unter `src/loga3/`).
+LOGA3-Plugin: `src/sources/webview/loga3/` (kein Compat-Shim unter `src/loga3/`).
 
 ---
 

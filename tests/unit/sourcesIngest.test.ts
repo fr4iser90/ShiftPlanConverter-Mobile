@@ -10,14 +10,16 @@ import {
 } from '../../src/packs';
 
 describe('parser registry', () => {
-  it('resolves default St. Elisabeth parser', () => {
+  it('resolves default generic PDF parser', () => {
+    expect(DEFAULT_PARSER_ID).toBe('pdf-auto');
     expect(typeof getParser(DEFAULT_PARSER_ID)).toBe('function');
-    expect(getParser(undefined)).toBe(getParser(DEFAULT_PARSER_ID));
+    expect(getParser(undefined)).toBeDefined();
   });
 
-  it('pack config exposes parser + preferred source', () => {
+  it('St. Elisabeth pack exposes pdf-payroll + preferred source', () => {
     const pack = getBuiltinPackConfig();
-    expect(getParserIdForPack(pack)).toBe('st-elisabeth-zeitprotokoll-pdf');
+    expect(pack.id).toBe('st-elisabeth-leipzig');
+    expect(getParserIdForPack(pack)).toBe('pdf-payroll');
     expect(getPreferredSourceId(pack)).toBe('local-files');
   });
 

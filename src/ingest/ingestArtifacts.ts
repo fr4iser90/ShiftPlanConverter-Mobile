@@ -2,7 +2,7 @@ import { anonymizeDienstplanText } from '../convert/anonymize';
 import { convertPdfText, convertRawText } from '../convert/pipeline';
 import { extractTextFromPdfBuffer } from '../convert/pdfText';
 import type { MonthSummary, ShiftEntry } from '../convert/types';
-import { getMappingForScope, getPackById, getParserIdForPack } from '../packs';
+import { getMappingForScope, getPackById, getParserIdForPack, getPdfConfigForPack } from '../packs';
 import { markSuccessfulFetch } from '../schedule/prefs';
 import type { SourceArtifact } from '../sources/types';
 import { getSnapshot, setEntries } from '../state/store';
@@ -42,7 +42,8 @@ function workplaceOrThrow() {
   }
   const pack = getPackById(snap.hospitalId);
   const parserId = getParserIdForPack(pack);
-  return { snap, mapping, parserId };
+  const pdfConfig = getPdfConfigForPack(pack);
+  return { snap, mapping, parserId, pdfConfig };
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -58,7 +59,7 @@ export async function ingestArtifacts(
   artifacts: SourceArtifact[],
   opts: IngestOptions = {}
 ): Promise<IngestResult> {
-  const { snap, mapping, parserId } = workplaceOrThrow();
+  const { snap, mapping, parserId, pdfConfig } = workplaceOrThrow();
   const result: IngestResult = {
     entries: [],
     summaries: [],
@@ -95,6 +96,7 @@ export async function ingestArtifacts(
         mapping,
         userMappings: snap.userMappings,
         parserId,
+        pdfConfig,
       });
       result.entries.push(...converted.entries);
       if (converted.summaries?.length) result.summaries.push(...converted.summaries);
@@ -110,6 +112,7 @@ export async function ingestArtifacts(
         mapping,
         userMappings: snap.userMappings,
         parserId,
+        pdfConfig,
       });
       result.entries.push(...converted.entries);
       if (converted.summaries?.length) result.summaries.push(...converted.summaries);

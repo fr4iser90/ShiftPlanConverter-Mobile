@@ -3,7 +3,7 @@ import { Alert, ScrollView } from 'react-native';
 import { router, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { clearCredentials } from '@/src/sources/loga3/credentials';
+import { clearCredentials } from '@/src/sources/webview/loga3/credentials';
 import { formatSetupStatusMeta, getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import { wipeAllLocalData } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';

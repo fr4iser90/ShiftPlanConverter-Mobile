@@ -11,7 +11,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { t } from '@/src/i18n';
 import { hydrateStore } from '@/src/state/store';
-import { hydrateLoga3Env } from '@/src/sources/loga3/env';
+import { hydrateLoga3Env } from '@/src/sources/webview/loga3/env';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
 import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import { restoreGoogleSession } from '@/src/sync/google';

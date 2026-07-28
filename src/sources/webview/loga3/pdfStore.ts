@@ -7,4 +7,4 @@ export {
   readPdfBase64,
   base64ToArrayBuffer,
   periodFilename,
-} from '../webview/pdfStore';
+} from '../pdfStore';

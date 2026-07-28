@@ -1,0 +1,9 @@
+{
+  "engine": "pdf-auto",
+  "scoreHints": ["Abrechnungsmonat", "date", "Datum"],
+  "monthHeader": {
+    "pattern": "Abrechnungsmonat\\s+(\\d{2})/(\\d{4})",
+    "monthGroup": 1,
+    "yearGroup": 2
+  }
+}

@@ -1,5 +1,5 @@
 import { nearestColIndex, owningColIndex } from '../../src/sources/ocr/monthMatrix/geometry';
-import { applyPackMappingToCell } from '../../src/sources/ocr/applyPackMapping';
+import { applyPackMappingToCell } from '../../src/convert/parsers/ocr/applyPackMapping';
 import type { MappingValue } from '../../src/convert/types';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 

@@ -1,6 +1,6 @@
 # LOGA3 Phone Layout-Fix (PDF-Pfad)
 
-Stand: 2026-07-24 · Live bewiesen auf Moto G73 · Code: `src/sources/loga3/layoutFixInject.ts` (via `Loga3WebView`)
+Stand: 2026-07-24 · Live bewiesen auf Moto G73 · Code: `src/sources/webview/loga3/layoutFixInject.ts` (via `Loga3WebView`)
 
 ## Ergebnis
 
@@ -9,7 +9,7 @@ Mit diesem CSS/JS-Bundle ist auf dem Phone:
 1. Buchungsplan nutzbar (kein 30px-Weißblock)
 2. SmartEdin → Export → **Zeitprotokoll generieren** → PDF-View erreichbar (**live 2026-07-24**)
 
-App: `src/sources/loga3/layoutFixInject.ts` → `Loga3WebView` (`bootInject` = viewport + layoutFix + PDF capture).
+App: `src/sources/webview/loga3/layoutFixInject.ts` → `Loga3WebView` (`bootInject` = viewport + layoutFix + PDF capture).
 
 ## Kanonisches Bundle (was in die App geht)
 

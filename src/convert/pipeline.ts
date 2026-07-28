@@ -1,5 +1,5 @@
 import { parseTimeSheet } from './convert';
-import { getParser, DEFAULT_PARSER_ID } from './parsers';
+import { getParser, DEFAULT_PARSER_ID, type PackPdfConfig } from './parsers';
 import { resolveShiftMapping } from './shiftMapping';
 import type { ConvertResult, HospitalMapping, ShiftEntry } from './types';
 import { getBuiltinMapping } from '../packs';
@@ -8,8 +8,10 @@ export type ConvertOptions = {
   preset?: string;
   mapping?: HospitalMapping;
   userMappings?: Record<string, string>;
-  /** Pack parser id — see `src/convert/parsers`. */
+  /** PDF engine id — see `src/convert/parsers/engines`. */
   parserId?: string;
+  /** Pack `parsers/pdf.json` (match params). */
+  pdfConfig?: PackPdfConfig | null;
 };
 
 /**
@@ -66,7 +68,7 @@ export function convertPdfText(pdfText: string, options: ConvertOptions = {}): C
 export function convertRawText(rawText: string, options: ConvertOptions = {}): ConvertResult {
   const preset = options.preset || 'Anästhesie';
   const mapping = options.mapping || getBuiltinMapping();
-  const parser = getParser(options.parserId || DEFAULT_PARSER_ID);
+  const parser = getParser(options.parserId || DEFAULT_PARSER_ID, options.pdfConfig);
   const result = parseTimeSheet(
     rawText,
     'pflege',

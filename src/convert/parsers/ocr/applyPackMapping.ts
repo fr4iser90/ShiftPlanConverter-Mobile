@@ -3,18 +3,18 @@
  * Duty codes and times come only from the pack mapping (presets + colors).
  * This module never hard-codes employer-specific codes or clock ranges.
  */
-import { mappingCode, resolveShiftMapping } from '../../convert/shiftMapping';
-import type { MappingValue } from '../../convert/types';
-import { formatShiftCell } from './monthMatrix/format';
+import { mappingCode, resolveShiftMapping } from '../../shiftMapping';
+import type { MappingValue } from '@/src/convert/types';
+import { formatShiftCell } from '@/src/sources/ocr/monthMatrix/format';
 import {
   cleanCell,
   looksLikeDayHeader,
   owningColIndex,
   xCenter,
   yCenter,
-} from './monthMatrix/geometry';
-import type { MonthMatrixGrid } from './monthMatrix/types';
-import type { OcrLine } from './recognize';
+} from '@/src/sources/ocr/monthMatrix/geometry';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
+import type { OcrLine } from '@/src/sources/ocr/recognize';
 
 const OCR_RESOLVE = { allowInfer: false as const };
 const TIME_RANGE_RE = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/;
@@ -947,6 +947,9 @@ export function applyPackMappingToCell(
       const rev = resolveShiftMapping(end, start, map, OCR_RESOLVE);
       if (rev.code) return canon(rev.code);
     }
+    // Full HH:MM-HH:MM input didn't match a pack time key:
+    // do not guess via digit fingerprints (keeps display modes stable).
+    return t;
   }
 
   const digits = cellDigits(t);

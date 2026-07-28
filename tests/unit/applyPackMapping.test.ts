@@ -4,7 +4,7 @@ import {
   collectPackCodes,
   matchDigitsToPackCode,
   refinePersonRowFromOcr,
-} from '../../src/sources/ocr/applyPackMapping';
+} from '../../src/convert/parsers/ocr/applyPackMapping';
 import type { MappingValue } from '../../src/convert/types';
 import type { MonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';

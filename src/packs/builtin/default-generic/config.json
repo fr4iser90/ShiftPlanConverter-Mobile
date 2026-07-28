@@ -1,0 +1,22 @@
+{
+  "$schema": "../../pack.schema.json",
+  "name": "Standard",
+  "hintKey": "packHintDefaultGeneric",
+  "preferredSourceId": "local-files",
+  "supportedSourceIds": ["local-files", "camera-ocr"],
+  "groups": [
+    {
+      "id": "generic",
+      "label": "General",
+      "areas": [
+        {
+          "id": "import",
+          "label": "Import",
+          "mapping": "mappings/generic.json",
+          "supported": true,
+          "defaultPreset": "Standard"
+        }
+      ]
+    }
+  ]
+}

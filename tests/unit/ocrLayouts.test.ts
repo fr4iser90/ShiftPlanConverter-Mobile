@@ -68,11 +68,11 @@ describe('OCR layouts', () => {
     expect(isOcrTextOnlyFallback(OCR_TEXT_ONLY_FALLBACK)).toBe(true);
   });
 
-  it('marks auto/month experimental; others stub; text-only is not a layout', () => {
+  it('marks auto/month/week experimental; others stub; text-only is not a layout', () => {
     expect(requireOcrLayout('auto').status).toBe('experimental');
     expect(requireOcrLayout('month-matrix').status).toBe('experimental');
     expect(requireOcrLayout('list-protocol').status).toBe('stub');
-    expect(requireOcrLayout('week-strip').status).toBe('stub');
+    expect(requireOcrLayout('week-strip').status).toBe('experimental');
     expect(requireOcrLayout('day-plan').status).toBe('stub');
     expect(requireOcrLayout('single-calendar').status).toBe('stub');
     expect(getOcrLayout('raw-review')).toBeNull();

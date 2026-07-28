@@ -23,6 +23,7 @@ type Props = {
   displayMode?: OcrCellDisplayMode;
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
+  ocrEngineId?: string | null;
 };
 
 function nameKey(s: string): string {
@@ -41,6 +42,7 @@ function OcrMonthMatrixScrollTableInner({
   displayMode = 'codes',
   presetMapping = null,
   colors = null,
+  ocrEngineId = null,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -53,7 +55,7 @@ function OcrMonthMatrixScrollTableInner({
   const daysWidth = grid.headers.length * colW;
 
   const cellText = (raw: string) =>
-    formatOcrCellForDisplay(raw, displayMode, presetMapping, colors);
+    formatOcrCellForDisplay(raw, displayMode, presetMapping, colors, null, ocrEngineId);
 
   return (
     <View style={styles.wrap}>

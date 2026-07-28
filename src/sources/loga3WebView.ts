@@ -1,6 +1,6 @@
-import type { AutomationCommand } from './loga3/automation';
+import type { AutomationCommand } from './webview/loga3/automation';
 import type { AutomationBridge } from './webview/bridge';
-import { runFetchJob } from './loga3/fetchJob';
+import { runFetchJob } from './webview/loga3/fetchJob';
 import type { Source, SourceRunOpts, SourceRunResult } from './types';
 
 /**

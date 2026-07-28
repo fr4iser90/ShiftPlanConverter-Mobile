@@ -1,6 +1,6 @@
 ---
 description: Portal selectors and PDF parser literals are site/pack match targets — never i18n, no casual renames
-globs: src/sources/loga3/**/*.ts,src/sources/loga3/**/*.tsx,src/convert/parser-*.ts,src/convert/pdfText.ts,src/convert/anonymize.ts,src/convert/parsers/**
+globs: src/sources/webview/loga3/**/*.ts,src/sources/webview/loga3/**/*.tsx,src/packs/builtin/**/parsers/**/*.json,src/convert/parsers/engines/**/*.ts,src/convert/parsers/ocr/**/*.ts,src/convert/pdfText.ts,src/convert/anonymize.ts,src/convert/parsers/**
 alwaysApply: false
 ---
 
@@ -12,11 +12,11 @@ German (and LOGA3) strings in these files are **match targets** against a foreig
 
 | Literals | Layer | Change when |
 |----------|--------|-------------|
-| `öffnen`, `Zeiten`, Zeitprotokoll, GWT DOM, layout CSS | **Source plugin** `src/sources/loga3/` | LOGA3 portal UI changes (live smoke required) |
-| `Abrechnungsmonat`, `Übertrag…`, duty codes in parser/pdfText | **Parser** via pack `parserId` | That employer’s PDF layout changes |
+| `öffnen`, `Zeiten`, Zeitprotokoll, GWT DOM, layout CSS | **Source plugin** `src/sources/webview/loga3/` | LOGA3 portal UI changes (live smoke required) |
+| `Abrechnungsmonat`, `KO*`, `Übertrag…` in pack `parsers/pdf.json` | **Pack PDF JSON** via engine in `convert/parsers/engines/` | That employer’s PDF layout changes |
 | Mapping JSON under `src/packs/builtin/` | **Pack** | Codes/colors/presets for that AG |
 
-Pack ≠ portal automation. Same LOGA3 site can serve many AGs; a new AG usually needs a **new parser/pack**, not new i18n keys for selectors.
+Pack ≠ portal automation. Same LOGA3 site can serve many AGs; a new AG usually needs a **new pack JSON**, not new i18n keys for selectors.
 
 ## Rules
 

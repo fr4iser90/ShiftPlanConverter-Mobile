@@ -1,0 +1,6 @@
+{
+  "engine": "ocr-roster",
+  "preferredLayout": "month-matrix",
+  "layouts": ["month-matrix", "week-strip"],
+  "usePackMapping": true
+}

@@ -148,7 +148,8 @@ export function WorkplacePicker() {
         </>
       ) : null}
 
-      {pack?.hint ? <Text style={styles.meta}>{pack.hint}</Text> : null}
+      {pack?.hintKey ? <Text style={styles.meta}>{t(pack.hintKey)}</Text> : null}
+      {!pack?.hintKey && pack?.hint ? <Text style={styles.meta}>{pack.hint}</Text> : null}
       <Text style={styles.meta}>{t('moreEmployersSoon')}</Text>
     </View>
   );

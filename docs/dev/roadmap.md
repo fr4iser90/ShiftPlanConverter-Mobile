@@ -2,6 +2,16 @@
 
 Stand: 2026-07-27. Fertige Phasen (Scaffold, Live-Fetch für getestetes Pack, ICS/Google, Widgets, Rename) stehen in README + CHANGELOG — nicht hier.
 
+## Packs → JSON-only
+
+| Phase | Status | Was |
+|-------|--------|-----|
+| **A OCR JSON** | done | `parsers/ocr.json` → engine `ocr-roster`; keine Pack-OCR-`.ts` |
+| **B PDF JSON** | done | `parsers/pdf.json` → engines `pdf-auto` / `pdf-list` / `pdf-timesheet` / `pdf-payroll` |
+| **C Schema/ZIP** | open | Validierung gegen `pack.schema.json`; später ladbare Packs |
+
+Schema: `src/packs/pack.schema.json`.
+
 ## Zielbild: generischer Converter
 
 Heute ist Fetch ≈ LOGA3-WebView und Parser ≈ ein Pack. Soll werden:
@@ -37,23 +47,22 @@ Detaillierter Refactor-Plan: [`refactor-sources.md`](refactor-sources.md).
 | **4 WebView shared** | done | Bridge/Wait/PDF-Poll/pdfStore unter `src/sources/webview/` (loga3 re-exportiert) |
 | **5 Local import** | done | `local-files` Source · Fetch tab „Datei“ |
 | **5b Camera OCR** | spike | On-device photo → OCR → raw text (no ingest) — [`ocr-camera-source.md`](ocr-camera-source.md) |
-| **5c OCR granular** | open | Layouts + Live-Status + Unsicherheit nachfragen + Region-Tap + Auto-Snapshots — siehe unten |
+| **5c OCR granular** | open | Unterphasen 5c.1–5c.5 unten |
 | **6 2nd WebView** | open | nur bei konkretem zweiten AG |
 
 Nicht alles vor dem ersten Store-Build: Local-PDF ist der Store-Mehrwert; zweites Site-Plugin warten.
 
 ## OCR granularer machen (5c)
 
-Ziel: Kamera-OCR nicht als Blackbox, sondern mit klaren Layouts, Live-Feedback und gezielter User-Hilfe bei Unsicherheit. Basis: [`ocr-camera-source.md`](ocr-camera-source.md).
+Ziel: Kamera-OCR nicht als Blackbox, sondern mit klaren Layouts, Live-Feedback und gezielter User-Hilfe bei Unsicherheit. Basis: [`ocr-camera-source.md`](ocr-camera-source.md). Layouts bleiben in `src/sources/ocr/layouts/` — **keine** Pack-Ordner pro Layout.
 
-| Thema | Was |
-|-------|-----|
-| **Alle Standard-Layouts** | `month-matrix`, `week-strip`, `list-protocol`, `day-plan`, `single-calendar` (u. a.) wirklich nutzbar — nicht nur stubs; User kann Layout wählen oder `auto` |
-| **Live-Status an der Kamera** | Anzeigen, was erkannt wird und was gerade läuft (Layout, Name, Datum, Zellen/Score …) |
-| **Niedriger Score → nachfragen** | Bei Unsicherheit nicht raten: z. B. „Monats- oder Wochenmatrix?“; klare Entscheidung statt stiller Fallback-Kette |
-| **Region-Tap bei Fehlern** | Wenn Name/Datum/Bereich nicht erkannt: User tippt auf den Bereich (Name-Spalte, Datum, …) statt alles neu zu fotografieren |
-| **Auto-Snapshots bei Treffer** | Sobald etwas korrekt erkannt: gezielte Snapshots der relevanten Regionen, damit alles vollständig erfasst wird |
-| **Nachfotografieren bei Bedarf** | Bei unlesbarem Bereich: Prompt „Bereich X nochmal fotografieren“ (lesbar machen), nicht blind weiterparsen |
+| Phase | Status | Was |
+|-------|--------|-----|
+| **5c.1 Ask + Status** | done | Unsicherheit-Modal · Live-Status · Pack `ocr.layouts` / `preferredLayout` als Chip-Filter |
+| **5c.2 week-strip** | done | Zweites Layout experimental (Grid 5–9 Tage) · Score an Parse-Qualität |
+| **5c.3 Region-Tap** | done | Overlay Tippen / Nachfotografieren auf month-matrix (ein Pfad) |
+| **5c.4 Auto-Snapshots** | done | Region-Snaps bei gutem Grid-Score (on-device, Compare) |
+| **5c.5 Andere Layouts** | open | `list-protocol` / `day-plan` / `single-calendar` nur mit Samples — bis dahin Stubs, im Pack weggelassen |
 
 Leitplanken (wie sonst): **ein Pfad** — bei Unklarheit fragen, nicht Layout A → fail → Layout B still probieren.
 

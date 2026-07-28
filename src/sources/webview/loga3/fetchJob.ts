@@ -1,12 +1,13 @@
 import type { AutomationCommand, AutomationMessage } from './automation';
-import { AutomationBridge } from '../webview/bridge';
-import { extractTextFromPdfBuffer } from '../../convert/pdfText';
-import type { SourceArtifact } from '../types';
+import { AutomationBridge } from '../bridge';
+import { extractTextFromPdfBuffer } from '../../../convert/pdfText';
+import type { SourceArtifact } from '../../types';
 import { MONTH_LABELS_DE, validatePdfPeriod } from './contentGate';
-import { base64ToArrayBuffer, savePdfBytes } from '../webview/pdfStore';
-import { waitForCondition, WaitTimeoutError } from '../webview/wait';
+import { base64ToArrayBuffer, savePdfBytes } from '../pdfStore';
+import { waitForCondition, WaitTimeoutError } from '../wait';
 import { clearGateTraces, writeGateTrace } from './gateTrace';
-import { t } from '../../i18n';
+import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
+import { t } from '../../../i18n';
 
 export type FetchJobOptions = {
   username: string;
@@ -411,7 +412,6 @@ async function capturePdf(
     status(ctx, t('fjDownloadClicked', { label, elapsed: ago(t0) }));
 
     status(ctx, t('fjWaitPdf', { label, elapsed: ago(t0) }));
-    const { pollAndroidDownloadsForPdf } = await import('../webview/androidDownloadPoll');
 
   let scrapeStop = false;
   const scrapeBg = (async () => {

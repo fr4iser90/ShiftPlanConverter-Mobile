@@ -15,6 +15,8 @@ export type MonthMatrixGrid = {
   rows: MatrixRow[];
   /** True when we found ≥2 person rows and ≥3 day columns */
   ok: boolean;
+  /** Why ok is false (debug / layout-specific reject). */
+  reason?: string;
   /** Column X centers — kept for pack-aware row refine after name pick */
   colCenters?: number[];
   nameMaxX?: number;

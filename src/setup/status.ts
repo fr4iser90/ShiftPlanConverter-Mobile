@@ -1,6 +1,6 @@
 import { t } from '../i18n';
-import { loadCredentials } from '../sources/loga3/credentials';
-import { getLoga3BaseUrl, hydrateLoga3Env, isValidLoga3BaseUrl } from '../sources/loga3/env';
+import { loadCredentials } from '../sources/webview/loga3/credentials';
+import { getLoga3BaseUrl, hydrateLoga3Env, isValidLoga3BaseUrl } from '../sources/webview/loga3/env';
 import { resolveActiveSourceId } from '../state/activeSource';
 import { getSnapshot, hydrateStore, isWorkplaceConfigured } from '../state/store';
 import { getPackById } from '../packs';

@@ -17,12 +17,15 @@ Source (loga3-webview | local-files | …)
 ```
 app/                      # Expo Router
 src/
-  sources/                # Source registry + local-files + loga3 adapter
-  sources/webview/        # Shared: bridge, wait, PDF poll, pdfStore
-  sources/loga3/          # LOGA3 site plugin (automation, WebView shell)
+  sources/                # Source registry + local-files + camera-ocr
+  sources/webview/        # Shared bridge/wait/pdfStore + site plugins
+  sources/webview/loga3/  # LOGA3 WebView site plugin
+  sources/ocr/            # OCR engine: capture, layouts, month-matrix
+  packs/                  # Employer packs: JSON config + mappings + parsers/*.json
   ingest/                 # Artifact → ShiftEntry + store merge
-  convert/parsers/        # Parser registry
-  convert/ packs/ sync/ widget/ …
+  convert/parsers/        # PDF + OCR engine registries
+  convert/parsers/engines/# PDF engines (list, timesheet, auto, payroll)
+  convert/parsers/ocr/    # Shared OCR mapping engine (applyPackMapping, rosterEngine)
 ```
 
 Security checklist: [security-audit.md](./security-audit.md). Roadmap: [roadmap.md](./roadmap.md).
@@ -49,9 +52,15 @@ Sync: prefer a dedicated calendar; warn on primary.
 
 | Concern | Owns | Example |
 |---------|------|---------|
-| **Source plugin** (`sources/loga3/`) | LOGA3 portal clicks, DOM, layout CSS | `öffnen`, `Zeiten`, Zeitprotokoll |
-| **Pack** (`packs/builtin/…`) | Employer scope + `parserId` + mapping | St. Elisabeth · Pflege · OP |
-| **Parser** (`convert/parser-*.ts`) | PDF/text shape for that `parserId` | `Abrechnungsmonat`, `Übertrag…` |
+| **Source plugin** (`sources/webview/loga3/`) | LOGA3 portal clicks, DOM, layout CSS | `öffnen`, `Zeiten`, Zeitprotokoll |
+| **Pack** (`packs/builtin/…`) | JSON only: `config.json`, `mappings/`, `parsers/ocr.json`, `parsers/pdf.json` | St. Elisabeth · Pflege · OP |
+| **PDF** (`parsers/pdf.json` → `convert/parsers/engines/`) | Select PDF engine + match targets (regexes) | `pdf-payroll`, `pdf-auto` |
+| **OCR** (`parsers/ocr.json` → engine `ocr-roster`) | Select shared OCR engine + layouts; codes from mapping JSON | `usePackMapping: true` |
+| **Registry** (`convert/parsers/`) | PDF `engine` + OCR `engine` → app engines | `pdf-auto`, `ocr-roster` |
+
+Schema: [`src/packs/pack.schema.json`](../../src/packs/pack.schema.json).
+
+**Direction:** new AG = new pack folder with JSON only. Engines stay in `convert/`.
 
 Same LOGA3 site → usually one automation plugin. New employer → new pack (+ parser if the PDF differs). Another HR portal → new Source plugin, not only a pack.
 

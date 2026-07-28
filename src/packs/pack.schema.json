@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shiftplan-converter.local/pack.schema.json",
+  "title": "ShiftPlan employer pack",
+  "description": "Packs are JSON-only: engines live in the app; packs select engines + supply match params and mappings.",
+  "type": "object",
+  "required": ["name", "groups"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "hintKey": {
+      "type": "string",
+      "description": "i18n key for pack hint (UI). Never put German match targets here."
+    },
+    "parserId": {
+      "type": "string",
+      "description": "Deprecated — use parsers/pdf.json engine instead."
+    },
+    "preferredSourceId": { "type": "string" },
+    "supportedSourceIds": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "areas"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "areas": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["id", "label", "mapping", "supported"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "mapping": {
+                  "type": "string",
+                  "description": "Relative path to mapping JSON under this pack"
+                },
+                "supported": { "type": "boolean" },
+                "defaultPreset": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ocrConfig": {
+      "title": "Pack OCR config (parsers/ocr.json)",
+      "type": "object",
+      "required": ["engine"],
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "type": "string",
+          "const": "ocr-roster",
+          "description": "App OCR engine id (convert/parsers/ocr/)"
+        },
+        "preferredLayout": {
+          "type": "string",
+          "description": "auto or a concrete layout id from sources/ocr/layouts"
+        },
+        "layouts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "usePackMapping": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "pdfConfig": {
+      "title": "Pack PDF config (parsers/pdf.json)",
+      "type": "object",
+      "required": ["engine"],
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "type": "string",
+          "enum": ["pdf-auto", "pdf-list", "pdf-timesheet", "pdf-payroll"],
+          "description": "App PDF engine id (convert/parsers/engines/)"
+        },
+        "scoreHints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "PDF match literals for auto scoring — not i18n"
+        },
+        "monthHeader": {
+          "type": "object",
+          "required": ["pattern"],
+          "properties": {
+            "pattern": { "type": "string" },
+            "flags": { "type": "string" },
+            "monthGroup": { "type": "integer", "minimum": 1 },
+            "yearGroup": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "mainSectionRestart": { "type": "string" },
+        "mainSectionRestartFlags": { "type": "string" },
+        "bereitschaftSection": { "type": "string" },
+        "bereitschaftSectionFlags": { "type": "string" },
+        "shift": { "type": "object" },
+        "allDay": { "type": "array", "items": { "type": "object" } },
+        "onCall": { "type": "object" },
+        "summary": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  }
+}

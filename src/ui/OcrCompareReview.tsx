@@ -15,8 +15,11 @@ import {
 import { t } from '@/src/i18n';
 import type { MappingValue } from '@/src/convert/types';
 import type { OcrCellDisplayMode } from '@/src/sources/ocr/cellDisplay';
+import { estimateHighlightOverlays } from '@/src/sources/ocr/highlightOverlay';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
+import type { OcrRegionSnapshot } from '@/src/sources/ocr/regionSnapshots';
 import { OcrMonthMatrixScrollTable } from '@/src/ui/OcrMonthMatrixScrollTable';
+import { OcrPhotoHighlight } from '@/src/ui/OcrPhotoHighlight';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 
@@ -27,6 +30,12 @@ type Props = {
   title?: string;
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
+  ocrEngineId?: string | null;
+  /** Auto region crops after confident grid (on-device). */
+  regionSnapshots?: OcrRegionSnapshot[] | null;
+  /** OCR page size for mapping row/column boxes onto the photo. */
+  pageWidth?: number | null;
+  pageHeight?: number | null;
 };
 
 const MODES: OcrCellDisplayMode[] = ['codes', 'times', 'both'];
@@ -44,6 +53,10 @@ export function OcrCompareReview({
   title,
   presetMapping = null,
   colors = null,
+  ocrEngineId = null,
+  regionSnapshots = null,
+  pageWidth = null,
+  pageHeight = null,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -51,9 +64,17 @@ export function OcrCompareReview({
   const [fullOpen, setFullOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<OcrCellDisplayMode>('codes');
 
+  const highlights = useMemo(() => {
+    if (!grid?.ok || !pageWidth || !pageHeight) return [];
+    return estimateHighlightOverlays(grid, pageWidth, pageHeight, matchedName);
+  }, [grid, pageWidth, pageHeight, matchedName]);
+
   if (!imageUri && !grid) return null;
 
   const thumbW = Math.min(winW - 48, 420);
+  const thumbH = Math.round(thumbW * 0.72);
+  const fullW = winW;
+  const fullH = Math.round(winW * 1.25);
 
   return (
     <View style={styles.wrap}>
@@ -84,20 +105,47 @@ export function OcrCompareReview({
             displayMode={displayMode}
             presetMapping={presetMapping}
             colors={colors}
+            ocrEngineId={ocrEngineId}
           />
         </>
       ) : null}
 
       {imageUri ? (
         <Pressable onPress={() => setFullOpen(true)} style={styles.photoFrame}>
-          <Image
-            source={{ uri: imageUri }}
-            style={{ width: thumbW, height: Math.round(thumbW * 0.72) }}
-            resizeMode="contain"
+          <OcrPhotoHighlight
+            imageUri={imageUri}
+            highlights={highlights}
+            width={thumbW}
+            height={thumbH}
+            showLegend={highlights.length > 0}
             accessibilityLabel={t('sourceOcrComparePhotoA11y')}
           />
           <Text style={styles.tapHint}>{t('sourceOcrCompareTapFull')}</Text>
         </Pressable>
+      ) : null}
+
+      {regionSnapshots?.some((s) => s.uri) ? (
+        <View style={styles.snapRow}>
+          <Text style={styles.displayLabel}>{t('sourceOcrCompareSnapshots')}</Text>
+          <View style={styles.snapThumbs}>
+            {regionSnapshots
+              .filter((s): s is OcrRegionSnapshot & { uri: string } => !!s.uri)
+              .map((s) => (
+                <View key={s.kind} style={styles.snapItem}>
+                  <Image
+                    source={{ uri: s.uri }}
+                    style={styles.snapImg}
+                    resizeMode="cover"
+                  />
+                  <Text style={styles.snapLabel}>
+                    {s.kind === 'name-column'
+                      ? t('sourceOcrRegionNameCol')
+                      : t('sourceOcrRegionDayHeader')}
+                  </Text>
+                </View>
+              ))}
+          </View>
+        </View>
       ) : null}
 
       <Modal visible={fullOpen} animationType="fade" onRequestClose={() => setFullOpen(false)}>
@@ -106,7 +154,16 @@ export function OcrCompareReview({
             <Text style={styles.fullCloseText}>{t('sourceOcrCompareClose')}</Text>
           </Pressable>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="contain" />
+            <View style={styles.fullPhoto}>
+              <OcrPhotoHighlight
+                imageUri={imageUri}
+                highlights={highlights}
+                width={fullW}
+                height={fullH}
+                showLegend={highlights.length > 0}
+                accessibilityLabel={t('sourceOcrComparePhotoA11y')}
+              />
+            </View>
           ) : null}
         </View>
       </Modal>
@@ -165,12 +222,27 @@ function makeStyles(theme: AppTheme) {
       backgroundColor: theme.color.surfaceMuted,
       alignItems: 'center',
       paddingBottom: 8,
+      paddingTop: 8,
     },
     tapHint: {
       color: theme.color.primary,
       fontSize: 12,
       fontWeight: '600',
       marginTop: 4,
+    },
+    snapRow: { gap: 6 },
+    snapThumbs: { flexDirection: 'row', gap: 10 },
+    snapItem: { flex: 1, gap: 4 },
+    snapImg: {
+      width: '100%' as const,
+      height: 64,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.color.surfaceMuted,
+    },
+    snapLabel: {
+      color: theme.color.inkMuted,
+      fontSize: 11,
+      fontWeight: '600',
     },
     fullRoot: {
       flex: 1,
@@ -187,9 +259,10 @@ function makeStyles(theme: AppTheme) {
       fontSize: 16,
       fontWeight: '600',
     },
-    fullImage: {
+    fullPhoto: {
       flex: 1,
-      width: '100%',
+      justifyContent: 'center',
+      alignItems: 'center',
     },
   });
 }

@@ -1,13 +1,10 @@
 /**
  * How OCR matrix cells are shown in the Foto↔OCR compare table.
- * Mapping still uses the pack; this only controls display.
+ * Mapping uses the shared OCR engine + pack mapping JSON; this only controls display.
  */
+import { getOcrEngine, type OcrRosterEngine } from '../../convert/parsers/ocr';
 import { mappingCode } from '../../convert/shiftMapping';
 import type { MappingValue } from '../../convert/types';
-import {
-  applyPackMappingToCell,
-  collectPackCodes,
-} from './applyPackMapping';
 
 export type OcrCellDisplayMode = 'codes' | 'times' | 'both';
 
@@ -33,13 +30,16 @@ export function formatOcrCellForDisplay(
   raw: string,
   mode: OcrCellDisplayMode,
   presetMapping: Record<string, MappingValue> | null | undefined,
-  colors?: Record<string, string> | null
+  colors?: Record<string, string> | null,
+  ocrEngine?: OcrRosterEngine | null,
+  ocrEngineId?: string | null
 ): string {
   const t = String(raw || '').trim();
   if (!t) return '';
 
-  const codes = collectPackCodes(presetMapping, colors);
-  const mapped = applyPackMappingToCell(t, presetMapping, codes);
+  const engine = ocrEngine ?? getOcrEngine(ocrEngineId);
+  const codes = engine.collectPackCodes(presetMapping, colors);
+  const mapped = engine.mapCell(t, presetMapping, codes);
   const asCode = mapped && codes.has(mapped.toUpperCase()) ? mapped.toUpperCase() : null;
   const asTime = TIME_RANGE_RE.test(t)
     ? t

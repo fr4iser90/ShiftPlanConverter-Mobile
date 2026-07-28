@@ -30,7 +30,7 @@ Attack surface: on-device storage, WebView (third-party LOGA3 origin), Google Si
 | Check | Where | Status |
 |-------|--------|--------|
 | No tenant URL / user / password baked into APK | `app.config.js`, no `.env` secrets in binary | [ ] verify release APK strings |
-| LOGA3 password only in Secure Store | `src/sources/loga3/credentials.ts` | [x] code |
+| LOGA3 password only in Secure Store | `src/sources/webview/loga3/credentials.ts` | [x] code |
 | Clear credentials works (Settings) | `clearCredentials` | [x] code |
 | Wipe all local data (Settings) | `wipeAllLocalData` | [x] code |
 | Smoke credential deep-link disabled in release | `smokeSeed.ts` `__DEV__` gate | [x] code |

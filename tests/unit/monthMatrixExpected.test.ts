@@ -1,7 +1,7 @@
 import {
   applyPackMappingToCell,
   applyPackMappingToGrid,
-} from '../../src/sources/ocr/applyPackMapping';
+} from '../../src/convert/parsers/ocr/applyPackMapping';
 import {
   buildMonthMatrixGrid,
   matrixRowsAsNameCandidates,

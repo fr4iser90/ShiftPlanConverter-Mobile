@@ -19,13 +19,13 @@ check() {
 }
 
 check "WebView debug gated on __DEV__" \
-  grep -q 'webviewDebuggingEnabled={__DEV__}' src/sources/loga3/Loga3WebView.tsx
+  grep -q 'webviewDebuggingEnabled={__DEV__}' src/sources/webview/loga3/Loga3WebView.tsx
 
 check "Smoke cred seed requires __DEV__" \
   grep -q 'isSmokeCredentialSeedAllowed' src/setup/smokeSeed.ts
 
 check "HTTPS-only tenant helper exists" \
-  grep -q 'isValidLoga3BaseUrl' src/sources/loga3/env.ts
+  grep -q 'isValidLoga3BaseUrl' src/sources/webview/loga3/env.ts
 
 check "encrypt-at-rest module present" \
   test -f src/state/securePayload.ts

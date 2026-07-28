@@ -322,8 +322,8 @@ export async function getGoogleCalendarId(): Promise<string | null> {
  * Keeps locale/theme prefs.
  */
 export async function wipeAllLocalData(): Promise<void> {
-  const { clearCredentials } = await import('../sources/loga3/credentials');
-  const { setLoga3BaseUrl } = await import('../sources/loga3/env');
+  const { clearCredentials } = await import('../sources/webview/loga3/credentials');
+  const { setLoga3BaseUrl } = await import('../sources/webview/loga3/env');
   const { deleteAllPdfFiles } = await import('../sources/webview/pdfStore');
   const { disconnectGoogle } = await import('../sync/google');
   const { setSmokeFetchIntent, clearMatrixStatus } = await import('../setup/smokeFetchIntent');

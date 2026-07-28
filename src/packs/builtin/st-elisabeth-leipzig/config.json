@@ -1,7 +1,7 @@
 {
+  "$schema": "../../pack.schema.json",
   "name": "St. Elisabeth Leipzig",
-  "hint": "Rolle Anästhesie (Pflege · OP). Weitere Rollen/Bereiche: Unterstützung anfragen.",
-  "parserId": "st-elisabeth-zeitprotokoll-pdf",
+  "hintKey": "packHintStElisabethLeipzig",
   "preferredSourceId": "local-files",
   "supportedSourceIds": ["local-files", "camera-ocr", "loga3-webview"],
   "groups": [

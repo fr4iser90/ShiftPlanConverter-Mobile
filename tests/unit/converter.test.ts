@@ -2,15 +2,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { anonymizeDienstplanText, buildSupportParserSample } from '../../src/convert/anonymize';
 import { generateIcs } from '../../src/convert/ics';
-import { parseStElisabeth } from '../../src/convert/parser-st-elisabeth';
+import { getParser } from '../../src/convert/parsers';
 import { convertPdfText } from '../../src/convert/pipeline';
 import { resolveShiftMapping } from '../../src/convert/shiftMapping';
-import { getBuiltinMapping } from '../../src/packs';
+import { getBuiltinMapping, getPackById, getPdfConfigForPack } from '../../src/packs';
 
 const fixturePath = path.join(__dirname, '..', '..', 'fixtures', 'sample-zeitprotokoll-snippet.txt');
 const fixture = fs.readFileSync(fixturePath, 'utf8');
 
-describe('St. Elisabeth parser', () => {
+const stPack = getPackById('st-elisabeth-leipzig');
+const stPdf = getPdfConfigForPack(stPack);
+const parseStElisabeth = getParser('pdf-payroll', stPdf);
+
+describe('St. Elisabeth parser (pdf-payroll + pack pdf.json)', () => {
   it('reads Abrechnungsmonat from fixture', () => {
     const parsed = parseStElisabeth(fixture);
     expect(parsed.year).toBe('2026');
@@ -28,7 +32,12 @@ describe('St. Elisabeth parser', () => {
   });
 
   it('maps Anästhesie preset to validated codes', () => {
-    const result = convertPdfText(fixture, { preset: 'Anästhesie' });
+    const result = convertPdfText(fixture, {
+      preset: 'Anästhesie',
+      parserId: 'pdf-payroll',
+      pdfConfig: stPdf,
+      mapping: getBuiltinMapping(),
+    });
     expect(result.entries.length).toBeGreaterThanOrEqual(1);
     const m3 = result.entries.find((e) => e.start === '11:35' && e.end === '19:50');
     expect(m3?.type).toBe('M3');
@@ -69,7 +78,12 @@ describe('St. Elisabeth parser', () => {
 
 describe('ICS generator', () => {
   it('emits valid VCALENDAR/VEVENT', () => {
-    const { entries } = convertPdfText(fixture);
+    const { entries } = convertPdfText(fixture, {
+      preset: 'Anästhesie',
+      parserId: 'pdf-payroll',
+      pdfConfig: stPdf,
+      mapping: getBuiltinMapping(),
+    });
     const ics = generateIcs(entries);
     expect(ics).toContain('BEGIN:VCALENDAR');
     expect(ics).toContain('BEGIN:VEVENT');

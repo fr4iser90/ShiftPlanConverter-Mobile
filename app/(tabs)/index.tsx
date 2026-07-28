@@ -15,12 +15,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { loadCredentials } from '@/src/sources/loga3/credentials';
-import { Loga3WebView } from '@/src/sources/loga3/Loga3WebView';
-import type { AutomationCommand, AutomationMessage } from '@/src/sources/loga3/automation';
+import { loadCredentials } from '@/src/sources/webview/loga3/credentials';
+import { Loga3WebView } from '@/src/sources/webview/loga3/Loga3WebView';
+import type { AutomationCommand, AutomationMessage } from '@/src/sources/webview/loga3/automation';
 import { AutomationBridge } from '@/src/sources/webview/bridge';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
-import { getMappingForScope, getPackById, getPreferredSourceId, isSourceSupportedByPack } from '@/src/packs';
+import { getMappingForScope, getPackById, getOcrConfigForPack, getOcrEngineIdForPack, getPreferredSourceId, isSourceSupportedByPack } from '@/src/packs';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { getSnapshot, subscribeKeys } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
@@ -52,9 +52,9 @@ import {
 } from '@/src/sources/ocr/capture';
 import {
   DEFAULT_OCR_LAYOUT_ID,
-  listOcrLayouts,
   type OcrLayoutId,
 } from '@/src/sources/ocr/layouts';
+import { listOcrLayoutsForPack, packPreferredLayoutId } from '@/src/sources/ocr/packLayouts';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
 import {
   loadOcrPreferredName,
@@ -70,6 +70,11 @@ import { openErrorReportMail } from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { OcrNamePickerModal } from '@/src/ui/OcrNamePickerModal';
+import { OcrLayoutPickerModal } from '@/src/ui/OcrLayoutPickerModal';
+import { OcrRegionAssistModal } from '@/src/ui/OcrRegionAssistModal';
+import type { OcrLayoutPickRequest, OcrLayoutPickResult } from '@/src/ui/OcrLayoutPickerModal';
+import type { OcrRegionAssistRequest, OcrRegionAssistResult } from '@/src/ui/OcrRegionAssistModal';
+import type { OcrRegionSnapshot } from '@/src/sources/ocr/regionSnapshots';
 import { Screen } from '@/src/ui/Screen';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
@@ -301,12 +306,6 @@ export default function FetchScreen() {
     { id: string; label: string; yCenter: number; height: number }[]
   >([]);
   const [ocrLayoutId, setOcrLayoutId] = useState<OcrLayoutId>(DEFAULT_OCR_LAYOUT_ID);
-  // Release UI: hide stub layouts (week/list/day/…) — keep current if already selected.
-  const ocrLayouts = useMemo(
-    () =>
-      listOcrLayouts().filter((l) => l.status !== 'stub' || l.id === ocrLayoutId),
-    [ocrLayoutId]
-  );
   const [ocrNamePick, setOcrNamePick] = useState<{
     candidates: { id: string; label: string; yCenter: number; height: number }[];
     suggestedId?: string | null;
@@ -315,6 +314,14 @@ export default function FetchScreen() {
   const ocrNameResolverRef = useRef<((result: { id: string; label: string } | null) => void) | null>(
     null
   );
+  const [ocrLayoutPick, setOcrLayoutPick] = useState<OcrLayoutPickRequest | null>(null);
+  const ocrLayoutResolverRef = useRef<((result: OcrLayoutPickResult | null) => void) | null>(
+    null
+  );
+  const [ocrRegionAssist, setOcrRegionAssist] = useState<OcrRegionAssistRequest | null>(null);
+  const ocrRegionResolverRef = useRef<((result: OcrRegionAssistResult) => void) | null>(null);
+  const [ocrRegionSnapshots, setOcrRegionSnapshots] = useState<OcrRegionSnapshot[] | null>(null);
+  const [ocrPageSize, setOcrPageSize] = useState<{ w: number; h: number } | null>(null);
   const scannerAvailable = useMemo(() => isDocumentScannerAvailable(), []);
   const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void }>(null);
   const bridgeRef = useRef(new AutomationBridge());
@@ -325,6 +332,11 @@ export default function FetchScreen() {
   const pack = useMemo(
     () => (snap.hospitalId ? getPackById(snap.hospitalId) : null),
     [snap.hospitalId]
+  );
+  const ocrConfig = useMemo(() => getOcrConfigForPack(pack), [pack]);
+  const ocrLayouts = useMemo(
+    () => listOcrLayoutsForPack(ocrConfig, ocrLayoutId),
+    [ocrConfig, ocrLayoutId]
   );
   const sources = useMemo(() => listSourcesForPack(pack), [pack]);
 
@@ -387,7 +399,17 @@ export default function FetchScreen() {
       setSelected(buildMonthWindow(prefs.prevMonths, prefs.nextMonths));
       setYear(new Date().getFullYear());
     }
-    setOcrLayoutId(await loadOcrLayoutId());
+    const savedLayout = await loadOcrLayoutId();
+    const packPref = packPreferredLayoutId(getOcrConfigForPack(packNow));
+    if (
+      packPref &&
+      packPref !== 'auto' &&
+      (savedLayout === DEFAULT_OCR_LAYOUT_ID || savedLayout === 'auto')
+    ) {
+      setOcrLayoutId(packPref);
+    } else {
+      setOcrLayoutId(savedLayout);
+    }
     setOcrSettingsName(await loadOcrPreferredName());
     if (st.credentialsOk) {
       setCreds(await loadCredentials());
@@ -560,6 +582,34 @@ export default function FetchScreen() {
     resolve?.(result);
   }, []);
 
+  const requestOcrLayout = useCallback((req: OcrLayoutPickRequest) => {
+    return new Promise<OcrLayoutPickResult | null>((resolve) => {
+      ocrLayoutResolverRef.current = resolve;
+      setOcrLayoutPick(req);
+    });
+  }, []);
+
+  const finishOcrLayout = useCallback((result: OcrLayoutPickResult | null) => {
+    const resolve = ocrLayoutResolverRef.current;
+    ocrLayoutResolverRef.current = null;
+    setOcrLayoutPick(null);
+    resolve?.(result);
+  }, []);
+
+  const requestOcrRegion = useCallback((req: OcrRegionAssistRequest) => {
+    return new Promise<OcrRegionAssistResult>((resolve) => {
+      ocrRegionResolverRef.current = resolve;
+      setOcrRegionAssist(req);
+    });
+  }, []);
+
+  const finishOcrRegion = useCallback((result: OcrRegionAssistResult) => {
+    const resolve = ocrRegionResolverRef.current;
+    ocrRegionResolverRef.current = null;
+    setOcrRegionAssist(null);
+    resolve?.(result);
+  }, []);
+
   const onCameraOcr = async (captureMode: OcrCaptureMode, imageUri?: string) => {
     // One picker at a time — stacked taps left status stuck on “Galerie öffnen…”.
     if (ocrCaptureInFlightRef.current) return;
@@ -615,6 +665,8 @@ export default function FetchScreen() {
           imageUri: captured,
           layoutId: ocrLayoutId,
           pickRosterName: requestOcrName,
+          pickOcrLayout: requestOcrLayout,
+          assistOcrRegion: requestOcrRegion,
           onStatus: (p) => setStatus(p.line),
         });
         if (!result.artifacts.length && !result.errors.length) {
@@ -634,6 +686,12 @@ export default function FetchScreen() {
         setOcrText(text);
         setOcrMatrix(result.matrix ?? null);
         setOcrImageUri(result.imageUri ?? null);
+        setOcrRegionSnapshots(result.regionSnapshots ?? null);
+        setOcrPageSize(
+          result.pageWidth && result.pageHeight
+            ? { w: result.pageWidth, h: result.pageHeight }
+            : null
+        );
         setOcrMatchedName(result.selectedName ?? null);
         setOcrSettingsName(await loadOcrPreferredName());
         setOcrRowCandidates(
@@ -1265,10 +1323,14 @@ export default function FetchScreen() {
                           imageUri={ocrImageUri}
                           grid={ocrMatrix}
                           matchedName={ocrMatchedName}
+                          regionSnapshots={ocrRegionSnapshots}
+                          pageWidth={ocrPageSize?.w ?? null}
+                          pageHeight={ocrPageSize?.h ?? null}
                           presetMapping={
                             packMapping?.presets?.[snap.preset || ''] ?? null
                           }
                           colors={packMapping?.colors ?? null}
+                          ocrEngineId={getOcrEngineIdForPack(pack)}
                           title={
                             ocrMatchedName && ocrMatrix
                               ? t('sourceOcrMatrixTitleMine', {
@@ -1366,6 +1428,8 @@ export default function FetchScreen() {
                           setOcrImageUri(null);
                           setOcrMatchedName(null);
                           setOcrRowCandidates([]);
+                          setOcrRegionSnapshots(null);
+                          setOcrPageSize(null);
                         }}
                         disabled={busy}
                       />
@@ -1425,6 +1489,20 @@ export default function FetchScreen() {
         preferredLabel={ocrNamePick?.preferredLabel}
         onCancel={() => finishOcrName(null)}
         onPick={(result) => finishOcrName(result)}
+      />
+      <OcrLayoutPickerModal
+        visible={!!ocrLayoutPick}
+        options={ocrLayoutPick?.options || []}
+        suggestedId={ocrLayoutPick?.suggestedId}
+        reason={ocrLayoutPick?.reason}
+        onCancel={() => finishOcrLayout(null)}
+        onPick={(result) => finishOcrLayout(result)}
+      />
+      <OcrRegionAssistModal
+        visible={!!ocrRegionAssist}
+        imageUri={ocrRegionAssist?.imageUri || ''}
+        reason={ocrRegionAssist?.reason || 'matrix-failed'}
+        onDone={finishOcrRegion}
       />
     </Screen>
   );
