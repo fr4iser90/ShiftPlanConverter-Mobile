@@ -47,6 +47,11 @@ import type {
   OcrRegionAssistResult,
 } from '@/src/ui/OcrRegionAssistModal';
 import {
+  biasLinesByPaintedRegions,
+  buildOwnRowAssistGrid,
+  relaxAssistGridOk,
+} from './ocr/assistPaintedRegions';
+import {
   buildMonthMatrixGrid,
   computeMonthMatrixMetrics,
   formatMonthMatrixTable,
@@ -96,7 +101,7 @@ export type CameraOcrRunOpts = SourceRunOpts & {
   pickRosterName?: (req: OcrNamePickRequest) => Promise<OcrNamePickResult | null>;
   /** When auto detection is uncertain — user picks one layout (one path). */
   pickOcrLayout?: (req: OcrLayoutPickRequest) => Promise<OcrLayoutPickResult | null>;
-  /** Name/date unclear — tap region or rephotograph. */
+  /** Name/date unclear — paint regions, rotate, or rephotograph. */
   assistOcrRegion?: (req: OcrRegionAssistRequest) => Promise<OcrRegionAssistResult>;
   autoSelectPreferred?: boolean;
   /**
@@ -477,8 +482,73 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           return false;
         }
       }
-      // Tap: restrict name detection to an x-band around the tap.
-      if (assist.kind === 'name-column') {
+      if (assist.action === 'painted') {
+        let pageW = ocr.pageWidth;
+        let pageH = ocr.pageHeight || 0;
+        // User rotated in assist → one re-OCR on the new URI (intentional path).
+        if (assist.imageUri && assist.imageUri !== sourceImageUri) {
+          try {
+            const prepared = await prepareImageForOcr(assist.imageUri);
+            const regionOcr = await recognizeImageText(prepared);
+            if (!regionOcr.lines.length) return false;
+            sourceImageUri = assist.imageUri;
+            workingLines = regionOcr.lines;
+            pageW = regionOcr.pageWidth || pageW;
+            pageH = regionOcr.pageHeight || pageH;
+            ocr = regionOcr;
+          } catch {
+            return false;
+          }
+        }
+
+        const nameBox = assist.regions.find((r) => r.kind === 'name-column')?.box;
+        const headerBox = assist.regions.find((r) => r.kind === 'day-header')?.box;
+        const ownBox = assist.regions.find((r) => r.kind === 'own-row')?.box;
+
+        // Schnellmodus: only own-row → calendar columns from month/year.
+        if (ownBox && !headerBox && assist.monthYear) {
+          const preferred = await loadOcrPreferredName();
+          grid = buildOwnRowAssistGrid({
+            lines: workingLines,
+            pageWidth: pageW,
+            pageHeight: pageH || Math.round(pageW * 0.75),
+            ownRow: ownBox,
+            nameColumn: nameBox || null,
+            monthYear: assist.monthYear,
+            preferredName: preferred,
+          });
+          return grid.ok;
+        }
+
+        workingLines = biasLinesByPaintedRegions(
+          workingLines,
+          assist.regions,
+          pageW,
+          pageH || Math.round(pageW * 0.75)
+        );
+        grid =
+          layoutId === 'week-strip'
+            ? buildWeekStripGrid(workingLines, pageW)
+            : buildMonthMatrixGrid(workingLines, pageW, pageH || undefined);
+        grid = relaxAssistGridOk(grid);
+
+        // Name+days still weak but own-row painted + month → Schnellmodus.
+        if (!grid.ok && ownBox && assist.monthYear) {
+          const preferred = await loadOcrPreferredName();
+          grid = buildOwnRowAssistGrid({
+            lines: ocr.lines,
+            pageWidth: pageW,
+            pageHeight: pageH || Math.round(pageW * 0.75),
+            ownRow: ownBox,
+            nameColumn: nameBox || null,
+            monthYear: assist.monthYear,
+            preferredName: preferred,
+          });
+        }
+        return grid.ok;
+      }
+      // Legacy tap: restrict name detection to an x-band around the tap.
+      if (assist.action === 'tap' && assist.kind === 'name-column') {
         const band = ocr.pageWidth * 0.18;
         const cx = assist.xNorm * ocr.pageWidth;
         workingLines = ocr.lines.filter((ln) => {
