@@ -19,10 +19,23 @@ export type OcrResult = {
   text: string;
   lineCount: number;
   lines: OcrLine[];
-  /** Image-space max extents from boxes (0 if unknown). */
+  /** Image-space max extents from boxes (0 if unknown). Prefer full image size when known. */
   pageWidth: number;
   pageHeight: number;
 };
+
+/** Merge OCR bbox extents with real image pixels (boxes are image-space). */
+export function mergeOcrPageSizeWithImage(
+  boxPageWidth: number,
+  boxPageHeight: number,
+  imageWidth?: number | null,
+  imageHeight?: number | null
+): { pageWidth: number; pageHeight: number } {
+  return {
+    pageWidth: Math.max(boxPageWidth || 0, imageWidth || 0),
+    pageHeight: Math.max(boxPageHeight || 0, imageHeight || 0),
+  };
+}
 
 type NativeBox = { x?: number; y?: number; width?: number; height?: number };
 type NativeElement = { text?: string; boundingBox?: NativeBox };
@@ -154,6 +167,16 @@ export async function recognizeImageText(uri: string): Promise<OcrResult> {
     const box = line.boundingBox;
     pageWidth = Math.max(pageWidth, box.x + box.width);
     pageHeight = Math.max(pageHeight, box.y + box.height);
+  }
+  // ML Kit boxes are in image pixels — page must be the full image, not bbox max.
+  try {
+    const { getLocalImageSize } = require('./imageSize') as typeof import('./imageSize');
+    const img = await getLocalImageSize(uri);
+    const merged = mergeOcrPageSizeWithImage(pageWidth, pageHeight, img.width, img.height);
+    pageWidth = merged.pageWidth;
+    pageHeight = merged.pageHeight;
+  } catch {
+    // keep bbox extents
   }
   const text =
     String(result?.text || '').trim() ||

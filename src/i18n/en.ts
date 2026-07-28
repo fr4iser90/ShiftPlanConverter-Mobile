@@ -126,6 +126,7 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrStatusCrop: 'Choose crop…',
   sourceOcrStatusPreparing: 'Photo selected — normalizing for OCR…',
   sourceOcrStatusRecognizing: 'Reading image (OCR running)…',
+  sourceOcrStatusDeskew: 'Straightening skewed photo…',
   sourceOcrStatusFindingNames: 'Looking for names on the plan…',
   sourceOcrStatusPickName: 'Tap your name…',
   sourceOcrStatusAutoName: 'Your name matched: {name}',

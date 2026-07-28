@@ -1,5 +1,8 @@
 /**
- * Normalized highlight boxes for OCR photo overlay (snapshot review — not live cam).
+ * Normalized highlight boxes for OCR photo overlay (snapshot review).
+ * pageWidth/pageHeight must be the **full image** size (same space as ML Kit boxes).
+ *
+ * Own-row: name-column strip at yCenter + dense day segments along rowSlope (schräg).
  */
 import { normalizeNameKeyPublic } from './names';
 import type { MonthMatrixGrid } from './monthMatrix/types';
@@ -7,10 +10,11 @@ import { estimateRegionBoxes, type OcrRegionSnapshot } from './regionSnapshots';
 
 export type OcrHighlightKind = 'name-column' | 'day-header' | 'own-row';
 
+export type OcrNormBox = OcrRegionSnapshot['box'];
+
 export type OcrHighlightBox = {
   kind: OcrHighlightKind;
-  /** Normalized crop on source image (0..1). */
-  box: OcrRegionSnapshot['box'];
+  box: OcrNormBox;
 };
 
 function clamp01(n: number): number {
@@ -32,17 +36,12 @@ function findMatchedRowIndex(grid: MonthMatrixGrid, matchedName: string): number
   if (!key) return -1;
   const exact = grid.rows.findIndex((r) => normalizeNameKeyPublic(r.name) === key);
   if (exact >= 0) return exact;
-  // Surname-only soft match when preferred is short.
   return grid.rows.findIndex((r) => {
     const rk = normalizeNameKeyPublic(r.name);
     return rk.startsWith(key) || key.startsWith(rk.split(',')[0] || rk);
   });
 }
 
-/**
- * Name column + day header (+ own row when matchedName hits a grid row).
- * Coordinates are normalized to pageWidth × pageHeight (OCR page space).
- */
 export function estimateHighlightOverlays(
   grid: MonthMatrixGrid,
   pageWidth: number,
@@ -58,22 +57,47 @@ export function estimateHighlightOverlays(
   ];
 
   const name = String(matchedName || '').trim();
-  if (!name || !pageHeight) return out;
+  if (!name || !pageHeight || !pageWidth) return out;
 
   const idx = findMatchedRowIndex(grid, name);
   if (idx < 0) return out;
 
   const row = grid.rows[idx]!;
-  const h = rowHeightPx(grid, idx);
-  const yTop = row.yCenter - h / 2;
+  const h = rowHeightPx(grid, idx) * 0.88;
+  const slope = grid.rowSlope || 0;
+  const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
+  const xAnchor = Math.min(nameMaxX * 0.55, nameMaxX - 4);
+
+  // Name column — measured yCenter (where the match was found).
   out.push({
     kind: 'own-row',
     box: {
       x: clamp01(0),
-      y: clamp01(yTop / pageHeight),
-      width: 1,
-      height: clamp01(Math.max(0.02, (h * 1.15) / pageHeight)),
+      y: clamp01((row.yCenter - h / 2) / pageHeight),
+      width: clamp01(Math.max(0.14, (nameMaxX + 4) / pageWidth)),
+      height: clamp01(Math.max(0.012, h / pageHeight)),
     },
   });
+
+  // Dense segments across the day area → follows skew without CSS rotate.
+  const x0 = nameMaxX;
+  const x1 = pageWidth;
+  const span = Math.max(1, x1 - x0);
+  const segCount = Math.max(10, Math.min(28, Math.round(span / 28)));
+  const segW = span / segCount;
+  for (let i = 0; i < segCount; i++) {
+    const cx = x0 + (i + 0.5) * segW;
+    const yMid = row.yCenter + slope * (cx - xAnchor);
+    out.push({
+      kind: 'own-row',
+      box: {
+        x: clamp01((cx - segW * 0.55) / pageWidth),
+        y: clamp01((yMid - h / 2) / pageHeight),
+        width: clamp01((segW * 1.05) / pageWidth),
+        height: clamp01(Math.max(0.01, h / pageHeight)),
+      },
+    });
+  }
+
   return out;
 }

@@ -1,5 +1,6 @@
 /**
  * Auto-snapshots of OCR regions after a confident grid hit (on-device only).
+ * Boxes are normalized to full image width/height (same space as ML Kit boxes).
  */
 import type { MonthMatrixGrid } from './monthMatrix/types';
 
@@ -15,42 +16,52 @@ function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
+function rowHeightPx(grid: MonthMatrixGrid, index: number): number {
+  const r = grid.rows[index];
+  if (!r) return 36;
+  const next = grid.rows[index + 1];
+  if (next) return Math.max(16, Math.abs(next.yCenter - r.yCenter));
+  const prev = grid.rows[index - 1];
+  if (prev) return Math.max(16, Math.abs(r.yCenter - prev.yCenter));
+  return grid.rowYPad ? grid.rowYPad * 2 : 36;
+}
+
 /**
- * Estimate name-column / day-header boxes from grid geometry (page pixel space → normalized).
+ * Estimate name-column / day-header boxes from grid geometry (page = full image px).
  */
 export function estimateRegionBoxes(
   grid: MonthMatrixGrid,
   pageWidth: number,
   pageHeight: number
 ): { name: OcrRegionSnapshot['box']; header: OcrRegionSnapshot['box'] } | null {
-  if (!grid.ok || !pageWidth || !pageHeight) return null;
+  if (!grid.ok || !pageWidth || !pageHeight || !grid.rows.length) return null;
   const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
-  const rowH = (r: { yCenter: number }, i: number) => {
-    const next = grid.rows[i + 1];
-    if (next) return Math.max(16, Math.abs(next.yCenter - r.yCenter));
-    return grid.rowYPad ? grid.rowYPad * 2 : 36;
-  };
-  const headerY = Math.min(
-    ...grid.rows.map((r, i) => r.yCenter - rowH(r, i) / 2),
-    40
-  );
-  const firstRowY = grid.rows[0]?.yCenter ?? headerY + 40;
+  const rh0 = rowHeightPx(grid, 0);
+  const firstTop = grid.rows[0]!.yCenter - rh0 / 2;
+  const lastBottom =
+    grid.rows[grid.rows.length - 1]!.yCenter + rowHeightPx(grid, grid.rows.length - 1) / 2;
+
+  // Header sits just above the first person row (weekday/day numbers).
+  const headerBandPx = Math.min(64, Math.max(22, rh0 * 0.75, (grid.rowYPad || 18) * 1.1));
+  const headerBottom = Math.max(headerBandPx, firstTop);
+  const headerTop = Math.max(0, headerBottom - headerBandPx);
+
   const nameBox = {
     x: clamp01(0),
-    y: clamp01((headerY - 20) / pageHeight),
-    width: clamp01(Math.max(0.12, nameMaxX / pageWidth + 0.02)),
-    height: clamp01(Math.min(0.95, (grid.rows[grid.rows.length - 1]?.yCenter || firstRowY) / pageHeight)),
+    y: clamp01(headerTop / pageHeight),
+    width: clamp01(Math.max(0.14, (nameMaxX + 8) / pageWidth)),
+    height: clamp01(Math.min(0.95, (lastBottom - headerTop) / pageHeight)),
   };
   const headerBox = {
     x: clamp01(nameMaxX / pageWidth),
-    y: clamp01(Math.max(0, (headerY - 30) / pageHeight)),
+    y: clamp01(headerTop / pageHeight),
     width: clamp01(1 - nameMaxX / pageWidth),
-    height: clamp01(Math.max(0.06, (firstRowY - headerY + 40) / pageHeight)),
+    height: clamp01(Math.max(0.025, (headerBottom - headerTop) / pageHeight)),
   };
   return { name: nameBox, header: headerBox };
 }
 
-/** Crop one normalized box from an image URI. Returns null if manipulator unavailable. */
+/** Crop one normalized box from an image URI. imageWidth/Height must be real pixels. */
 export async function cropRegionSnapshot(
   imageUri: string,
   box: OcrRegionSnapshot['box'],
@@ -75,8 +86,8 @@ export async function cropRegionSnapshot(
       [
         {
           crop: {
-            originX: Math.min(originX, imageWidth - 8),
-            originY: Math.min(originY, imageHeight - 8),
+            originX: Math.min(originX, Math.max(0, imageWidth - 8)),
+            originY: Math.min(originY, Math.max(0, imageHeight - 8)),
             width: Math.min(width, imageWidth - originX),
             height: Math.min(height, imageHeight - originY),
           },

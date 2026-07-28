@@ -126,6 +126,7 @@ export const de = {
   sourceOcrStatusCrop: 'Ausschnitt wählen…',
   sourceOcrStatusPreparing: 'Foto übernommen — für OCR normalisieren…',
   sourceOcrStatusRecognizing: 'Bild wird gelesen (OCR läuft)…',
+  sourceOcrStatusDeskew: 'Schräges Foto begradigen…',
   sourceOcrStatusFindingNames: 'Namen auf dem Plan suchen…',
   sourceOcrStatusPickName: 'Bitte deinen Namen tippen…',
   sourceOcrStatusAutoName: 'Dein Name erkannt: {name}',

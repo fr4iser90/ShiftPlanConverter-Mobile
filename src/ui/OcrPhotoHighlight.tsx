@@ -1,5 +1,6 @@
 /**
  * Photo with translucent OCR region highlights (contain-mapped, snapshot only).
+ * All highlights are axis-aligned (skew shown as short segments — no CSS rotate).
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
@@ -49,8 +50,8 @@ function strokeFor(kind: OcrHighlightKind, theme: AppTheme): string {
   return theme.color.primary;
 }
 
-function fillFor(kind: OcrHighlightKind, theme: AppTheme): string {
-  if (kind === 'own-row') return 'rgba(37, 99, 235, 0.28)';
+function fillFor(kind: OcrHighlightKind, _theme: AppTheme): string {
+  if (kind === 'own-row') return 'rgba(37, 99, 235, 0.32)';
   if (kind === 'day-header') return 'rgba(180, 83, 9, 0.22)';
   return 'rgba(15, 118, 110, 0.20)';
 }
@@ -131,10 +132,11 @@ export function OcrPhotoHighlight({
                   {
                     left: mapped.rect.left + h.box.x * mapped.rect.width,
                     top: mapped.rect.top + h.box.y * mapped.rect.height,
-                    width: h.box.width * mapped.rect.width,
-                    height: h.box.height * mapped.rect.height,
+                    width: Math.max(2, h.box.width * mapped.rect.width),
+                    height: Math.max(2, h.box.height * mapped.rect.height),
                     borderColor: strokeFor(h.kind, theme),
                     backgroundColor: fillFor(h.kind, theme),
+                    borderWidth: h.kind === 'own-row' && h.box.width < 0.2 ? 2 : 1.5,
                   },
                 ]}
               />
@@ -145,7 +147,12 @@ export function OcrPhotoHighlight({
         <View style={styles.legend}>
           {legendKinds.map((kind) => (
             <View key={kind} style={styles.legendItem}>
-              <View style={[styles.swatch, { backgroundColor: fillFor(kind, theme), borderColor: strokeFor(kind, theme) }]} />
+              <View
+                style={[
+                  styles.swatch,
+                  { backgroundColor: fillFor(kind, theme), borderColor: strokeFor(kind, theme) },
+                ]}
+              />
               <Text style={styles.legendText}>{legendLabel(kind)}</Text>
             </View>
           ))}
@@ -165,7 +172,6 @@ function makeStyles(theme: AppTheme) {
     },
     box: {
       position: 'absolute',
-      borderWidth: 2,
       borderRadius: 2,
     },
     legend: {

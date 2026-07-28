@@ -20,3 +20,10 @@ export {
   matrixRowsAsNameCandidates,
   computeMonthMatrixMetrics,
 } from './format';
+export {
+  clampSlope,
+  estimateRowSlopeFromHeaders,
+  expectedYAtX,
+  fitSlope,
+  slopeToDegrees,
+} from './skew';

@@ -16,6 +16,7 @@ import {
 } from '../state/ocrNameAliases';
 import { getSnapshot } from '../state/store';
 import { captureOcrImage, type OcrCaptureMode } from './ocr/capture';
+import { deskewDegreesFromOcrLines, rotateImageDegrees } from './ocr/deskew';
 import { maybeDumpOcrGeometry } from './ocr/geometryDump';
 import {
   applyOcrLayoutPostprocess,
@@ -94,6 +95,12 @@ export type CameraOcrRunOpts = SourceRunOpts & {
   /** Name/date unclear — tap region or rephotograph. */
   assistOcrRegion?: (req: OcrRegionAssistRequest) => Promise<OcrRegionAssistResult>;
   autoSelectPreferred?: boolean;
+  /**
+   * Optional D: if gallery/camera photo is mildly skewed, rotate once and OCR again.
+   * Default **false** — Scan mode already deskews; B+C geometry handles mild tilt.
+   * Enable explicitly when you want a straighten pass.
+   */
+  autoDeskew?: boolean;
 };
 
 export type CameraOcrRunResult = SourceRunResult & {
@@ -193,7 +200,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     };
   }
 
-  const sourceImageUri = captured;
+  let sourceImageUri = captured;
   let uri = captured;
   if (opts.cropImage) {
     opts.onStatus?.({ line: t('sourceOcrStatusCrop') });
@@ -233,8 +240,32 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
 
   opts.onStatus?.({ line: t('sourceOcrStatusRecognizing') });
   try {
-    const ocr = await recognizeImageText(uri);
+    let ocr = await recognizeImageText(uri);
     maybeDumpOcrGeometry(ocr);
+
+    // Optional D (off by default): one mild rotate + OCR. Scan already warps.
+    const wantDeskew = opts.autoDeskew === true && mode !== 'scan';
+    if (wantDeskew && ocr.lines.length) {
+      const deg = deskewDegreesFromOcrLines(ocr.lines, ocr.pageWidth || 1);
+      if (deg) {
+        opts.onStatus?.({ line: t('sourceOcrStatusDeskew') });
+        const straightened = await rotateImageDegrees(uri, -deg);
+        if (straightened) {
+          try {
+            const ocr2 = await recognizeImageText(straightened);
+            if (ocr2.lines.length) {
+              uri = straightened;
+              sourceImageUri = straightened;
+              ocr = ocr2;
+              maybeDumpOcrGeometry(ocr);
+            }
+          } catch {
+            // Keep first OCR — deskew is optional refinement.
+          }
+        }
+      }
+    }
+
     // Persist for adb pull / e2e. Always in __DEV__; release only with explicit flag.
     const dumpEnv =
       typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_OCR_DUMP_GEOMETRY === '1';
@@ -669,18 +700,17 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     const processed = applyOcrLayoutPostprocess(layoutId, rawText);
     const metrics = outGrid.ok ? computeMonthMatrixMetrics(outGrid) : null;
     let regionSnapshots: OcrRegionSnapshot[] | null = null;
-    const pageH = Math.max(
-      ...workingLines.map((ln) => (ln.boundingBox?.y || 0) + (ln.boundingBox?.height || 0)),
-      ocr.pageWidth * 0.7
-    );
+    // Always prefer full image size (set on ocr after recognize) over text-bbox max.
+    const pageW = ocr.pageWidth || 1;
+    const pageH = ocr.pageHeight || 1;
     if (outGrid.ok && metrics && metrics.dayCoverage >= 5 && metrics.rowCount >= 2) {
       opts.onStatus?.({ line: t('sourceOcrStatusSnapshots') });
       try {
         regionSnapshots = await captureAutoSnapshots({
           imageUri: uri,
           grid: outGrid,
-          pageWidth: ocr.pageWidth || 1,
-          pageHeight: pageH || 1,
+          pageWidth: pageW,
+          pageHeight: pageH,
         });
       } catch {
         regionSnapshots = null;
@@ -697,8 +727,8 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       imageUri: sourceImageUri,
       regionSnapshots,
       layoutScore,
-      pageWidth: ocr.pageWidth || null,
-      pageHeight: pageH || null,
+      pageWidth: pageW,
+      pageHeight: pageH,
     };
   } catch (e) {
     const code = e instanceof Error ? e.message : String(e);

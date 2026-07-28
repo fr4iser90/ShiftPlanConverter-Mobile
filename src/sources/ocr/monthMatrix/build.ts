@@ -27,11 +27,13 @@ import {
   pairLoneNameFragments,
   splitTrailingLastNameGroups,
 } from './nameRows';
+import { estimateRowSlopeFromHeaders, expectedYAtX, refineRowSlopeNearAnchor } from './skew';
 import type { MatrixRow, MonthMatrixGrid } from './types';
 
 /**
  * Build name×day grid from OCR geometry.
  * Row anchors come from the left name column first (avoids shift-cell Y bridging).
+ * Mild photo skew: cells use yExpected = yName + slope·(x − xAnchor).
  */
 export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): MonthMatrixGrid {
   const empty: MonthMatrixGrid = { headers: [], rows: [], ok: false };
@@ -62,6 +64,8 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
   const gaps: number[] = [];
   for (let i = 1; i < xs.length; i++) gaps.push(xs[i] - xs[i - 1]);
   const colGap = Math.max(12, median(gaps) || w / 28);
+
+  const pageSlope = estimateRowSlopeFromHeaders(merged, w, nameMaxX);
 
   const nameTokens = merged.filter((l) => {
     if (xCenter(l) >= nameMaxX && l.boundingBox.x >= nameMaxX * 0.95) return false;
@@ -99,6 +103,7 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
 
   const rowYPad = Math.max(nameMedH * 2.4, medH * 1.1);
   const rows: MatrixRow[] = [];
+  const rowSlopes: number[] = [];
   for (const g of nameGroups) {
     const nameParts = g
       .slice()
@@ -108,11 +113,23 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     if (!people.length) continue;
 
     const yMid = g.reduce((s, l) => s + yCenter(l), 0) / g.length;
+    const xAnchor = g.reduce((s, l) => s + xCenter(l), 0) / g.length;
+    const slope = refineRowSlopeNearAnchor(
+      merged,
+      yMid,
+      xAnchor,
+      nameMaxX,
+      rowYPad,
+      pageSlope
+    );
+    rowSlopes.push(slope);
+
     const cells = colCenters.map((_cx, colIndex) => {
       const candidates = merged.filter((l) => {
         const xc = xCenter(l);
         if (xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
-        if (Math.abs(yCenter(l) - yMid) > rowYPad) return false;
+        const yExp = expectedYAtX(yMid, xAnchor, xc, slope);
+        if (Math.abs(yCenter(l) - yExp) > rowYPad) return false;
         return owningColIndex(l, colCenters, nameMaxX, w) === colIndex;
       });
       if (!candidates.length) return '';
@@ -129,6 +146,8 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
   }
 
   rows.sort((a, b) => a.yCenter - b.yCenter);
+  const rowSlope =
+    rowSlopes.length > 0 ? median(rowSlopes.map((s) => s)) || pageSlope : pageSlope;
 
   return {
     headers: filledHeaders,
@@ -138,5 +157,6 @@ export function buildMonthMatrixGrid(lines: OcrLine[], pageWidth: number): Month
     nameMaxX,
     colGap,
     rowYPad,
+    rowSlope,
   };
 }

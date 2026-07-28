@@ -22,6 +22,11 @@ export type MonthMatrixGrid = {
   nameMaxX?: number;
   colGap?: number;
   rowYPad?: number;
+  /**
+   * Page row skew: Δy/Δx in OCR page pixels (positive = row drops toward the right).
+   * Used for cell assign + highlight overlay.
+   */
+  rowSlope?: number;
 };
 
 /** Compact quality stats for status UI (one-shot; no second OCR). */
