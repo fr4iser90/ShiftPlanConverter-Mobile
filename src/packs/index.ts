@@ -11,6 +11,8 @@ import hospitalConfig from './builtin/st-elisabeth-leipzig/config.json';
 import hospitalOcr from './builtin/st-elisabeth-leipzig/parsers/ocr.json';
 import hospitalPdf from './builtin/st-elisabeth-leipzig/parsers/pdf.json';
 import opMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
+import stationEmptyMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/station-empty.json';
+import serviceAllgemeinMapping from './builtin/st-elisabeth-leipzig/mappings/service/allgemein.json';
 
 export type PackArea = {
   id: string;
@@ -74,11 +76,40 @@ const BUILTIN_PACKS: PackConfig[] = [
   },
 ];
 
+function registerScopeMappings(
+  out: Record<string, HospitalMapping>,
+  packId: string,
+  groupId: string,
+  areaIds: string[],
+  mapping: HospitalMapping
+): void {
+  for (const areaId of areaIds) {
+    out[`${packId}/${groupId}/${areaId}`] = mapping;
+  }
+}
+
+const ST_ELISABETH_STATION_AREA_IDS = Array.from({ length: 19 }, (_, i) => `station-${i + 1}`);
+
 const MAPPINGS: Record<string, HospitalMapping> = {
   [`${DEFAULT_GENERIC_PACK_ID}/${DEFAULT_GENERIC_GROUP_ID}/${DEFAULT_GENERIC_AREA_ID}`]:
     defaultGenericMapping as HospitalMapping,
   'st-elisabeth-leipzig/pflege/op-bereich': opMapping as HospitalMapping,
 };
+
+registerScopeMappings(
+  MAPPINGS,
+  'st-elisabeth-leipzig',
+  'pflege',
+  ST_ELISABETH_STATION_AREA_IDS,
+  stationEmptyMapping as HospitalMapping
+);
+registerScopeMappings(
+  MAPPINGS,
+  'st-elisabeth-leipzig',
+  'service',
+  ['allgemein'],
+  serviceAllgemeinMapping as HospitalMapping
+);
 
 /** @deprecated use listBuiltinPacks — kept for older call sites / smoke seed */
 export const BUILTIN_HOSPITAL_ID = 'st-elisabeth-leipzig';

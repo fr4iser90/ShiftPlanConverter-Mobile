@@ -19,6 +19,23 @@ import type { OcrLine } from '@/src/sources/ocr/recognize';
 const OCR_RESOLVE = { allowInfer: false as const };
 const TIME_RANGE_RE = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/;
 
+/** Same marker PDF convert uses so Preview `findMissingTimeKeys` can prompt. */
+export function unmappedTimeMarker(start: string, end: string): string {
+  return `⚠️ ${start}-${end}`;
+}
+
+export function isUnmappedTimeMarker(value: string): boolean {
+  return typeof value === 'string' && value.startsWith('⚠️');
+}
+
+function isValidClockPair(start: string, end: string): boolean {
+  const m = `${start}-${end}`.match(TIME_RANGE_RE);
+  if (!m) return false;
+  const hh = [Number(m[1]), Number(m[3])];
+  const mm = [Number(m[2]), Number(m[4])];
+  return hh.every((h) => h >= 0 && h <= 23) && mm.every((n) => n >= 0 && n <= 59);
+}
+
 export type CellInkHint = { dark: number; slash: number };
 export type PackFingerprint = {
   digits: string;
@@ -939,17 +956,16 @@ export function applyPackMappingToCell(
 
   const range = t.match(TIME_RANGE_RE);
   if (range) {
+    const start = `${range[1]}:${range[2]}`;
+    const end = `${range[3]}:${range[4]}`;
     if (Object.keys(map).length) {
-      const start = `${range[1]}:${range[2]}`;
-      const end = `${range[3]}:${range[4]}`;
       const hit = resolveShiftMapping(start, end, map, OCR_RESOLVE);
       if (hit.code) return canon(hit.code);
       const rev = resolveShiftMapping(end, start, map, OCR_RESOLVE);
       if (rev.code) return canon(rev.code);
     }
-    // Full HH:MM-HH:MM input didn't match a pack time key:
-    // do not guess via digit fingerprints (keeps display modes stable).
-    return t;
+    // Full HH:MM-HH:MM without a pack hit → same Preview missing path as PDF.
+    return unmappedTimeMarker(start, end);
   }
 
   const digits = cellDigits(t);
@@ -998,11 +1014,15 @@ export function applyPackMappingToCell(
   if (digits.length >= 8) {
     const start = `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
     const end = `${digits.slice(4, 6)}:${digits.slice(6, 8)}`;
-    if (Object.keys(map).length) {
-      const hit = resolveShiftMapping(start, end, map, OCR_RESOLVE);
-      if (hit.code) return canon(hit.code);
-      const rev = resolveShiftMapping(end, start, map, OCR_RESOLVE);
-      if (rev.code) return canon(rev.code);
+    if (isValidClockPair(start, end)) {
+      if (Object.keys(map).length) {
+        const hit = resolveShiftMapping(start, end, map, OCR_RESOLVE);
+        if (hit.code) return canon(hit.code);
+        const rev = resolveShiftMapping(end, start, map, OCR_RESOLVE);
+        if (rev.code) return canon(rev.code);
+      }
+      // Exact 8-digit clocks with no pack fingerprint → ask user in Preview.
+      if (digits.length === 8) return unmappedTimeMarker(start, end);
     }
   }
 
@@ -1032,6 +1052,8 @@ export function applyPackMappingToGrid(
       const mapped = applyPackMappingToCell(c, presetMapping, codes, codeAliases);
       // Free-day slash is matrix geometry, not time→code mapping — still must survive sanitize.
       if (mapped === MATRIX_FREE_DAY) return MATRIX_FREE_DAY;
+      // Unmapped full ranges stay visible so Preview / later ingest can prompt.
+      if (isUnmappedTimeMarker(mapped)) return mapped;
       const canon = canonicalizePackCode(mapped, codeAliases);
       return isPackCode(canon, codes) ? canon : '';
     }),
@@ -1667,7 +1689,13 @@ export function refinePersonRowFromOcr(
 
     if (!lines.length) {
       const raw = (prev || '').trim().toUpperCase();
-      nextCells.push(codes.has(raw) ? canonicalizePackCode(raw, codeAliases) : '');
+      if (codes.has(raw)) {
+        nextCells.push(canonicalizePackCode(raw, codeAliases));
+      } else if (isUnmappedTimeMarker(prevMapped)) {
+        nextCells.push(prevMapped);
+      } else {
+        nextCells.push('');
+      }
       continue;
     }
 
@@ -1687,7 +1715,15 @@ export function refinePersonRowFromOcr(
       .sort((a, b) => a.dy - b.dy || a.l.boundingBox.y - b.l.boundingBox.y);
 
     if (!candidates.length) {
-      nextCells.push(isPackCode(prevMapped, codes) ? prevMapped : prevMapped === '/' ? '/' : '');
+      nextCells.push(
+        isPackCode(prevMapped, codes)
+          ? prevMapped
+          : prevMapped === '/'
+            ? '/'
+            : isUnmappedTimeMarker(prevMapped)
+              ? prevMapped
+              : ''
+      );
       continue;
     }
 
@@ -1820,10 +1856,13 @@ export function refinePersonRowFromOcr(
         codeAliases
       );
       if (isPackCode(mapped, codes)) decided = mapped;
+      else if (isUnmappedTimeMarker(mapped)) decided = mapped;
     }
 
     if (decided && isPackCode(decided, codes)) {
       nextCells.push(canonicalizePackCode(decided, codeAliases));
+    } else if (decided && isUnmappedTimeMarker(decided)) {
+      nextCells.push(decided);
     } else {
       nextCells.push('');
     }

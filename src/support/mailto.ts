@@ -104,3 +104,94 @@ export async function openErrorReportMail(opts: {
     }),
   });
 }
+
+/** Pack-shaped fragment from local userMappings (ready to paste into preset JSON). */
+export function buildPackPresetFragmentFromUserMappings(
+  userMappings: Record<string, string>,
+  presetName = 'Standard'
+): {
+  presets: Record<string, Record<string, { code: string; type: string; isValidated: boolean }>>;
+} {
+  const preset: Record<string, { code: string; type: string; isValidated: boolean }> = {};
+  for (const key of Object.keys(userMappings || {}).sort()) {
+    const code = String(userMappings[key] || '').trim();
+    if (!code) continue;
+    preset[key] = { code, type: 'work', isValidated: false };
+  }
+  return { presets: { [presetName]: preset } };
+}
+
+export function buildMappingContributionMailBody(opts: {
+  hospital?: string;
+  group?: string;
+  area?: string;
+  preset?: string;
+  userMappings: Record<string, string>;
+}): string {
+  const preset = opts.preset?.trim() || 'Standard';
+  const fragment = buildPackPresetFragmentFromUserMappings(opts.userMappings, preset);
+  const json = JSON.stringify(fragment, null, 2);
+  const parts = [
+    t('mailHello'),
+    '',
+    t('mailMappingIntro'),
+    '',
+    t('mailAppVersion', { version: appVersionLabel() }),
+    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailGroup', { value: opts.group || '—' }),
+    t('mailArea', { value: opts.area || '—' }),
+    t('mailPreset', { value: preset }),
+    '',
+    t('mailMappingHeader'),
+    '---',
+    trimForMailto(json),
+    '---',
+    '',
+    t('mailNoSecrets'),
+    '',
+    t('mailThanks'),
+  ];
+  return parts.join('\n');
+}
+
+/** Full body text for clipboard when mailto URL would be too long. */
+export function mappingContributionClipboardText(opts: {
+  hospital?: string;
+  group?: string;
+  area?: string;
+  preset?: string;
+  userMappings: Record<string, string>;
+}): string {
+  const preset = opts.preset?.trim() || 'Standard';
+  const fragment = buildPackPresetFragmentFromUserMappings(opts.userMappings, preset);
+  return [
+    t('mailMappingIntro'),
+    '',
+    t('mailAppVersion', { version: appVersionLabel() }),
+    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailGroup', { value: opts.group || '—' }),
+    t('mailArea', { value: opts.area || '—' }),
+    t('mailPreset', { value: preset }),
+    '',
+    JSON.stringify(fragment, null, 2),
+  ].join('\n');
+}
+
+export async function openMappingContributionMail(opts: {
+  hospital?: string;
+  group?: string;
+  area?: string;
+  preset?: string;
+  userMappings: Record<string, string>;
+}): Promise<{ opened: boolean; body: string; clipboardFallback: boolean }> {
+  const preset = opts.preset?.trim() || 'Standard';
+  const fragment = buildPackPresetFragmentFromUserMappings(opts.userMappings, preset);
+  const json = JSON.stringify(fragment, null, 2);
+  const clipboardFallback = json.length > MAILTO_SAFE_CHARS;
+  const body = buildMappingContributionMailBody(opts);
+  await openSupportMail({
+    subject: t('mailMappingSubject'),
+    body,
+  });
+  return { opened: true, body, clipboardFallback };
+}

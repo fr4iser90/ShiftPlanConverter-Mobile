@@ -62,6 +62,37 @@ function legendLabel(kind: OcrHighlightKind): string {
   return t('sourceOcrRegionNameCol');
 }
 
+export function OcrHighlightLegend({ kinds }: { kinds: OcrHighlightKind[] }) {
+  const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const unique = useMemo(() => {
+    const seen = new Set<OcrHighlightKind>();
+    const order: OcrHighlightKind[] = [];
+    for (const k of kinds) {
+      if (seen.has(k)) continue;
+      seen.add(k);
+      order.push(k);
+    }
+    return order;
+  }, [kinds]);
+  if (!unique.length) return null;
+  return (
+    <View style={styles.legend}>
+      {unique.map((kind) => (
+        <View key={kind} style={styles.legendItem}>
+          <View
+            style={[
+              styles.swatch,
+              { backgroundColor: fillFor(kind, theme), borderColor: strokeFor(kind, theme) },
+            ]}
+          />
+          <Text style={styles.legendText}>{legendLabel(kind)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function OcrPhotoHighlight({
   imageUri,
   highlights,
@@ -143,21 +174,7 @@ export function OcrPhotoHighlight({
             ))
           : null}
       </View>
-      {showLegend && legendKinds.length ? (
-        <View style={styles.legend}>
-          {legendKinds.map((kind) => (
-            <View key={kind} style={styles.legendItem}>
-              <View
-                style={[
-                  styles.swatch,
-                  { backgroundColor: fillFor(kind, theme), borderColor: strokeFor(kind, theme) },
-                ]}
-              />
-              <Text style={styles.legendText}>{legendLabel(kind)}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      {showLegend && legendKinds.length ? <OcrHighlightLegend kinds={legendKinds} /> : null}
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 
 import { t } from '@/src/i18n';
 import {
@@ -25,6 +27,10 @@ import {
   setUserMappings,
   subscribeKeys,
 } from '@/src/state/store';
+import {
+  mappingContributionClipboardText,
+  openMappingContributionMail,
+} from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { ShiftWeekView } from '@/src/ui/ShiftWeekView';
 import { ShiftMonthView } from '@/src/ui/ShiftMonthView';
@@ -338,6 +344,41 @@ export default function PreviewScreen() {
     await setEntries(updated);
   };
 
+  const contributionMappings = useMemo(() => {
+    const merged = { ...snap.userMappings, ...draftMappings };
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(merged)) {
+      const code = String(v || '').trim();
+      if (code) out[k] = code;
+    }
+    return out;
+  }, [snap.userMappings, draftMappings]);
+
+  const onSendMappingsToSupport = async () => {
+    if (!Object.keys(contributionMappings).length) {
+      Alert.alert(t('missingMappings'), t('sendMappingToSupportEmpty'));
+      return;
+    }
+    try {
+      const payload = {
+        hospital: snap.hospitalId || undefined,
+        group: snap.groupId || undefined,
+        area: snap.areaId || undefined,
+        preset: snap.preset || undefined,
+        userMappings: contributionMappings,
+      };
+      const result = await openMappingContributionMail(payload);
+      if (result.clipboardFallback) {
+        await Clipboard.setStringAsync(mappingContributionClipboardText(payload));
+        Alert.alert(t('supportTitle'), t('sendMappingToSupportClipboard'));
+      } else {
+        Alert.alert(t('supportTitle'), t('sendMappingToSupportDone'));
+      }
+    } catch (e) {
+      Alert.alert(t('supportTitle'), e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const summaries =
     snap.summaries?.length > 0
       ? snap.summaries
@@ -380,6 +421,13 @@ export default function PreviewScreen() {
             </View>
           ))}
           <AppButton title={t('saveMapping')} onPress={onSaveMappings} />
+          <AppButton
+            title={t('sendMappingToSupport')}
+            onPress={() => void onSendMappingsToSupport()}
+            variant="secondary"
+            style={{ marginTop: 8 }}
+            disabled={!Object.keys(contributionMappings).length}
+          />
         </View>
       )}
     </View>

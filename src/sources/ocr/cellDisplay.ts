@@ -3,13 +3,19 @@
  * Mapping uses the shared OCR engine + pack mapping JSON; this only controls display.
  */
 import { getOcrEngine, type OcrRosterEngine } from '../../convert/parsers/ocr';
+import { isUnmappedTimeMarker } from '../../convert/parsers/ocr/applyPackMapping';
 import { mappingCode } from '../../convert/shiftMapping';
 import type { MappingValue } from '../../convert/types';
 
 export type OcrCellDisplayMode = 'codes' | 'times' | 'both';
 
 const TIME_RANGE_RE = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/;
+const WARN_TIME_RE = /^⚠️\s*(\d{2}:\d{2}-\d{2}:\d{2})$/;
 
+function timeFromUnmappedMarker(value: string): string | null {
+  const m = String(value || '').trim().match(WARN_TIME_RE);
+  return m ? m[1] : null;
+}
 /** First pack time key for a code (Anzeige „Zeiten“). */
 export function packTimeForCode(
   code: string,
@@ -41,13 +47,16 @@ export function formatOcrCellForDisplay(
   const codes = engine.collectPackCodes(presetMapping, colors);
   const mapped = engine.mapCell(t, presetMapping, codes);
   const asCode = mapped && codes.has(mapped.toUpperCase()) ? mapped.toUpperCase() : null;
+  const warnTime = timeFromUnmappedMarker(mapped) || (isUnmappedTimeMarker(t) ? timeFromUnmappedMarker(t) : null);
   const asTime = TIME_RANGE_RE.test(t)
     ? t
-    : asCode
-      ? packTimeForCode(asCode, presetMapping)
-      : TIME_RANGE_RE.test(mapped)
-        ? mapped
-        : null;
+    : warnTime
+      ? warnTime
+      : asCode
+        ? packTimeForCode(asCode, presetMapping)
+        : TIME_RANGE_RE.test(mapped)
+          ? mapped
+          : null;
 
   if (mode === 'codes') return asCode || '';
   if (mode === 'times') return asTime || '';

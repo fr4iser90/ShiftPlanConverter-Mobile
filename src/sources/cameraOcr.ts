@@ -823,6 +823,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           grid: outGrid,
           pageWidth: pageW,
           pageHeight: pageH,
+          matchedName: selectedName || preferred || null,
         });
       } catch {
         regionSnapshots = null;

@@ -17,6 +17,7 @@ describe('formatOcrCellForDisplay', () => {
     expect(formatOcrCellForDisplay('07:35-15:50', 'times', preset)).toBe('07:35-15:50');
     expect(formatOcrCellForDisplay('F', 'both', preset)).toBe('F·07:35-15:50');
     expect(formatOcrCellForDisplay('15:50-16:45', 'codes', preset)).toBe('');
+    expect(formatOcrCellForDisplay('15:50-16:45', 'times', preset)).toBe('15:50-16:45');
     expect(formatOcrCellForDisplay('', 'both', preset)).toBe('');
   });
 

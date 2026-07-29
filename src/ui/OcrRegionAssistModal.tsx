@@ -65,6 +65,13 @@ const PAINT_BORDER: Record<OcrRegionKind, string> = {
   'own-row': '#dc7828',
 };
 
+/** Max normalized size so a long drag does not swallow the whole photo. */
+const PAINT_MAX: Record<OcrRegionKind, { w: number; h: number }> = {
+  'name-column': { w: 0.28, h: 0.92 },
+  'day-header': { w: 0.98, h: 0.12 },
+  'own-row': { w: 0.98, h: 0.1 },
+};
+
 type Props = {
   visible: boolean;
   imageUri: string;
@@ -84,6 +91,75 @@ function containRect(viewW: number, viewH: number, imgW: number, imgH: number): 
   }
   const w = viewH * imgAspect;
   return { x: (viewW - w) / 2, y: 0, w, h: viewH };
+}
+
+function clampToContent(x: number, y: number, c: ContentRect): { x: number; y: number } {
+  return {
+    x: Math.max(c.x, Math.min(c.x + c.w, x)),
+    y: Math.max(c.y, Math.min(c.y + c.h, y)),
+  };
+}
+
+/**
+ * Build a normalized paint box from view-space drag, clamped to the letterboxed
+ * image and capped per region kind (anchor stays at drag start).
+ */
+export function paintDragToNormBox(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  c: ContentRect,
+  kind: OcrRegionKind
+): OcrNormBox | null {
+  if (c.w < 1 || c.h < 1) return null;
+  const a = clampToContent(x0, y0, c);
+  const b = clampToContent(x1, y1, c);
+  let left = Math.min(a.x, b.x);
+  let right = Math.max(a.x, b.x);
+  let top = Math.min(a.y, b.y);
+  let bot = Math.max(a.y, b.y);
+
+  const max = PAINT_MAX[kind];
+  const maxW = max.w * c.w;
+  const maxH = max.h * c.h;
+  // Keep the start corner; shrink the expanding edge when over max.
+  if (right - left > maxW) {
+    if (b.x >= a.x) right = left + maxW;
+    else left = right - maxW;
+  }
+  if (bot - top > maxH) {
+    if (b.y >= a.y) bot = top + maxH;
+    else top = bot - maxH;
+  }
+
+  left = Math.max(c.x, left);
+  right = Math.min(c.x + c.w, right);
+  top = Math.max(c.y, top);
+  bot = Math.min(c.y + c.h, bot);
+
+  if (right - left < 8 || bot - top < 6) return null;
+  return {
+    x: (left - c.x) / c.w,
+    y: (top - c.y) / c.h,
+    width: (right - left) / c.w,
+    height: (bot - top) / c.h,
+  };
+}
+
+function draftViewBox(
+  draft: { x0: number; y0: number; x1: number; y1: number },
+  c: ContentRect,
+  kind: OcrRegionKind
+): { left: number; top: number; width: number; height: number } | null {
+  const box = paintDragToNormBox(draft.x0, draft.y0, draft.x1, draft.y1, c, kind);
+  if (!box) return null;
+  return {
+    left: c.x + box.x * c.w,
+    top: c.y + box.y * c.h,
+    width: box.width * c.w,
+    height: box.height * c.h,
+  };
 }
 
 export function OcrRegionAssistModal({ visible, imageUri, reason, onDone }: Props) {
@@ -141,25 +217,8 @@ export function OcrRegionAssistModal({ visible, imageUri, reason, onDone }: Prop
     );
   }, [displayUri, imgW, imgH]);
 
-  const toNormBox = (x0: number, y0: number, x1: number, y1: number): OcrNormBox | null => {
-    const c = contentRef.current;
-    const xa = Math.min(x0, x1);
-    const xb = Math.max(x0, x1);
-    const ya = Math.min(y0, y1);
-    const yb = Math.max(y0, y1);
-    // Clamp to image content (letterbox ignored)
-    const cx0 = Math.max(c.x, Math.min(c.x + c.w, xa));
-    const cx1 = Math.max(c.x, Math.min(c.x + c.w, xb));
-    const cy0 = Math.max(c.y, Math.min(c.y + c.h, ya));
-    const cy1 = Math.max(c.y, Math.min(c.y + c.h, yb));
-    if (cx1 - cx0 < 8 || cy1 - cy0 < 6) return null;
-    return {
-      x: (cx0 - c.x) / c.w,
-      y: (cy0 - c.y) / c.h,
-      width: (cx1 - cx0) / c.w,
-      height: (cy1 - cy0) / c.h,
-    };
-  };
+  const toNormBox = (x0: number, y0: number, x1: number, y1: number): OcrNormBox | null =>
+    paintDragToNormBox(x0, y0, x1, y1, contentRef.current, paintKindRef.current);
 
   const pan = useMemo(
     () =>
@@ -167,19 +226,22 @@ export function OcrRegionAssistModal({ visible, imageUri, reason, onDone }: Prop
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: (e) => {
-          const { locationX, locationY } = e.nativeEvent;
-          setDraft({ x0: locationX, y0: locationY, x1: locationX, y1: locationY });
+          const c = contentRef.current;
+          const p = clampToContent(e.nativeEvent.locationX, e.nativeEvent.locationY, c);
+          setDraft({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
           setError(null);
         },
         onPanResponderMove: (e) => {
-          const { locationX, locationY } = e.nativeEvent;
-          setDraft((d) => (d ? { ...d, x1: locationX, y1: locationY } : d));
+          const c = contentRef.current;
+          const p = clampToContent(e.nativeEvent.locationX, e.nativeEvent.locationY, c);
+          setDraft((d) => (d ? { ...d, x1: p.x, y1: p.y } : d));
         },
         onPanResponderRelease: (e) => {
-          const { locationX, locationY } = e.nativeEvent;
+          const c = contentRef.current;
+          const p = clampToContent(e.nativeEvent.locationX, e.nativeEvent.locationY, c);
           setDraft((d) => {
             if (!d) return null;
-            const box = toNormBox(d.x0, d.y0, locationX, locationY);
+            const box = toNormBox(d.x0, d.y0, p.x, p.y);
             if (box) {
               const kind = paintKindRef.current;
               setRegions((prev) => ({ ...prev, [kind]: box }));
@@ -316,19 +378,25 @@ export function OcrRegionAssistModal({ visible, imageUri, reason, onDone }: Prop
             />
           ))}
           {draft ? (
-            <View
-              pointerEvents="none"
-              style={{
-                position: 'absolute',
-                left: Math.min(draft.x0, draft.x1),
-                top: Math.min(draft.y0, draft.y1),
-                width: Math.abs(draft.x1 - draft.x0),
-                height: Math.abs(draft.y1 - draft.y0),
-                borderWidth: 1,
-                borderColor: PAINT_BORDER[paintKind],
-                backgroundColor: PAINT_COLORS[paintKind],
-              }}
-            />
+            (() => {
+              const vb = draftViewBox(draft, content, paintKind);
+              if (!vb) return null;
+              return (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    left: vb.left,
+                    top: vb.top,
+                    width: vb.width,
+                    height: vb.height,
+                    borderWidth: 1,
+                    borderColor: PAINT_BORDER[paintKind],
+                    backgroundColor: PAINT_COLORS[paintKind],
+                  }}
+                />
+              );
+            })()
           ) : null}
         </View>
 

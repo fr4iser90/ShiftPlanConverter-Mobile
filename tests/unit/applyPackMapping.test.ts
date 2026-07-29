@@ -37,7 +37,7 @@ describe('applyPackMapping', () => {
     expect(applyPackMappingToCell('U', anaesthesie, codes)).toBe('U');
     expect(applyPackMappingToCell('MO', anaesthesie, codes)).toBe('MO');
     expect(applyPackMappingToCell('XYZ99', anaesthesie, codes)).toBe('XYZ99');
-    expect(applyPackMappingToCell('06:00-14:00', anaesthesie, codes)).toBe('06:00-14:00');
+    expect(applyPackMappingToCell('06:00-14:00', anaesthesie, codes)).toBe('⚠️ 06:00-14:00');
   });
 
   it('maps mashed OCR times via pack fingerprints (Zeit-only cells)', () => {
@@ -97,6 +97,29 @@ describe('applyPackMapping', () => {
     expect(applyPackMappingToCell('07-36-07', anaesthesie, codes)).not.toBe('F');
     const mapped = applyPackMappingToCell('07-36-07', anaesthesie, codes);
     expect(codes.has(mapped)).toBe(false);
+  });
+
+  it('stamps ⚠️ for full unmapped ranges (empty or partial preset)', () => {
+    const empty: Record<string, MappingValue> = {};
+    expect(applyPackMappingToCell('06:00-14:12', empty)).toBe('⚠️ 06:00-14:12');
+    expect(applyPackMappingToCell('06001412', empty)).toBe('⚠️ 06:00-14:12');
+    expect(applyPackMappingToCell('06:00-14:00', anaesthesie)).toBe('⚠️ 06:00-14:00');
+  });
+
+  it('keeps ⚠️ markers when sanitizing a grid', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Mo1', 'Di2'],
+      rows: [
+        {
+          name: 'Nordmann, Alice',
+          yCenter: 10,
+          cells: ['06:00-14:12', '07:35-15:50'],
+        },
+      ],
+    };
+    const out = applyPackMappingToGrid(grid, anaesthesie, colors);
+    expect(out.rows[0].cells).toEqual(['⚠️ 06:00-14:12', 'F']);
   });
 
   it('maps every cell in a grid without touching names', () => {
@@ -177,7 +200,7 @@ describe('applyPackMapping', () => {
     expect(out.rows[0].cells[0]).toBe('MO');
   });
 
-  it('refine clears unmapped garbage instead of keeping it', () => {
+  it('refine keeps unmapped full time ranges as ⚠️ markers', () => {
     const grid: MonthMatrixGrid = {
       ok: true,
       headers: ['Mo3'],
@@ -186,6 +209,20 @@ describe('applyPackMapping', () => {
       colGap: 40,
       rowYPad: 20,
       rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: ['15:50-16:45'] }],
+    };
+    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', [], anaesthesie, colors);
+    expect(out.rows[0].cells[0]).toBe('⚠️ 15:50-16:45');
+  });
+
+  it('refine clears unmapped garbage instead of keeping it', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Mo3'],
+      colCenters: [200],
+      nameMaxX: 80,
+      colGap: 40,
+      rowYPad: 20,
+      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: ['xyz-garbage'] }],
     };
     const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', [], anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('');
