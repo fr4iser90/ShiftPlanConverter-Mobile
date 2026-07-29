@@ -254,6 +254,32 @@ export function buildMonthMatrixGrid(
     nameMaxXFinal = Math.min(nameMaxX, Math.max(w * 0.08, colCenters[0]! - colGap * 0.45));
   }
 
+  // Prefer printed V-rule between name ink and first day center as the divider.
+  if (lattice?.vXs?.length) {
+    const firstCx = colCenters[0]!;
+    const candidates = lattice.vXs.filter(
+      (x) => x > nameMaxXFinal * 0.7 && x < firstCx - 4
+    );
+    if (candidates.length) {
+      const vDiv = candidates.sort((a, b) => a - b)[candidates.length - 1]!;
+      // Only snap when close — don't jump to a far title rule.
+      if (Math.abs(vDiv - nameMaxXFinal) <= Math.max(colGap * 1.2, w * 0.04)) {
+        nameMaxXFinal = vDiv;
+      }
+    }
+  }
+  // Day frames must not start left of the name divider.
+  if (colBounds.length) {
+    colBounds = colBounds.map((b, i) =>
+      i === 0 && b.x0 < nameMaxXFinal
+        ? { ...b, x0: nameMaxXFinal, cx: (nameMaxXFinal + b.x1) / 2 }
+        : b
+    );
+    if (colBounds[0]) colCenters[0] = colBounds[0].cx;
+  } else if (colCenters[0]! < nameMaxXFinal + 4) {
+    // Keep centers; dayFramesFromCenters will half-gap — clamp later in frames.
+  }
+
   const pageSlope = estimateRowSlopeFromHeaders(merged, w, nameMaxXFinal);
 
   // First names often sit slightly past the printed name/day rule. Keep a soft
@@ -395,7 +421,7 @@ export function buildMonthMatrixGrid(
     if (framed) rows = framed;
   }
 
-  // Header strip from lattice H (above first person), only if it agrees with glyphs.
+  // Header strip from lattice H + Mo/Di glyphs.
   if (ruledH.length >= 2 && stubs.length > 0) {
     const hb = headerBandFromLattice(
       ruledH,
@@ -406,23 +432,38 @@ export function buildMonthMatrixGrid(
     if (hb) {
       const glyphMid = headerBandY > 0 ? headerBandY : (headerBandTop + headerBandBot) / 2;
       const agree =
-        !(headerBandY > 0) || Math.abs(hb.mid - glyphMid) <= Math.max(18, pageH * 0.022);
+        !(headerBandY > 0) || Math.abs(hb.mid - glyphMid) <= Math.max(28, pageH * 0.03);
       if (agree) {
         headerBandTop = hb.top;
         headerBandBot = hb.bot;
         headerBandY = hb.mid;
-      } else {
-        // Keep glyph Y; still snap the bottom edge to the rule under the header when close.
+      } else if (headerBandBot > headerBandTop) {
+        // Keep glyph Y. Only snap bottom downward to a rule *under* the glyphs,
+        // never pull bot up into the title / above the date ink.
         const botRule = hb.bot;
-        if (
-          headerBandBot > headerBandTop &&
-          Math.abs(botRule - headerBandBot) <= Math.max(24, pageH * 0.03)
-        ) {
-          headerBandBot = botRule;
-          headerBandY = (headerBandTop + headerBandBot) / 2;
+        if (botRule >= headerBandBot - 2 && botRule < stubs[0]!.yMid - 2) {
+          if (botRule - headerBandTop > 4) {
+            headerBandBot = botRule;
+            headerBandY = (headerBandTop + headerBandBot) / 2;
+          }
         }
+      } else {
+        // Glyph band missing — take lattice result.
+        headerBandTop = hb.top;
+        headerBandBot = hb.bot;
+        headerBandY = hb.mid;
       }
     }
+  }
+
+  // Person bands must start at/below the header bottom (no teal into dates).
+  if (headerBandBot > headerBandTop) {
+    rows = rows.map((r) => {
+      if (r.yLo == null || r.yHi == null) return r;
+      if (r.yLo >= headerBandBot - 1) return r;
+      const yLo = Math.min(r.yHi - 8, Math.max(r.yLo, headerBandBot));
+      return { ...r, yLo };
+    });
   }
 
   const rowAnchors = rows.map((r) => ({

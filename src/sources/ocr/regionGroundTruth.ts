@@ -11,9 +11,11 @@
  *   "nameColumn": { "x": 0.02, "y": 0.30, "width": 0.16, "height": 0.40 },
  *   "dayHeader":  { "x": 0.18, "y": 0.26, "width": 0.78, "height": 0.04 },
  *   "ownRow":     { "x": 0.02, "y": 0.40, "width": 0.95, "height": 0.035 },
+ *   "ownName":    { "x": 0.02, "y": 0.40, "width": 0.14, "height": 0.035 },
  *   "dayXs": { "Mo1": 0.315, "Di2": 0.348, "Mi3": 0.380 }
  * }
  *
+ * Makierung colors: cyan=nameColumn, orange=dayHeader, blue=ownRow, red=ownName.
  * All boxes are normalized 0..1 on the *display* image (EXIF already applied).
  * dayXs optional — fraction of image width for column centers.
  *
@@ -34,6 +36,8 @@ export type OcrRegionGroundTruth = {
   nameColumn?: NormRect;
   dayHeader?: NormRect;
   ownRow?: NormRect;
+  /** Optional: only the matched person's name cell (red mark). */
+  ownName?: NormRect;
   /** Optional day label → normalized x center (0..1). */
   dayXs?: Record<string, number>;
 };

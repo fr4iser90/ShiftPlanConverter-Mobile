@@ -232,7 +232,11 @@ export function scoreLatticeColumns(
 }
 
 /**
- * Header strip Y from lattice: rule above first person → previous rule (or glyph).
+ * Header strip Y from lattice + day-header glyphs.
+ *
+ * The rule immediately above the first person is often the *top* of the date
+ * row (or a title rule), not the bottom. Prefer H-rules that bracket the Mo/Di
+ * glyph band; fall back to [rule-above-glyphs, rule-at-first-person].
  */
 export function headerBandFromLattice(
   hYs: number[],
@@ -243,29 +247,52 @@ export function headerBandFromLattice(
   const ys = [...hYs].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
   if (ys.length < 2 || !(firstPersonY > 0)) return null;
 
+  const hasGlyph =
+    glyphTop != null && glyphBot != null && glyphBot > glyphTop + 4;
+  const glyphMid = hasGlyph ? (glyphTop! + glyphBot!) / 2 : null;
+
+  // Bottom of header ≈ top of first person cell (H at/just above name baseline).
   let bot: number | null = null;
   for (const y of ys) {
-    if (y < firstPersonY - 2 && (bot == null || y > bot)) bot = y;
+    if (y < firstPersonY - 2) continue;
+    if (y > firstPersonY + Math.max(12, (firstPersonY - (glyphMid ?? firstPersonY)) * 0.5)) {
+      break;
+    }
+    bot = y;
+    break;
+  }
+  if (bot == null) {
+    for (const y of ys) {
+      if (y < firstPersonY - 2 && (bot == null || y > bot)) bot = y;
+    }
   }
   if (bot == null) return null;
 
+  // Top: last H strictly above glyph mid (or above bot).
+  const topCeil = glyphMid != null ? glyphMid : bot;
   let top: number | null = null;
   for (const y of ys) {
-    if (y < bot - 2 && (top == null || y > top)) top = y;
+    if (y < topCeil - 2 && (top == null || y > top)) top = y;
   }
   if (top == null) {
-    top = glyphTop != null && glyphTop < bot ? glyphTop : bot - Math.max(16, (bot - (ys[0] ?? 0)) * 0.15);
+    top =
+      hasGlyph && glyphTop! < bot
+        ? glyphTop!
+        : bot - Math.max(16, (bot - (ys[0] ?? 0)) * 0.15);
   }
 
-  // Prefer glyph band if it sits inside the lattice header interval.
   let y0 = top;
   let y1 = bot;
-  if (glyphTop != null && glyphBot != null && glyphBot > glyphTop) {
-    if (glyphTop >= top - 4 && glyphBot <= bot + 4) {
-      y0 = glyphTop;
-      y1 = glyphBot;
-    }
+
+  if (hasGlyph) {
+    // Always cover Mo/Di ink; lattice alone often stops at the rule *above* dates.
+    y0 = Math.min(y0, glyphTop!);
+    y1 = Math.max(y1, glyphBot!);
+    // Do not eat the first person name.
+    y1 = Math.min(y1, firstPersonY - 2);
+    if (y1 <= y0 + 4) y1 = Math.min(firstPersonY - 2, glyphBot! + 4);
   }
+
   if (!(y1 > y0 + 4)) return null;
   return { top: y0, bot: y1, mid: (y0 + y1) / 2 };
 }

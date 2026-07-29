@@ -218,22 +218,37 @@ export function estimateHighlightOverlays(
         ? Math.max(...centers) + (grid.colGap || 40)
         : pageWidth * 0.98)
   );
+  const firstDayLeft =
+    grid.dayFrames?.[0]?.x0 ??
+    (centers[0] != null ? centers[0]! - (grid.colGap || 40) * 0.5 : nameMaxX);
+  // Name gutter ends at the printed divider — never spill into day 1.
+  const nameRightCap = Math.min(nameMaxX + 2, firstDayLeft - 1, tableRight);
+  const headerBotY =
+    grid.headerFrame?.y1 ??
+    grid.headerBandBot ??
+    (grid.headerBandY != null ? grid.headerBandY + 14 : null);
 
-  // --- Name column: skewed person cell frame (yLo/yHi) in the name gutter ---
+  // --- Name column: one strip per person, clamped under the header ---
   for (let i = 0; i < grid.rows.length; i++) {
     const band = rowBandY(grid, i);
-    const yMid = (band.yLo + band.yHi) / 2;
+    let y0 = band.yLo;
+    let y1 = band.yHi;
+    if (headerBotY != null && y0 < headerBotY) {
+      y0 = Math.min(y1 - 6, headerBotY);
+    }
+    if (!(y1 > y0 + 4)) continue;
+    const yMid = (y0 + y1) / 2;
     const xRight = Math.min(
-      tableRight,
-      nameColRightAtY(nameMaxX, yMid, yFirst, slope) + 6
+      nameRightCap,
+      nameColRightAtY(nameMaxX, yMid, yFirst, slope) + 2
     );
     pushSkewedBandSegments(
       out,
       'name-column',
-      band.yLo,
-      band.yHi,
+      y0,
+      y1,
       tableLeft,
-      Math.max(tableLeft + 24, xRight),
+      Math.max(tableLeft + 16, xRight),
       xRef,
       slope,
       pageWidth,
@@ -258,14 +273,20 @@ export function estimateHighlightOverlays(
         ? grid.headerBandBot
       : (grid.headerBandY || yFirst - 40) + 12;
   const glyphH = Math.max(10, hBot - hTop);
-  // Pad toward printed cell frame (KW line / bottom rule) without eating row 1.
-  const pad = Math.min(glyphH * 0.35, pageHeight * 0.012);
-  hTop = Math.max(0, hTop - pad * 0.25);
+  // Pad toward printed cell frame without eating row 1 / title above.
+  const pad = Math.min(glyphH * 0.2, pageHeight * 0.008);
+  hTop = Math.max(0, hTop - pad * 0.15);
   hBot = hBot + pad;
+  if (grid.rows[0]?.yLo != null) {
+    hBot = Math.min(hBot, grid.rows[0]!.yLo! - 1);
+  }
+  if (!(hBot > hTop + 4)) {
+    hBot = hTop + Math.max(12, glyphH);
+  }
   const headerBand = Math.min(hBot - hTop, Math.max(12, pageHeight * 0.04));
   const yHeaderAtRef =
     grid.headerBandY && grid.headerBandY > 0
-      ? grid.headerBandY + pad * 0.35
+      ? Math.min(Math.max(grid.headerBandY, hTop + 2), hBot - 2)
       : (hTop + hBot) / 2;
 
   if (centers.length >= 3) {

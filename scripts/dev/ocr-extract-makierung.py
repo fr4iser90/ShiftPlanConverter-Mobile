@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
-"""Extract <stem>.regions.json from <stem>_makierung.jpg (cyan/orange/blue marks).
+"""Extract <stem>.regions.json from <stem>_makierung.jpg.
+
+Marking colors (highlighter on the photo):
+  - cyan/teal  → nameColumn  (whole name gutter)
+  - orange     → dayHeader   (date strip Mo1…)
+  - blue       → ownRow      (your person row: name + shifts)
+  - red        → ownName     (optional: only YOUR name cell inside the row)
 
   nix-shell -p python3 python3Packages.numpy python3Packages.opencv4 --run \\
     'python3 scripts/dev/ocr-extract-makierung.py'
+
+  # single stem:
+  nix-shell -p python3 python3Packages.numpy python3Packages.opencv4 --run \\
+    'python3 scripts/dev/ocr-extract-makierung.py boehme_patrick'
 
 Then compare auto overlays:
 
@@ -21,13 +31,15 @@ REPO = Path(__file__).resolve().parents[2]
 CASES = Path(__import__("os").environ.get("SHIFTPLAN_OCR_CASES", REPO / "tmp" / "test-files"))
 
 # OpenCV HSV ranges for highlighter paints (on pixels that differ from original).
+# Red is separate from orange so a red own-name cell does not pollute dayHeader.
 RANGES = {
     "nameColumn": [(np.array([80, 80, 80]), np.array([105, 255, 255]))],
-    "dayHeader": [
-        (np.array([5, 100, 100]), np.array([25, 255, 255])),
-        (np.array([0, 100, 100]), np.array([5, 255, 255])),
-    ],
+    "dayHeader": [(np.array([8, 100, 100]), np.array([25, 255, 255]))],
     "ownRow": [(np.array([100, 80, 80]), np.array([130, 255, 255]))],
+    "ownName": [
+        (np.array([0, 100, 100]), np.array([7, 255, 255])),
+        (np.array([170, 100, 100]), np.array([180, 255, 255])),
+    ],
 }
 
 
@@ -90,7 +102,12 @@ def extract_stem(stem: str) -> dict | None:
 
 
 def main() -> int:
+    # Optional: only one stem, e.g. boehme_patrick
+    only = [a for a in sys.argv[1:] if not a.startswith("-")]
     marks = sorted(CASES.glob("*_makierung.jpg"))
+    if only:
+        marks = [CASES / f"{s}_makierung.jpg" for s in only]
+        marks = [m for m in marks if m.is_file()]
     if not marks:
         print(f"FAIL: no *_makierung.jpg in {CASES}", file=sys.stderr)
         return 2

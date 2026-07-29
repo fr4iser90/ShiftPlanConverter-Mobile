@@ -293,7 +293,10 @@ describe('export roster overlay screenshots (OCR_EXPORT_OVERLAYS=1)', () => {
         { data: canvas.data, width: canvas.width, height: canvas.height },
         85
       );
-      fs.writeFileSync(outJpg, Buffer.from(encoded.data));
+      const buf = Buffer.from(encoded.data);
+      fs.writeFileSync(outJpg, buf);
+      // Also write stem name so opening the private photo overlay stays fresh.
+      fs.writeFileSync(path.join(outDir, `${sourceStem}-overlay.jpg`), buf);
       lines.push(`![overlay](${caseId}-overlay.jpg)`, '');
     }
 
