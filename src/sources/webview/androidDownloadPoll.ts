@@ -14,6 +14,12 @@ export type PolledPdf = {
   path: string;
 };
 
+export type DownloadPollResult =
+  | { kind: 'pdf'; pdf: PolledPdf }
+  /** LOGA3 often saves Login HTML as document.pdf (~19KB) when the session died. */
+  | { kind: 'login_html'; filename: string; size: number; path: string }
+  | { kind: 'timeout' };
+
 /**
  * Android fallback: RN WebView routes Content-Disposition to DownloadManager
  * (onFileDownload is a no-op on Android). Poll public Download folders for a new PDF.
@@ -22,8 +28,8 @@ export async function pollAndroidDownloadsForPdf(opts: {
   sinceMs: number;
   timeoutMs?: number;
   intervalMs?: number;
-}): Promise<PolledPdf | null> {
-  if (Platform.OS !== 'android') return null;
+}): Promise<DownloadPollResult> {
+  if (Platform.OS !== 'android') return { kind: 'timeout' };
   const timeoutMs = opts.timeoutMs ?? 90000;
   const intervalMs = opts.intervalMs ?? 1500;
   const deadline = Date.now() + timeoutMs;
@@ -41,9 +47,10 @@ export async function pollAndroidDownloadsForPdf(opts: {
           if (seen.has(path)) continue;
           const meta = await FileSystem.getInfoAsync(path);
           if (!meta.exists || !('size' in meta) || !meta.size || meta.size < 64) continue;
-          const mtime = 'modificationTime' in meta && meta.modificationTime
-            ? meta.modificationTime * 1000
-            : 0;
+          const mtime =
+            'modificationTime' in meta && meta.modificationTime
+              ? meta.modificationTime * 1000
+              : 0;
           // Prefer files touched after we armed; if mtime missing, take newest-looking once
           if (mtime && mtime + 2000 < opts.sinceMs) {
             seen.add(path);
@@ -53,23 +60,43 @@ export async function pollAndroidDownloadsForPdf(opts: {
             encoding: FileSystem.EncodingType.Base64,
           });
           if (!base64 || base64.length < 32) continue;
-          // %PDF magic in base64 starts with "JVBERi" (%PDF)
-          if (!base64.startsWith('JVBERi')) {
-            seen.add(path);
-            continue;
+
+          // %PDF magic in base64 starts with "JVBERi"
+          if (base64.startsWith('JVBERi')) {
+            try {
+              await FileSystem.deleteAsync(path, { idempotent: true });
+            } catch {
+              // scoped storage may deny delete; still return bytes for private save
+            }
+            return {
+              kind: 'pdf',
+              pdf: {
+                base64,
+                filename: name,
+                size: meta.size,
+                path,
+              },
+            };
           }
-          // Remove public copy ASAP — keep only app-private pdfs/ after ingest.
+
+          // LOGA3 failure mode: Login HTML saved as document.pdf (~19KB).
+          let peek = '';
           try {
-            await FileSystem.deleteAsync(path, { idempotent: true });
+            peek = globalThis.atob(base64.slice(0, 400)).slice(0, 280);
           } catch {
-            // scoped storage may deny delete; still return bytes for private save
+            peek = '';
           }
-          return {
-            base64,
-            filename: name,
-            size: meta.size,
-            path,
-          };
+          if (
+            /<!DOCTYPE\s+html|<html|LogaHR|Login\.nocache|P&amp;I LogaHR/i.test(peek)
+          ) {
+            return {
+              kind: 'login_html',
+              filename: name,
+              size: meta.size,
+              path,
+            };
+          }
+          seen.add(path);
         }
       } catch {
         // scoped storage / missing dir — try next
@@ -77,5 +104,5 @@ export async function pollAndroidDownloadsForPdf(opts: {
     }
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  return null;
+  return { kind: 'timeout' };
 }

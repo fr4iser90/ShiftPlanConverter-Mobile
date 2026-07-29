@@ -557,6 +557,8 @@ export const de = {
   fjPdfDownloads: '{label}: PDF aus Download-Ordner ({size} B, +{elapsed})',
   fjPdfOk: '{label}: PDF ok {size} B (+{elapsed})',
   fjPdfEmpty: 'PDF-Download leer oder kein %PDF (HTML verworfen)',
+  fjPdfLoginHtml:
+    'LOGA3-Session tot: Download war Login-HTML statt PDF ({size} B). Neu einloggen und Abruf wiederholen.',
   fjNoPdfInDownloads: 'kein PDF im Download-Ordner',
   fjDownloadNotClickable: 'Download-Button nicht klickbar',
   fjGateTraceOn: 'Gate-Trace an — Dumps nach jedem Step',

@@ -438,13 +438,16 @@ async function capturePdf(
         timeoutMs: 90000,
         intervalMs: 500,
       });
-      if (!polled) throw new Error(t('fjNoPdfInDownloads'));
-      status(ctx, t('fjPdfDownloads', { label, size: String(polled.size), elapsed: ago(t0) }));
+      if (polled.kind === 'login_html') {
+        throw new Error(t('fjPdfLoginHtml', { size: String(polled.size) }));
+      }
+      if (polled.kind !== 'pdf') throw new Error(t('fjNoPdfInDownloads'));
+      status(ctx, t('fjPdfDownloads', { label, size: String(polled.pdf.size), elapsed: ago(t0) }));
       return {
-        base64: polled.base64,
+        base64: polled.pdf.base64,
         mime: 'application/pdf' as const,
-        size: polled.size,
-        filename: polled.filename,
+        size: polled.pdf.size,
+        filename: polled.pdf.filename,
       };
     })();
 
@@ -617,7 +620,15 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       const buf = base64ToArrayBuffer(pdf.base64);
       tick(`base64decode ${label}`, decodeT0);
       const parseT0 = Date.now();
-      const text = await extractTextFromPdfBuffer(buf);
+      let text: string;
+      try {
+        text = await extractTextFromPdfBuffer(buf);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Prefer explicit empty-text / login hints over opaque wrap.
+        if (/FlateDecode|Tj|login|HTML/i.test(msg)) throw e instanceof Error ? e : new Error(msg);
+        throw new Error(t('fjPdfTextEmpty'));
+      }
       tick(`parsePdf ${label}`, parseT0);
       status(
         ctx,

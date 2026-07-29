@@ -254,7 +254,10 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
   // Fallback: flat join (gates still see Abrechnungsmonat)
   const flat = parts.join(' ').replace(/\s+Abrechnungsmonat\s+/gi, '\nAbrechnungsmonat ').trim();
   if (!flat) {
-    throw new Error('PDF text empty (no FlateDecode/Tj)');
+    const flate = streams.filter((s) => s.flate).length;
+    throw new Error(
+      `PDF text empty (no FlateDecode/Tj); size=${pdf.length}B streams=${streams.length} flate=${flate}`
+    );
   }
   return flat;
 }

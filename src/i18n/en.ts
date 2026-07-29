@@ -556,6 +556,8 @@ export const en: { [K in keyof typeof de]: string } = {
   fjPdfDownloads: '{label}: PDF from Downloads ({size} B, +{elapsed})',
   fjPdfOk: '{label}: PDF OK {size} B (+{elapsed})',
   fjPdfEmpty: 'PDF download empty or not %PDF (HTML discarded)',
+  fjPdfLoginHtml:
+    'LOGA3 session dead: download was Login HTML, not PDF ({size} B). Log in again and retry.',
   fjNoPdfInDownloads: 'no PDF in Download folder',
   fjDownloadNotClickable: 'Download button not clickable',
   fjGateTraceOn: 'Gate trace on — dumps after each step',
