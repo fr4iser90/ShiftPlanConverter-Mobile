@@ -203,7 +203,7 @@ export const de = {
   settingsHubOcrMeta: 'Für Fotos (OCR)',
   settingsOcrName: 'Mein Name auf dem Dienstplan',
   settingsOcrNameHint:
-    'Einmal hier speichern: „Nachname, Vorname“ wie auf dem Plan (z. B. Nordmann, Alice). OCR-Tippfehler werden beim nächsten Scan automatisch an diesen Namen angeglichen und deine Zeile markiert.',
+    'Einmal hier speichern: „Nachname, Vorname“ wie auf dem Plan. OCR-Tippfehler werden beim nächsten Scan automatisch an diesen Namen angeglichen und deine Zeile markiert.',
   settingsOcrNamePlaceholder: 'Nachname, Vorname',
   settingsOcrNameSave: 'Speichern',
   settingsOcrNameClear: 'Löschen',

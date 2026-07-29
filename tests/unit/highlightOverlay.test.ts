@@ -10,9 +10,9 @@ const baseGrid: MonthMatrixGrid = {
   ok: true,
   headers: ['1', '2', '3', '4', '5', '6', '7'],
   rows: [
-    { name: 'Nordmann, Alice', yCenter: 400, cells: ['F', 'U', 'F', 'U', 'F', 'U', 'F'] },
-    { name: 'Suedmann, Bianca', yCenter: 520, cells: ['U', 'F', 'U', 'F', 'U', 'F', 'U'] },
-    { name: 'Westmann, Clara', yCenter: 640, cells: ['F', 'F', 'U', 'U', 'F', 'F', 'U'] },
+    { name: 'Person-A, One', yCenter: 400, cells: ['F', 'U', 'F', 'U', 'F', 'U', 'F'] },
+    { name: 'Person-B, Two', yCenter: 520, cells: ['U', 'F', 'U', 'F', 'U', 'F', 'U'] },
+    { name: 'Person-C, Three', yCenter: 640, cells: ['F', 'F', 'U', 'U', 'F', 'F', 'U'] },
   ],
   nameMaxX: 280,
   rowYPad: 40,
@@ -34,25 +34,58 @@ describe('skewed name / header overlays', () => {
     expect(yR).toBeGreaterThan(yL);
   });
 
-  it('emits many name-column + day-header segments when skewed', () => {
+  it('emits one day-header box per colCenter (not fake equal segments)', () => {
     const boxes = estimateHighlightOverlays(baseGrid, 3000, 4000, null);
     const names = boxes.filter((b) => b.kind === 'name-column');
     const headers = boxes.filter((b) => b.kind === 'day-header');
-    expect(names.length).toBeGreaterThan(5);
-    expect(headers.length).toBeGreaterThan(5);
-    // Bottom name strip narrower than top
-    expect(names[names.length - 1]!.box.width).toBeLessThan(names[0]!.box.width);
+    expect(names.length).toBeGreaterThanOrEqual(baseGrid.rows.length);
+    expect(headers.length).toBe(baseGrid.colCenters!.length);
+    // Day boxes sit on real column centers
+    // First col spans nameMaxX→mid(c0,c1); mid ≈ (280+550)/2 when clamped.
+    const mid0 = (headers[0]!.box.x + headers[0]!.box.width / 2) * 3000;
+    expect(mid0).toBeGreaterThan(350);
+    expect(mid0).toBeLessThan(600);
+    // Bottom name strip narrower than top (positive slope)
+    const byY = [...names].sort((a, b) => a.box.y - b.box.y);
+    expect(byY[byY.length - 1]!.box.width).toBeLessThan(byY[0]!.box.width);
     // Header y increases across x (schräg)
     expect(headers[headers.length - 1]!.box.y).toBeGreaterThan(headers[0]!.box.y);
   });
 
-  it('own-row still lands on matched name', () => {
-    const boxes = estimateHighlightOverlays(baseGrid, 3000, 4000, 'Suedmann, Bianca');
+  it('own-row day segments match colCenters count', () => {
+    const boxes = estimateHighlightOverlays(baseGrid, 3000, 4000, 'Person-B, Two');
     const owns = boxes.filter((b) => b.kind === 'own-row');
-    expect(owns.length).toBeGreaterThan(1);
-    const yMid = (owns[0]!.box.y + owns[0]!.box.height / 2) * 4000;
-    expect(yMid).toBeGreaterThan(480);
-    expect(yMid).toBeLessThan(560);
+    // name gutter segment(s) + ≥1 box per day column
+    expect(owns.length).toBeGreaterThanOrEqual(1 + baseGrid.colCenters!.length);
+  });
+
+  it('own-row / name strips follow slope across x (not one flat AABB)', () => {
+    const boxes = estimateHighlightOverlays(baseGrid, 3000, 4000, 'Person-B, Two');
+    const owns = boxes.filter((b) => b.kind === 'own-row');
+    const dayish = owns.filter((b) => b.box.x > 0.1);
+    expect(dayish.length).toBeGreaterThanOrEqual(2);
+    const left = dayish.reduce((a, b) => (a.box.x < b.box.x ? a : b));
+    const right = dayish.reduce((a, b) => (a.box.x > b.box.x ? a : b));
+    expect(right.box.y).toBeGreaterThan(left.box.y);
+  });
+
+  it('uses stored day frames instead of symmetric center widths', () => {
+    const grid: MonthMatrixGrid = {
+      ...baseGrid,
+      dayFrames: [
+        { dayIndex: 0, label: '1', x0: 320, x1: 500 },
+        { dayIndex: 1, label: '2', x0: 500, x1: 760 },
+        { dayIndex: 2, label: '3', x0: 760, x1: 1040 },
+        { dayIndex: 3, label: '4', x0: 1040, x1: 1320 },
+        { dayIndex: 4, label: '5', x0: 1320, x1: 1610 },
+        { dayIndex: 5, label: '6', x0: 1610, x1: 1940 },
+        { dayIndex: 6, label: '7', x0: 1940, x1: 2290 },
+      ],
+    };
+    const boxes = estimateHighlightOverlays(grid, 3000, 4000, null);
+    const headers = boxes.filter((b) => b.kind === 'day-header');
+    expect(headers[0]!.box.x * 3000).toBeCloseTo(320, 0);
+    expect((headers[0]!.box.x + headers[0]!.box.width) * 3000).toBeCloseTo(500, 0);
   });
 
   it('crop AABB header is near first row, not image top', () => {
@@ -65,21 +98,22 @@ describe('skewed name / header overlays', () => {
       ok: true as const,
       headers: ['1', '2', '3'],
       rows: [
-        { name: 'Nordmann, Alice', yCenter: 920, cells: ['U', 'U', 'U'] },
-        { name: 'Suedmann, Bianca', yCenter: 1120, cells: ['F', 'F', 'F'] },
-        { name: 'Westmann, Clara', yCenter: 1400, cells: ['F', 'F', 'F'] },
+        { name: 'Person-A, One', yCenter: 920, cells: ['U', 'U', 'U'] },
+        { name: 'Person-B, Two', yCenter: 1120, cells: ['F', 'F', 'F'] },
+        { name: 'Person-C, Three', yCenter: 1400, cells: ['F', 'F', 'F'] },
       ],
       nameMaxX: 280,
       rowYPad: 40,
       rowSlope: 0.03,
       colCenters: [400, 700, 1000],
     };
-    const boxes = estimateHighlightOverlays(grid, 3000, 2250, 'Suedmann, Bianca');
+    const boxes = estimateHighlightOverlays(grid, 3000, 2250, 'Person-B, Two');
     const owns = boxes.filter((b) => b.kind === 'own-row');
     const top = Math.min(...owns.map((b) => b.box.y)) * 2250;
     const bot = Math.max(...owns.map((b) => b.box.y + b.box.height)) * 2250;
+    // Midpoint band between names (920↔1120↔1400) — must not cover neighbor name anchors.
+    expect(top).toBeGreaterThan(920);
+    expect(bot).toBeLessThan(1400);
     expect(top).toBeGreaterThan(1000);
-    expect(bot).toBeLessThan(1300);
-    expect(top).toBeGreaterThan(920 + 40);
   });
 });

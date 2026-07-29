@@ -52,6 +52,22 @@ describe('monthMatrix skew', () => {
     expect(estimateRowSlopeFromHeaders(lines, 1000, 150)).toBe(0);
   });
 
+  it('keeps mild header skew (~1°) for overlay parallelograms', () => {
+    // Δy≈24 over Δx=1800 → slope≈0.013 — previously zeroed by median-Y flatten.
+    const lines = [
+      L('Mo1', 200, 100),
+      L('Di2', 500, 104),
+      L('Mi3', 800, 108),
+      L('Do4', 1100, 112),
+      L('Fr5', 1400, 116),
+      L('Sa6', 1700, 120),
+      L('So7', 2000, 124),
+    ];
+    const slope = estimateRowSlopeFromHeaders(lines, 3000, 150);
+    expect(slope).toBeGreaterThan(0.01);
+    expect(slope).toBeLessThan(0.02);
+  });
+
   it('deskew gate returns degrees for clear skew', () => {
     const lines = [
       L('Mo1', 200, 20),
@@ -75,15 +91,15 @@ describe('skew-aware cell assign', () => {
       L('Di2', 400, 20 + 400 * slope, 30),
       L('Mi3', 600, 20 + 600 * slope, 30),
       L('Do4', 800, 20 + 800 * slope, 30),
-      L('Nordmann', 10, 95, 70),
-      L('Alice', 10, 110, 50),
+      L('PersonA', 10, 95, 70),
+      L('Alpha', 10, 110, 50),
       L('F', 200, 100 + (200 - 40) * slope, 20),
       L('M2', 400, 100 + (400 - 40) * slope, 20),
       L('F1', 600, 100 + (600 - 40) * slope, 20),
       L('U', 800, 100 + (800 - 40) * slope, 20),
-      L('Suedmann', 10, 140, 70),
-      L('Bianca', 10, 155, 50),
-      // Neighbor cells intentionally near Nordmann's flat y on the right
+      L('PersonB', 10, 140, 70),
+      L('Beta', 10, 155, 50),
+      // Neighbor cells intentionally near PersonA's flat y on the right
       L('X', 200, 148, 20),
       L('Y', 400, 148, 20),
       L('Z', 600, 148, 20),
@@ -92,7 +108,7 @@ describe('skew-aware cell assign', () => {
     const grid = buildMonthMatrixGrid(lines, 1000);
     expect(grid.ok).toBe(true);
     expect(Math.abs(grid.rowSlope || 0)).toBeGreaterThan(0.02);
-    const nord = grid.rows.find((r) => /Nordmann/i.test(r.name));
+    const nord = grid.rows.find((r) => /PersonA/i.test(r.name));
     expect(nord).toBeTruthy();
     const joined = (nord!.cells || []).join(' ');
     expect(joined).toMatch(/F/);
@@ -105,15 +121,15 @@ describe('skew-aware cell assign', () => {
       ok: true as const,
       headers: ['1', '2', '3'],
       rows: [
-        { name: 'Nordmann, Alice', yCenter: 100, cells: ['F', 'U', 'F'] },
-        { name: 'Suedmann, Bianca', yCenter: 140, cells: ['U', 'F', 'U'] },
+        { name: 'PersonA, Alpha', yCenter: 100, cells: ['F', 'U', 'F'] },
+        { name: 'PersonB, Beta', yCenter: 140, cells: ['U', 'F', 'U'] },
       ],
       nameMaxX: 160,
       rowYPad: 18,
       rowSlope: 0.05,
       colCenters: [250, 450, 650],
     };
-    const boxes = estimateHighlightOverlays(grid, 800, 600, 'Nordmann, Alice');
+    const boxes = estimateHighlightOverlays(grid, 800, 600, 'PersonA, Alpha');
     const owns = boxes.filter((b) => b.kind === 'own-row');
     expect(owns[0]!.box.width).toBeLessThan(0.3);
     expect(owns.length).toBeGreaterThan(1);

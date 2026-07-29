@@ -7,7 +7,7 @@ import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op.
 import { hasPrivateDump, loadMonthMatrixDump } from './_ocrFixtures';
 
 describe('focusLinesOnMonthTable (private hires dump)', () => {
-  const run = hasPrivateDump('hires-3000');
+  const run = hasPrivateDump('hires');
 
   const anaesthesie = (op as { presets: Record<string, Record<string, MappingValue>> }).presets
     .Anästhesie;
@@ -15,7 +15,7 @@ describe('focusLinesOnMonthTable (private hires dump)', () => {
 
   it('keeps a usable table band', () => {
     if (!run) return;
-    const hires = loadMonthMatrixDump('hires-3000');
+    const hires = loadMonthMatrixDump('hires');
     const focused = focusLinesOnMonthTable(
       hires.lines,
       hires.pageWidth,
@@ -27,7 +27,7 @@ describe('focusLinesOnMonthTable (private hires dump)', () => {
 
   it('builds denser grid on 3000px dump', () => {
     if (!run) return;
-    const hires = loadMonthMatrixDump('hires-3000');
+    const hires = loadMonthMatrixDump('hires');
     const grid = buildMonthMatrixGrid(hires.lines, hires.pageWidth);
     expect(grid.ok).toBe(true);
     expect(grid.headers.length).toBeGreaterThanOrEqual(14);
@@ -38,7 +38,7 @@ describe('focusLinesOnMonthTable (private hires dump)', () => {
     expect(cells.some((c) => /^(F|F1|F2|MO|M1|M2|M3|S|ST|U)$/i.test(c))).toBe(true);
     expect(cells.every((c) => !/73#/.test(c))).toBe(true);
 
-    const spelled = applyKnownSpellingsToGridRows(mapped.rows, 'Nordmann, Alice', null);
+    const spelled = applyKnownSpellingsToGridRows(mapped.rows, 'PersonA, Alpha', null);
     expect(spelled.length).toBeGreaterThan(0);
   });
 });

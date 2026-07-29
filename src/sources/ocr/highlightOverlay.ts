@@ -2,8 +2,8 @@
  * Normalized highlight boxes for OCR photo overlay (snapshot review).
  * pageWidth/pageHeight must be the **full image** size (same space as ML Kit boxes).
  *
- * Name column + day header follow page skew (segmented AABBs — no CSS rotate).
- * Own-row: name strip + dense day segments along rowSlope.
+ * Names / days / own-row use the same stored bands as cell scoop (yLo/yHi, headerBand*).
+ * Day overlays align to real colCenters (not fake equal segments).
  */
 import { normalizeNameKeyPublic } from './names';
 import type { MonthMatrixGrid } from './monthMatrix/types';
@@ -22,34 +22,46 @@ function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
-/** Prefer the tighter neighbor gap so the bar does not bleed into adjacent rows. */
+/** Duty-row height from stored band (fallback: neighbor midpoints). */
 export function rowHeightPx(grid: MonthMatrixGrid, index: number): number {
   const r = grid.rows[index];
   if (!r) return 36;
+  if (r.yLo != null && r.yHi != null && r.yHi > r.yLo) {
+    return Math.max(16, r.yHi - r.yLo);
+  }
+  const next = grid.rows[index + 1];
+  const prev = grid.rows[index - 1];
+  if (prev || next) {
+    const yLo = prev ? (prev.yCenter + r.yCenter) / 2 : r.yCenter - (grid.rowYPad || 36);
+    const yHi = next ? (r.yCenter + next.yCenter) / 2 : r.yCenter + (grid.rowYPad || 36);
+    return Math.max(16, yHi - yLo);
+  }
   if (
     r.yNameTop != null &&
     r.yNameBot != null &&
     r.yNameBot > r.yNameTop &&
     r.yNameBot - r.yNameTop >= 10
   ) {
-    const glyphH = r.yNameBot - r.yNameTop;
-    const next = grid.rows[index + 1];
-    const prev = grid.rows[index - 1];
-    const gaps: number[] = [];
-    if (next) gaps.push(Math.abs(next.yCenter - r.yCenter));
-    if (prev) gaps.push(Math.abs(r.yCenter - prev.yCenter));
-    if (gaps.length) {
-      return Math.max(glyphH * 1.05, Math.min(...gaps) * 0.72);
-    }
-    return Math.max(16, glyphH * 1.15);
+    return Math.max(16, (r.yNameBot - r.yNameTop) * 1.15);
   }
-  const next = grid.rows[index + 1];
-  const prev = grid.rows[index - 1];
-  const gaps: number[] = [];
-  if (next) gaps.push(Math.abs(next.yCenter - r.yCenter));
-  if (prev) gaps.push(Math.abs(r.yCenter - prev.yCenter));
-  if (gaps.length) return Math.max(16, Math.min(...gaps) * 0.78);
   return grid.rowYPad ? grid.rowYPad * 1.6 : 36;
+}
+
+function rowBandY(grid: MonthMatrixGrid, index: number): { yLo: number; yHi: number } {
+  const exact = grid.personFrames?.find((f) => f.rowIndex === index);
+  if (exact) {
+    return { yLo: exact.y0, yHi: exact.y1 };
+  }
+  const r = grid.rows[index]!;
+  if (r.yLo != null && r.yHi != null && r.yHi > r.yLo) {
+    return { yLo: r.yLo, yHi: r.yHi };
+  }
+  const h = rowHeightPx(grid, index);
+  const prev = grid.rows[index - 1];
+  const next = grid.rows[index + 1];
+  const yLo = prev ? (prev.yCenter + r.yCenter) / 2 : r.yCenter - h / 2;
+  const yHi = next ? (r.yCenter + next.yCenter) / 2 : r.yCenter + h / 2;
+  return { yLo, yHi };
 }
 
 function findMatchedRowIndex(grid: MonthMatrixGrid, matchedName: string): number {
@@ -70,7 +82,6 @@ export function nameColRightAtY(
   yRef: number,
   rowSlope: number
 ): number {
-  // Perpendicular to row slope: x ≈ x0 − s·(y − yRef)
   return Math.max(24, nameMaxX - rowSlope * (y - yRef));
 }
 
@@ -82,6 +93,103 @@ export function headerYAtX(
   rowSlope: number
 ): number {
   return yAtNameEdge + rowSlope * (x - xRef);
+}
+
+/** Person-band edge (yLo or yHi) at x — parallelogram from axis-aligned rules at xRef. */
+export function bandEdgeAtX(
+  yEdgeAtRef: number,
+  x: number,
+  xRef: number,
+  rowSlope: number
+): number {
+  return yEdgeAtRef + rowSlope * (x - xRef);
+}
+
+/**
+ * Emit one or more AABB segments covering [x0,x1] × skewed [yLo,yHi].
+ * Flat when slope≈0; otherwise vertical strips track the printed parallelogram.
+ */
+function pushSkewedBandSegments(
+  out: OcrHighlightBox[],
+  kind: OcrHighlightKind,
+  yLo: number,
+  yHi: number,
+  x0: number,
+  x1: number,
+  xRef: number,
+  slope: number,
+  pageWidth: number,
+  pageHeight: number,
+  opts?: { maxSegs?: number }
+): void {
+  const h = yHi - yLo;
+  if (!(h > 2) || !(x1 > x0 + 1)) return;
+  const span = x1 - x0;
+  const absSlope = Math.abs(slope);
+  const segs =
+    absSlope < 1e-4
+      ? 1
+      : Math.max(
+          2,
+          Math.min(
+            opts?.maxSegs ?? 28,
+            Math.ceil((span * absSlope) / Math.max(3, h * 0.06))
+          )
+        );
+  const segW = span / segs;
+  for (let i = 0; i < segs; i++) {
+    const sx0 = x0 + i * segW;
+    const sx1 = i === segs - 1 ? x1 : x0 + (i + 1) * segW;
+    const cx = (sx0 + sx1) / 2;
+    const yTop = bandEdgeAtX(yLo, cx, xRef, slope);
+    const yBot = bandEdgeAtX(yHi, cx, xRef, slope);
+    out.push({
+      kind,
+      box: {
+        x: clamp01(sx0 / pageWidth),
+        y: clamp01(Math.min(yTop, yBot) / pageHeight),
+        width: clamp01(Math.max(1, sx1 - sx0) / pageWidth),
+        height: clamp01(Math.max(0.008, Math.abs(yBot - yTop) / pageHeight)),
+      },
+    });
+  }
+}
+
+/** Half-gap column width around center i (printed day cell approx). */
+function colWidthAt(
+  centers: number[],
+  index: number,
+  pageWidth: number,
+  _nameMaxX: number,
+  colGap?: number
+): { x0: number; x1: number } {
+  const cx = centers[index]!;
+  const prev = centers[index - 1];
+  const next = centers[index + 1];
+  const fallback = (colGap && colGap > 0 ? colGap : 40) * 0.5;
+  const gapL = prev != null ? (cx - prev) / 2 : null;
+  const gapR = next != null ? (next - cx) / 2 : null;
+  const halfL = gapL ?? gapR ?? fallback;
+  const halfR = gapR ?? gapL ?? fallback;
+  // Do not clamp to nameMaxX — that crushed early day boxes when the divider
+  // sat past colCenters[0].
+  const x0 = Math.max(0, cx - halfL);
+  const x1 = Math.min(pageWidth * 0.995, cx + halfR);
+  return { x0, x1: Math.max(x0 + 6, x1) };
+}
+
+function dayFrameAt(
+  grid: MonthMatrixGrid,
+  index: number,
+  pageWidth: number
+): { x0: number; x1: number; cx: number } {
+  const exact = grid.dayFrames?.[index];
+  if (exact && exact.x1 > exact.x0) {
+    return { x0: exact.x0, x1: exact.x1, cx: (exact.x0 + exact.x1) / 2 };
+  }
+  const centers = grid.colCenters?.length ? grid.colCenters : [];
+  const width = colWidthAt(centers, index, pageWidth, grid.nameMaxX ?? pageWidth * 0.22, grid.colGap);
+  return { ...width, cx: centers[index]! };
 }
 
 /**
@@ -97,51 +205,94 @@ export function estimateHighlightOverlays(
 
   const slope = grid.rowSlope || 0;
   const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
-  const rh0 = rowHeightPx(grid, 0);
   const yFirst = grid.rows[0]!.yCenter;
-  const yLast = grid.rows[grid.rows.length - 1]!.yCenter;
-  const yTop = yFirst - rh0 * 0.55;
-  const yBot = yLast + rowHeightPx(grid, grid.rows.length - 1) * 0.5;
   const xRef = nameMaxX;
-
+  const centers = grid.colCenters?.length ? grid.colCenters : [];
   const out: OcrHighlightBox[] = [];
+  // Table ink box — never paint name/own strips into photo margins / metal frame.
+  const tableLeft = Math.max(0, grid.contentLeft ?? 0);
+  const tableRight = Math.min(
+    pageWidth,
+    grid.contentRight ??
+      (centers.length
+        ? Math.max(...centers) + (grid.colGap || 40)
+        : pageWidth * 0.98)
+  );
 
-  // --- Name column: stacked strips, right edge follows skew ---
-  const nameSegH = Math.max(10, Math.min(28, rh0 * 0.55));
-  for (let y = yTop; y < yBot; y += nameSegH) {
-    const yMid = y + nameSegH / 2;
-    const xRight = nameColRightAtY(nameMaxX, yMid, yFirst, slope);
-    out.push({
-      kind: 'name-column',
-      box: {
-        x: 0,
-        y: clamp01(y / pageHeight),
-        width: clamp01(Math.max(0.08, (xRight + 6) / pageWidth)),
-        height: clamp01(Math.max(0.008, nameSegH / pageHeight)),
-      },
-    });
+  // --- Name column: skewed person cell frame (yLo/yHi) in the name gutter ---
+  for (let i = 0; i < grid.rows.length; i++) {
+    const band = rowBandY(grid, i);
+    const yMid = (band.yLo + band.yHi) / 2;
+    const xRight = Math.min(
+      tableRight,
+      nameColRightAtY(nameMaxX, yMid, yFirst, slope) + 6
+    );
+    pushSkewedBandSegments(
+      out,
+      'name-column',
+      band.yLo,
+      band.yHi,
+      tableLeft,
+      Math.max(tableLeft + 24, xRight),
+      xRef,
+      slope,
+      pageWidth,
+      pageHeight,
+      { maxSegs: 8 }
+    );
   }
 
-  // --- Day header: use measured headerBandY when available (not invented above first name) ---
-  const headerBand = Math.min(48, Math.max(18, rh0 * 0.55));
+  // --- Day header: one box per real day column (colCenters) ---
+  // Prefer glyph Mo/Di band; extend slightly toward the rule under the header
+  // so the strip covers the printed day cell (not just glyph ink).
+  let hTop =
+    grid.headerFrame != null
+      ? grid.headerFrame.y0
+      : grid.headerBandTop != null && grid.headerBandBot != null
+        ? grid.headerBandTop
+      : (grid.headerBandY || yFirst - 40) - 12;
+  let hBot =
+    grid.headerFrame != null
+      ? grid.headerFrame.y1
+      : grid.headerBandTop != null && grid.headerBandBot != null
+        ? grid.headerBandBot
+      : (grid.headerBandY || yFirst - 40) + 12;
+  const glyphH = Math.max(10, hBot - hTop);
+  // Pad toward printed cell frame (KW line / bottom rule) without eating row 1.
+  const pad = Math.min(glyphH * 0.35, pageHeight * 0.012);
+  hTop = Math.max(0, hTop - pad * 0.25);
+  hBot = hBot + pad;
+  const headerBand = Math.min(hBot - hTop, Math.max(12, pageHeight * 0.04));
   const yHeaderAtRef =
     grid.headerBandY && grid.headerBandY > 0
-      ? grid.headerBandY
-      : yFirst - rh0 * 0.85;
-  const hx0 = nameMaxX;
-  const hx1 = pageWidth * 0.98;
-  const hSpan = Math.max(1, hx1 - hx0);
-  const hSegCount = Math.max(8, Math.min(24, Math.round(hSpan / 36)));
-  const hSegW = hSpan / hSegCount;
-  for (let i = 0; i < hSegCount; i++) {
-    const cx = hx0 + (i + 0.5) * hSegW;
-    const yMid = headerYAtX(yHeaderAtRef, cx, xRef, slope);
+      ? grid.headerBandY + pad * 0.35
+      : (hTop + hBot) / 2;
+
+  if (centers.length >= 3) {
+    for (let i = 0; i < centers.length; i++) {
+      const { x0, x1, cx } = dayFrameAt(grid, i, pageWidth);
+      const yMid = headerYAtX(yHeaderAtRef, cx, xRef, slope);
+      const hx0 = Math.max(tableLeft, x0);
+      const hx1 = Math.min(tableRight, x1);
+      if (hx1 <= hx0 + 2) continue;
+      out.push({
+        kind: 'day-header',
+        box: {
+          x: clamp01(hx0 / pageWidth),
+          y: clamp01((yMid - headerBand / 2) / pageHeight),
+          width: clamp01((hx1 - hx0) / pageWidth),
+          height: clamp01(headerBand / pageHeight),
+        },
+      });
+    }
+  } else {
+    // No columns — one strip across the header band inside the table.
     out.push({
       kind: 'day-header',
       box: {
-        x: clamp01((cx - hSegW * 0.55) / pageWidth),
-        y: clamp01((yMid - headerBand / 2) / pageHeight),
-        width: clamp01((hSegW * 1.08) / pageWidth),
+        x: clamp01(Math.max(tableLeft, nameMaxX) / pageWidth),
+        y: clamp01((yHeaderAtRef - headerBand / 2) / pageHeight),
+        width: clamp01((tableRight - Math.max(tableLeft, nameMaxX)) / pageWidth),
         height: clamp01(headerBand / pageHeight),
       },
     });
@@ -153,43 +304,62 @@ export function estimateHighlightOverlays(
   const idx = findMatchedRowIndex(grid, name);
   if (idx < 0) return out;
 
-  const row = grid.rows[idx]!;
-  const h = rowHeightPx(grid, idx);
-  // Prefer glyph mid when we have a tight name box (less neighbor-row bleed).
-  const yRow =
-    row.yNameTop != null && row.yNameBot != null
-      ? (row.yNameTop + row.yNameBot) / 2
-      : row.yCenter;
-  const xAnchor = Math.min(nameMaxX * 0.55, nameMaxX - 4);
-  const nameRight = nameColRightAtY(nameMaxX, yRow, yFirst, slope);
+  const band = rowBandY(grid, idx);
+  const yRow = (band.yLo + band.yHi) / 2;
+  const nameRight = Math.min(
+    tableRight,
+    nameColRightAtY(nameMaxX, yRow, yFirst, slope)
+  );
 
-  out.push({
-    kind: 'own-row',
-    box: {
-      x: clamp01(0),
-      y: clamp01((yRow - h / 2) / pageHeight),
-      width: clamp01(Math.max(0.1, (nameRight + 4) / pageWidth)),
-      height: clamp01(Math.max(0.012, h / pageHeight)),
-    },
-  });
+  // Own-row name gutter (skewed) + day cells along the same parallelogram.
+  pushSkewedBandSegments(
+    out,
+    'own-row',
+    band.yLo,
+    band.yHi,
+    tableLeft,
+    Math.max(tableLeft + 24, nameRight + 4),
+    xRef,
+    slope,
+    pageWidth,
+    pageHeight,
+    { maxSegs: 8 }
+  );
 
-  const x0 = nameRight;
-  const x1 = pageWidth;
-  const span = Math.max(1, x1 - x0);
-  const segCount = Math.max(10, Math.min(28, Math.round(span / 28)));
-  const segW = span / segCount;
-  for (let i = 0; i < segCount; i++) {
-    const cx = x0 + (i + 0.5) * segW;
-    const yMid = yRow + slope * (cx - xAnchor);
-    out.push({
-      kind: 'own-row',
-      box: {
-        x: clamp01((cx - segW * 0.55) / pageWidth),
-        y: clamp01((yMid - h / 2) / pageHeight),
-        width: clamp01((segW * 1.05) / pageWidth),
-        height: clamp01(Math.max(0.01, h / pageHeight)),
-      },
-    });
+  if (centers.length >= 3) {
+    for (let i = 0; i < centers.length; i++) {
+      const { x0, x1 } = dayFrameAt(grid, i, pageWidth);
+      const ox0 = Math.max(tableLeft, x0);
+      const ox1 = Math.min(tableRight, x1);
+      if (ox1 <= ox0 + 2) continue;
+      pushSkewedBandSegments(
+        out,
+        'own-row',
+        band.yLo,
+        band.yHi,
+        ox0,
+        ox1,
+        xRef,
+        slope,
+        pageWidth,
+        pageHeight,
+        { maxSegs: 4 }
+      );
+    }
+  } else {
+    pushSkewedBandSegments(
+      out,
+      'own-row',
+      band.yLo,
+      band.yHi,
+      nameRight,
+      tableRight,
+      xRef,
+      slope,
+      pageWidth,
+      pageHeight,
+      { maxSegs: 28 }
+    );
   }
 
   return out;

@@ -60,8 +60,8 @@ describe('month-matrix pack + private dump contracts', () => {
   });
 
   it('private crop dump: calendar gaps fill to ~28 day columns', () => {
-    if (!hasPrivateDump('crop-1920')) return;
-    const fixture = loadMonthMatrixDump('crop-1920');
+    if (!hasPrivateDump('crop')) return;
+    const fixture = loadMonthMatrixDump('crop');
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     expect(grid.ok).toBe(true);
     expect(grid.headers.length).toBeGreaterThanOrEqual(26);
@@ -71,8 +71,8 @@ describe('month-matrix pack + private dump contracts', () => {
   });
 
   it('private crop dump: matrix ok + pack codes', () => {
-    if (!hasPrivateDump('crop-1920')) return;
-    const fixture = loadMonthMatrixDump('crop-1920');
+    if (!hasPrivateDump('crop')) return;
+    const fixture = loadMonthMatrixDump('crop');
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     expect(grid.ok).toBe(true);
     expect(grid.rows.length).toBeGreaterThanOrEqual(8);
@@ -95,8 +95,8 @@ describe('month-matrix pack + private dump contracts', () => {
   });
 
   it('private hires dump: ≥14 rows and ≥14 day columns', () => {
-    if (!hasPrivateDump('hires-3000')) return;
-    const fixture = loadMonthMatrixDump('hires-3000');
+    if (!hasPrivateDump('hires')) return;
+    const fixture = loadMonthMatrixDump('hires');
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     expect(grid.ok).toBe(true);
     expect(grid.rows.length).toBeGreaterThanOrEqual(14);

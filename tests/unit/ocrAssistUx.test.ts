@@ -12,14 +12,14 @@ describe('estimateOwnNameBox', () => {
     nameMaxX: 200,
     rowSlope: 0,
     rows: [
-      { name: 'Nordmann, A', yCenter: 100, cells: ['F', '/', 'M'], yNameTop: 90, yNameBot: 110 },
-      { name: 'Suedmann, B', yCenter: 200, cells: ['U', 'U', 'F'], yNameTop: 190, yNameBot: 210 },
-      { name: 'Westmann, C', yCenter: 300, cells: ['/', 'F', '/'], yNameTop: 290, yNameBot: 310 },
+      { name: 'PersonA, Alpha', yCenter: 100, cells: ['F', '/', 'M'], yNameTop: 90, yNameBot: 110 },
+      { name: 'PersonB, Beta', yCenter: 200, cells: ['U', 'U', 'F'], yNameTop: 190, yNameBot: 210 },
+      { name: 'PersonC, Gamma', yCenter: 300, cells: ['/', 'F', '/'], yNameTop: 290, yNameBot: 310 },
     ],
   };
 
   it('crops a tight band around the matched name', () => {
-    const box = estimateOwnNameBox(grid, 1000, 800, 'Suedmann, B');
+    const box = estimateOwnNameBox(grid, 1000, 800, 'PersonB, Beta');
     expect(box).not.toBeNull();
     expect(box!.y).toBeGreaterThan(0.15);
     expect(box!.y).toBeLessThan(0.35);

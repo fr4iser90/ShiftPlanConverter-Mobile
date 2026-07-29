@@ -35,20 +35,38 @@ export function privateOcrRoot(): string {
   );
 }
 
-export function privateDumpPath(id: 'crop-1920' | 'hires-3000'): string {
-  return path.join(privateOcrRoot(), 'dumps', `${id}.json`);
+function privateDumpFilename(kind: 'crop' | 'hires'): string | null {
+  const envKey =
+    kind === 'crop'
+      ? 'SHIFTPLAN_OCR_PRIVATE_DUMP_CROP'
+      : 'SHIFTPLAN_OCR_PRIVATE_DUMP_HIRES';
+  const v = String(process.env[envKey] || '').trim();
+  return v || null;
 }
 
-export function hasPrivateDump(id: 'crop-1920' | 'hires-3000'): boolean {
-  return fs.existsSync(privateDumpPath(id));
+export function privateDumpPath(kind: 'crop' | 'hires'): string | null {
+  const filename = privateDumpFilename(kind);
+  if (!filename) return null;
+  return path.join(privateOcrRoot(), 'dumps', `${filename}.json`);
+}
+
+export function hasPrivateDump(kind: 'crop' | 'hires'): boolean {
+  const p = privateDumpPath(kind);
+  if (!p) return false;
+  return fs.existsSync(p);
 }
 
 /** Load a private geometry dump; throws if missing (caller should skip). */
-export function loadMonthMatrixDump(id: 'crop-1920' | 'hires-3000'): MonthMatrixDump {
-  const p = privateDumpPath(id);
+export function loadMonthMatrixDump(kind: 'crop' | 'hires'): MonthMatrixDump {
+  const p = privateDumpPath(kind);
+  if (!p) {
+    throw new Error(
+      `Private OCR dump missing. Set SHIFTPLAN_OCR_PRIVATE_DUMP_${kind.toUpperCase()} and SHIFTPLAN_OCR_PRIVATE (or copy the dump into your private root).`
+    );
+  }
   if (!fs.existsSync(p)) {
     throw new Error(
-      `Private OCR dump missing: ${p} (set SHIFTPLAN_OCR_PRIVATE or copy dumps to /tmp/shiftplan-ocr-private/dumps/)`
+      `Private OCR dump missing. Set SHIFTPLAN_OCR_PRIVATE_DUMP_${kind.toUpperCase()} and SHIFTPLAN_OCR_PRIVATE (or copy the dump into your private root).`
     );
   }
   return JSON.parse(fs.readFileSync(p, 'utf8')) as MonthMatrixDump;

@@ -204,7 +204,7 @@ export const en: { [K in keyof typeof de]: string } = {
   settingsHubOcrMeta: 'For photos (OCR)',
   settingsOcrName: 'My name on the roster',
   settingsOcrNameHint:
-    'Save once here: “Last, First” as on the plan (e.g. Nordmann, Alice). OCR typos are auto-corrected to this name on the next scan and your row is marked.',
+    'Save once here: “Last, First” as on the plan. OCR typos are auto-corrected to this name on the next scan and your row is marked.',
   settingsOcrNamePlaceholder: 'Last name, first name',
   settingsOcrNameSave: 'Save',
   settingsOcrNameClear: 'Clear',

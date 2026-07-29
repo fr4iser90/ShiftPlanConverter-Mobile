@@ -21,9 +21,9 @@ describe('overlay coords with full image page', () => {
     ok: true,
     headers: ['1', '2', '3'],
     rows: [
-      { name: 'Nordmann, Alice', yCenter: 400, cells: ['F', 'U', 'F'] },
-      { name: 'Suedmann, Bianca', yCenter: 520, cells: ['F', 'M2', 'F'] },
-      { name: 'Westmann, Clara', yCenter: 640, cells: ['U', 'F', 'U'] },
+      { name: 'PersonA, Alpha', yCenter: 400, cells: ['F', 'U', 'F'] },
+      { name: 'PersonB, Beta', yCenter: 520, cells: ['F', 'M2', 'F'] },
+      { name: 'PersonC, Gamma', yCenter: 640, cells: ['U', 'F', 'U'] },
     ],
     nameMaxX: 280,
     rowYPad: 40,
@@ -34,7 +34,7 @@ describe('overlay coords with full image page', () => {
   it('places own-row name strip on matched row y — not neighbor', () => {
     const pageW = 3000;
     const pageH = 4000;
-    const boxes = estimateHighlightOverlays(grid, pageW, pageH, 'Suedmann, Bianca');
+    const boxes = estimateHighlightOverlays(grid, pageW, pageH, 'PersonB, Beta');
     const nameStrip = boxes.filter((b) => b.kind === 'own-row')[0]!;
     const yMid = (nameStrip.box.y + nameStrip.box.height / 2) * pageH;
     expect(yMid).toBeGreaterThan(480);

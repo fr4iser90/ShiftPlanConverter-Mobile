@@ -37,7 +37,7 @@ function shiftWeekday(wd: string, steps: number): string {
   return WEEKDAYS[(i + steps + WEEKDAYS.length * 8) % WEEKDAYS.length];
 }
 
-function parseHeaderDay(label: string): { wd: string | null; day: number | null } {
+export function parseHeaderDay(label: string): { wd: string | null; day: number | null } {
   const t = cleanCell(label).replace(/\s+/g, '');
   const full = t.match(/^(Mo|Di|Mi|Do|Fr|Sa|So)(\d{1,2})$/i);
   if (full) return { wd: normalizeWd(full[1]), day: Number(full[2]) };
@@ -295,6 +295,9 @@ export function fillCalendarDayGaps(
     cols.unshift({ x: cols[0].x - gap, day: 1, wd: 'Sa', label: 'Sa1' });
   }
 
+  // Do not generically prepend missing leading days from OCR alone. That needs
+  // printed lattice evidence to the left of the first observed header.
+
   const out: Col[] = [];
   for (let i = 0; i < cols.length; i++) {
     const cur = cols[i];
@@ -353,18 +356,67 @@ export type DayColumns = {
   headers: string[];
   /** Mean Y of the chosen header strip (page pixels). */
   bandY: number;
+  /** Tight top/bottom of Mo/Di (weekday-letter) glyphs — not orphan day numbers on the rule. */
+  bandTop: number;
+  bandBot: number;
 };
+
+function glyphBandFromLines(lines: OcrLine[], fallbackY: number): {
+  bandY: number;
+  bandTop: number;
+  bandBot: number;
+} {
+  if (!lines.length) {
+    return { bandY: fallbackY, bandTop: fallbackY - 10, bandBot: fallbackY + 10 };
+  }
+  // Prefer tokens that include a weekday letter (Mo1 / Mo / Di12) — skip bare day nums.
+  const wd = lines.filter(
+    (l) => looksLikeDayHeader(l.text) || looksLikeWeekdayOnly(l.text)
+  );
+  const use = wd.length >= 2 ? wd : lines;
+  const top = Math.min(...use.map((l) => l.boundingBox.y));
+  const bot = Math.max(...use.map((l) => l.boundingBox.y + l.boundingBox.height));
+  const bandY = use.reduce((s, l) => s + yCenter(l), 0) / use.length;
+  const pad = Math.max(2, (bot - top) * 0.08);
+  return {
+    bandY,
+    bandTop: top - pad,
+    bandBot: bot + pad,
+  };
+}
 
 export function collectDayColumns(
   lines: OcrLine[],
   pageWidth: number,
   nameMaxX: number
 ): DayColumns {
-  const seedWeekdays = lines.filter(
+  const seedAll = lines.filter(
     (l) =>
       xCenter(l) >= nameMaxX * 0.55 &&
       (looksLikeDayHeader(l.text) || looksLikeWeekdayOnly(l.text))
   );
+  if (seedAll.length < 2) {
+    return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
+  }
+
+  // Drop stray title/body weekdays before slope/steep — otherwise ySpan looks
+  // huge and the densest residual band skips the real early day headers.
+  {
+    const ys = seedAll.map((l) => yCenter(l)).sort((a, b) => a - b);
+    const yGaps: number[] = [];
+    for (let i = 1; i < ys.length; i++) yGaps.push(ys[i]! - ys[i - 1]!);
+    const yGap = Math.max(14, median(yGaps.filter((g) => g > 0 && g < 100)) || 22);
+    const yBands = clusterSorted(
+      seedAll.map((l) => ({ v: yCenter(l), item: l })),
+      yGap * 1.35
+    );
+    const densest = yBands.reduce((best, g) => (g.length > best.length ? g : best), yBands[0]!);
+    if (densest.length >= 2) {
+      seedAll.length = 0;
+      seedAll.push(...densest);
+    }
+  }
+  const seedWeekdays = seedAll;
   if (seedWeekdays.length < 2) {
     return collectDayColumnsFromDayNumbers(lines, pageWidth, nameMaxX);
   }
@@ -507,7 +559,8 @@ export function collectDayColumns(
   });
   const labeled = enforceCalendarColumnLabels(centers, headers, detectMonthYearFromOcr(lines));
   const deduped = dedupeDayColumns(labeled.centers, labeled.headers);
-  return { ...deduped, bandY };
+  const gb = glyphBandFromLines(headerBand, bandY);
+  return { ...deduped, ...gb };
 }
 
 /**
@@ -540,15 +593,18 @@ export function dedupeDayColumns(
       byDay.set(c.day, c);
     }
   }
-  const dated = [...byDay.values()].sort((a, b) => a.x - b.x);
-  // Keep undated only if they sit in an X-gap (rare weekday-only stubs).
+  // Sort by calendar day — OCR sometimes places a lower day number to the right
+  // of a higher one (e.g. "27" right of "Mi28").
+  let dated = [...byDay.values()].sort((a, b) => a.day! - b.day!);
+  dated = repairMonotonicDayXs(dated);
+
   const kept = dated.slice();
   for (const u of undated) {
     const near = kept.some((c) => Math.abs(c.x - u.x) < 18);
     if (!near) kept.push(u);
   }
   kept.sort((a, b) => a.x - b.x);
-  // Prefer ascending day order when we have mostly numbered days.
+  // Prefer calendar day order when we have mostly numbered days.
   if (dated.length >= Math.max(5, kept.length * 0.6)) {
     return {
       centers: dated.map((c) => c.x),
@@ -556,6 +612,38 @@ export function dedupeDayColumns(
     };
   }
   return { centers: kept.map((c) => c.x), headers: kept.map((c) => c.label) };
+}
+
+/** Re-place out-of-order / stacked day Xs using median pitch from good pairs. */
+function repairMonotonicDayXs(
+  cols: { x: number; label: string; day: number | null; score: number }[]
+): { x: number; label: string; day: number | null; score: number }[] {
+  if (cols.length < 3) return cols;
+  const pitches: number[] = [];
+  for (let i = 1; i < cols.length; i++) {
+    const a = cols[i - 1]!;
+    const b = cols[i]!;
+    if (a.day == null || b.day == null) continue;
+    const dDay = b.day - a.day;
+    const dX = b.x - a.x;
+    if (dDay > 0 && dDay <= 4 && dX > 10) pitches.push(dX / dDay);
+  }
+  const pitch = median(pitches.filter((p) => p > 10 && p < 120));
+  if (!(pitch > 10)) return cols;
+
+  const out = cols.map((c) => ({ ...c }));
+  // Anchor = first column; walk forward fixing non-monotonic / far-from-expect Xs.
+  for (let i = 1; i < out.length; i++) {
+    const prev = out[i - 1]!;
+    const cur = out[i]!;
+    if (prev.day == null || cur.day == null) continue;
+    const expect = prev.x + (cur.day - prev.day) * pitch;
+    const broken = cur.x <= prev.x + 2 || Math.abs(cur.x - expect) > pitch * 0.55;
+    if (broken) {
+      out[i] = { ...cur, x: expect };
+    }
+  }
+  return out;
 }
 
 /** Parse "März 2025" / "March 2025" / "02/2026" style cues from OCR. */
@@ -625,7 +713,7 @@ function germanWeekdayForDate(year: number, month: number, day: number): string 
   return map[new Date(year, month - 1, day).getDay()];
 }
 
-function daysInMonth(year: number, month: number): number {
+export function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
 }
 
@@ -735,7 +823,13 @@ export function collectDayColumnsFromDayNumbers(
   pageWidth: number,
   nameMaxX: number
 ): DayColumns {
-  const empty: DayColumns = { centers: [], headers: [], bandY: 0 };
+  const empty: DayColumns = {
+    centers: [],
+    headers: [],
+    bandY: 0,
+    bandTop: 0,
+    bandBot: 0,
+  };
   const nums = lines.filter(
     (l) => xCenter(l) >= nameMaxX * 0.55 && looksLikeDayNumber(l.text)
   );
@@ -820,39 +914,89 @@ export function collectDayColumnsFromDayNumbers(
   });
   const labeled = enforceCalendarColumnLabels(centers, headers, cal);
   const deduped = dedupeDayColumns(labeled.centers, labeled.headers);
-  return { ...deduped, bandY };
+  const gb = glyphBandFromLines(best, bandY);
+  return { ...deduped, ...gb };
 }
 
 /**
- * Left edge of the day grid = just left of the leftmost day-header token.
- * On heavily skewed photos the leftmost header dips into the name column —
- * use a robust low percentile instead of the absolute min.
+ * Right edge of the name column from surname tokens ("Name,").
+ * More reliable than day headers when OCR drops early month days and the first
+ * visible day is mid-month — day-header min-X then sits mid-calendar.
+ */
+function inferNameMaxXFromNames(lines: OcrLine[], pageWidth: number): number | null {
+  const leftCap = pageWidth * 0.38;
+  const candidates = lines.filter((l) => {
+    const t = cleanCell(l.text);
+    if (!t || l.boundingBox.x > leftCap) return false;
+    // Skip titles / parentheticals.
+    if (/[()]/.test(t)) return false;
+    // "Nachname," — not duty codes / KW.
+    if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,24},$/.test(t)) return true;
+    if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{3,24},/.test(t) && t.length <= 28) return true;
+    return false;
+  });
+  if (candidates.length < 2) return null;
+  const rights = candidates
+    .map((l) => l.boundingBox.x + l.boundingBox.width)
+    .sort((a, b) => a - b);
+  // Median right edge — avoid high-percentile title outliers.
+  const right = median(rights)!;
+  const pad = Math.max(12, pageWidth * 0.01);
+  const cap = pageWidth * 0.34;
+  const v = right + pad;
+  if (v < pageWidth * 0.1 || v > cap) return null;
+  return v;
+}
+
+/**
+ * Left edge of the day grid.
+ * Prefer surname right-edges when available; else leftmost day-header token
+ * in the densest header Y-band (ignore stray title weekdays).
  */
 export function inferNameMaxX(lines: OcrLine[], pageWidth: number): number {
   const fallback = pageWidth * 0.22;
+  const fromNames = inferNameMaxXFromNames(lines, pageWidth);
+
   const dayHeaders = lines.filter(
     (l) =>
       looksLikeDayHeader(l.text) ||
       looksLikeWeekdayOnly(l.text) ||
       looksLikeDayNumber(l.text)
   );
-  if (dayHeaders.length >= 2) {
-    const pageH = Math.max(...lines.map((l) => l.boundingBox.y + l.boundingBox.height), 1);
-    const top = dayHeaders.filter((l) => yCenter(l) < pageH * 0.35);
-    const seed = top.length >= 5 ? top : dayHeaders;
-    const slope = fitHeaderSlope(seed.length >= 3 ? seed : dayHeaders);
-    const ySpanSeed =
-      Math.max(...seed.map((l) => yCenter(l))) - Math.min(...seed.map((l) => yCenter(l)));
-    const steep = Math.abs(slope) > 0.08 && ySpanSeed > pageWidth * 0.1;
-    // Steep diagonal: top-third alone is only the right end of the strip — use all headers.
-    const use = steep ? dayHeaders : seed;
-    const xs = use.map((l) => l.boundingBox.x).sort((a, b) => a - b);
-    const idx = steep
-      ? Math.min(xs.length - 1, Math.max(0, Math.floor(xs.length * 0.2)))
-      : 0;
-    const left = xs[idx]!;
-    const cap = steep ? pageWidth * 0.38 : pageWidth * 0.32;
-    return Math.max(pageWidth * 0.08, Math.min(left - 8, cap));
-  }
-  return fallback;
+  if (dayHeaders.length < 2) return fromNames ?? fallback;
+
+  // Prefer the densest Y-band of day tokens (true header strip). Stray
+  // weekdays in the body/title must not pull nameMaxX.
+  const ys = dayHeaders.map((l) => yCenter(l)).sort((a, b) => a - b);
+  const yGaps: number[] = [];
+  for (let i = 1; i < ys.length; i++) yGaps.push(ys[i]! - ys[i - 1]!);
+  const yGap = Math.max(14, median(yGaps.filter((g) => g > 0 && g < 100)) || 22);
+  const yBands = clusterSorted(
+    dayHeaders.map((l) => ({ v: yCenter(l), item: l })),
+    yGap * 1.35
+  );
+  const headerBand = yBands.reduce(
+    (best, g) => (g.length > best.length ? g : best),
+    yBands[0]!
+  );
+  const use = headerBand.length >= 2 ? headerBand : dayHeaders;
+
+  const slope = fitHeaderSlope(use.length >= 3 ? use : dayHeaders);
+  const ySpan =
+    Math.max(...use.map((l) => yCenter(l))) - Math.min(...use.map((l) => yCenter(l)));
+  const steep = Math.abs(slope) > 0.08 && ySpan > pageWidth * 0.1;
+  const xs = use.map((l) => l.boundingBox.x).sort((a, b) => a - b);
+  const idx = steep
+    ? Math.min(xs.length - 1, Math.max(0, Math.floor(xs.length * 0.15)))
+    : 0;
+  const left = xs[idx]!;
+  const cap = steep ? pageWidth * 0.38 : pageWidth * 0.32;
+  const fromDays = Math.max(pageWidth * 0.08, Math.min(left - 8, cap));
+
+  if (fromNames == null) return fromDays;
+  // Names win when day-min is clearly to the right (missing leading days).
+  // Keep the tighter (lefter) divider so early days don't sit inside the name col.
+  if (fromDays > fromNames + pageWidth * 0.02) return fromNames;
+  // Mild disagreement: average, bias toward names.
+  return Math.min(fromDays, fromNames * 0.35 + fromDays * 0.65);
 }

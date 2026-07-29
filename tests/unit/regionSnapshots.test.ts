@@ -7,8 +7,8 @@ describe('regionSnapshots', () => {
       ok: true,
       headers: ['1', '2'],
       rows: [
-        { name: 'Nordmann, Alice', yCenter: 80, cells: ['F', 'U'] },
-        { name: 'Suedmann, Bianca', yCenter: 120, cells: ['U', 'F'] },
+        { name: 'PersonA, Alpha', yCenter: 80, cells: ['F', 'U'] },
+        { name: 'PersonB, Beta', yCenter: 120, cells: ['U', 'F'] },
       ],
       nameMaxX: 160,
       rowYPad: 18,

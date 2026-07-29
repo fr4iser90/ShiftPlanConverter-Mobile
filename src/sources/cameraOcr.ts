@@ -31,7 +31,11 @@ import {
   detectLayoutFromImageUri,
   loadGrayImageForLayout,
 } from './ocr/layouts/detectFromImage';
-import { uprightRotateDegreesFromGray } from './ocr/layouts/imageGrid';
+import {
+  detectRuledLattice,
+  scaleLatticeToPage,
+  uprightRotateDegreesFromGray,
+} from './ocr/layouts/imageGrid';
 import { detectOcrLayout, mergeLayoutDetections } from './ocr/detectLayout';
 import { analyzeLayoutUncertainty } from './ocr/layoutUncertainty';
 import { packAllowedConcreteLayouts } from './ocr/packLayouts';
@@ -59,6 +63,13 @@ import {
   type MonthMatrixGrid,
   type MonthMatrixMetrics,
 } from './ocr/monthMatrix';
+import { inferNameMaxX } from './ocr/monthMatrix/dayHeaders';
+import {
+  buildPerspectiveRectifier,
+  projectGridFromRectified,
+  transformLatticeByHomography,
+  transformLinesByHomography,
+} from './ocr/perspective';
 import {
   applyKnownSpellingsToGridRows,
   applySavedNameSpellings,
@@ -448,10 +459,93 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           : t('sourceOcrStatusBuildingMatrix'),
     });
     let workingLines: OcrLine[] = ocr.lines;
+
+    async function latticeForPage(
+      imageUri: string,
+      pageW: number,
+      pageH: number
+    ): Promise<{ hYs: number[]; vXs: number[] } | undefined> {
+      if (!(pageH > 0) || !(pageW > 0)) return undefined;
+      try {
+        const gray = await loadGrayImageForLayout(imageUri);
+        if (!gray) return undefined;
+        // V-snap ROI restriction: table area only (right of name divider; between
+        // header-like tokens and bottom content). One path only: if ROI is too
+        // small/weak we just return empty lattice.
+        const nameMaxX = inferNameMaxX(workingLines, pageW);
+        let yMin = Infinity;
+        let yMax = 0;
+        let xMin = Infinity;
+        let xMax = 0;
+        for (const l of workingLines) {
+          const b = l.boundingBox;
+          const x0 = b?.x ?? 0;
+          const x1 = x0 + (b?.width ?? 0);
+          const y0 = b?.y ?? 0;
+          const y1 = y0 + (b?.height ?? 0);
+          xMin = Math.min(xMin, x0);
+          xMax = Math.max(xMax, x1);
+          const t = String(l.text || '').replace(/\s+/g, '').trim();
+          const isHeaderLike =
+            /^(Mo|Di|Mi|Do|Fr|Sa|So)/i.test(t) || /^\d{1,2}$/.test(t);
+          if (isHeaderLike) yMin = Math.min(yMin, y0);
+          yMax = Math.max(yMax, y1);
+        }
+        if (!Number.isFinite(yMin)) yMin = pageH * 0.1;
+        if (!Number.isFinite(xMin)) xMin = nameMaxX * 0.5;
+        if (!Number.isFinite(xMax) || xMax <= xMin) xMax = pageW * 0.95;
+        // Table ink only — do not search V-lines out to the photo/metal frame.
+        const x0p = Math.max(0, Math.min(nameMaxX * 0.85, xMin - pageW * 0.02));
+        const x1p = Math.min(pageW * 0.98, xMax + pageW * 0.02);
+        const y0p = Math.max(0, yMin - pageH * 0.05);
+        const y1p = Math.min(pageH, yMax + pageH * 0.05);
+        const roi = {
+          x0: (x0p * gray.width) / pageW,
+          x1: (x1p * gray.width) / pageW,
+          y0: (y0p * gray.height) / pageH,
+          y1: (y1p * gray.height) / pageH,
+        };
+        const raw = detectRuledLattice(gray, { roi });
+        if (raw.hYs.length < 2) return undefined;
+        return scaleLatticeToPage(raw, gray.width, gray.height, pageW, pageH);
+      } catch {
+        return undefined;
+      }
+    }
+
+    let lattice = await latticeForPage(uri, ocr.pageWidth, ocr.pageHeight || 0);
+    const matrixOpts = () => (lattice?.hYs?.length ? { lattice } : undefined);
+
+    function buildStructuredGrid(
+      lines: OcrLine[],
+      pageW: number,
+      pageH?: number
+    ): MonthMatrixGrid {
+      if (layoutId === 'week-strip') return buildWeekStripGrid(lines, pageW);
+      const rectifier =
+        pageH && pageH > 0
+          ? buildPerspectiveRectifier(lines, pageW, pageH, lattice || null)
+          : null;
+      if (!rectifier) return buildMonthMatrixGrid(lines, pageW, pageH, matrixOpts());
+      const rectifiedLines = transformLinesByHomography(lines, rectifier.forward);
+      const rectifiedLattice =
+        lattice?.hYs?.length || lattice?.vXs?.length
+          ? transformLatticeByHomography(
+              { hYs: lattice?.hYs || [], vXs: lattice?.vXs || [] },
+              rectifier
+            )
+          : undefined;
+      const rectified = buildMonthMatrixGrid(
+        rectifiedLines,
+        pageW,
+        pageH,
+        rectifiedLattice?.hYs?.length ? { lattice: rectifiedLattice } : undefined
+      );
+      return projectGridFromRectified(rectified, rectifier);
+    }
+
     let grid =
-      layoutId === 'week-strip'
-        ? buildWeekStripGrid(workingLines, ocr.pageWidth)
-        : buildMonthMatrixGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
+      buildStructuredGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
 
     // Region assist when matrix/names fail (month or week).
     async function maybeAssistRegion(
@@ -469,14 +563,11 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           const prepared = await prepareImageForOcr(again);
           const regionOcr = await recognizeImageText(prepared);
           workingLines = [...workingLines, ...regionOcr.lines];
-          grid =
-            layoutId === 'week-strip'
-              ? buildWeekStripGrid(workingLines, Math.max(ocr.pageWidth, regionOcr.pageWidth))
-              : buildMonthMatrixGrid(
-                  workingLines,
-                  Math.max(ocr.pageWidth, regionOcr.pageWidth),
-                  Math.max(ocr.pageHeight || 0, regionOcr.pageHeight || 0) || undefined
-                );
+          const pageW = Math.max(ocr.pageWidth, regionOcr.pageWidth);
+          const pageH =
+            Math.max(ocr.pageHeight || 0, regionOcr.pageHeight || 0) || undefined;
+          lattice = await latticeForPage(prepared, pageW, pageH || 0);
+          grid = buildStructuredGrid(workingLines, pageW, pageH);
           return true;
         } catch {
           return false;
@@ -496,6 +587,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
             pageW = regionOcr.pageWidth || pageW;
             pageH = regionOcr.pageHeight || pageH;
             ocr = regionOcr;
+            lattice = await latticeForPage(prepared, pageW, pageH);
           } catch {
             return false;
           }
@@ -527,9 +619,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           pageH || Math.round(pageW * 0.75)
         );
         grid =
-          layoutId === 'week-strip'
-            ? buildWeekStripGrid(workingLines, pageW)
-            : buildMonthMatrixGrid(workingLines, pageW, pageH || undefined);
+          buildStructuredGrid(workingLines, pageW, pageH || undefined);
         grid = relaxAssistGridOk(grid);
 
         // Name+days still weak but own-row painted + month → Schnellmodus.
@@ -556,9 +646,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           return Math.abs(x - cx) <= band || x < ocr.pageWidth * 0.35;
         });
         grid =
-          layoutId === 'week-strip'
-            ? buildWeekStripGrid(workingLines, ocr.pageWidth)
-            : buildMonthMatrixGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
+          buildStructuredGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
         return true;
       }
       return false;

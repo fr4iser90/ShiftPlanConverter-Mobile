@@ -63,6 +63,7 @@ Ziel: Kamera-OCR nicht als Blackbox, sondern mit klaren Layouts, Live-Feedback u
 | **5c.3 Region-Tap** | done | Overlay Tippen / Nachfotografieren auf month-matrix (ein Pfad) |
 | **5c.4 Auto-Snapshots** | done | Region-Snaps bei gutem Grid-Score (on-device, Compare) |
 | **5c.5 Andere Layouts** | open | `list-protocol` / `day-plan` / `single-calendar` nur mit Samples — bis dahin Stubs, im Pack weggelassen |
+| **5c.6 Lattice frames** | done | Professionelle H×V-Zellenrahmen + Homography-Rectification mit Qualitätsgates — [`ocr-lattice-frames-plan.md`](ocr-lattice-frames-plan.md) |
 
 Leitplanken (wie sonst): **ein Pfad** — bei Unklarheit fragen, nicht Layout A → fail → Layout B still probieren.
 

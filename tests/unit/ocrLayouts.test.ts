@@ -24,16 +24,16 @@ function syntheticWallPlan(): { pageWidth: number; lines: OcrLine[] } {
     return `${wd}${i + 1}`;
   });
   const people = [
-    ['Nordmann', 'Alice'],
-    ['Suedmann', 'Bianca'],
-    ['Westmann', 'Clara'],
-    ['Ostmann', 'Doris'],
-    ['Bergmann', 'Elena'],
-    ['Talmann', 'Franz'],
-    ['Seemann', 'Greta'],
-    ['Waldmann', 'Helena'],
-    ['Feldmann', 'Iris'],
-    ['Steinmann', 'Jonas'],
+    ['PersonA', 'Alpha'],
+    ['PersonB', 'Beta'],
+    ['PersonC', 'Gamma'],
+    ['PersonD', 'Zeta'],
+    ['PersonE', 'Eta'],
+    ['PersonF', 'Theta'],
+    ['PersonG', 'Iota'],
+    ['PersonH', 'Kappa'],
+    ['PersonI', 'Lambda'],
+    ['PersonJ', 'Mu'],
   ];
   const lines: OcrLine[] = [];
   headers.forEach((h, i) => lines.push(L(h, 200 + i * 40, 18, 32)));
@@ -134,7 +134,7 @@ describe('detectOcrLayout', () => {
       const wd = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][i % 7];
       lines.push(L(`${wd}${i + 1}`, 180 + i * 55, 20, 36));
     }
-    const people = ['Nordmann', 'Suedmann', 'Westmann', 'Ostmann', 'Bergmann'];
+    const people = ['PersonA', 'PersonB', 'PersonC', 'PersonD', 'PersonE'];
     people.forEach((name, r) => {
       lines.push(L(name, 12, 70 + r * 40, 70));
       for (let i = 0; i < 14; i++) {
@@ -153,11 +153,11 @@ describe('detectOcrLayout', () => {
   it('scores day-plan for a single-day board with many clocks', () => {
     const text = [
       'Tagesplan 12.03.2026',
-      'OP1 07:00-15:30 Mueller',
-      'OP2 07:15-15:45 Schmidt',
-      'OP3 08:00-16:00 Weber',
-      'OP4 08:30-16:30 Fischer',
-      'OP5 09:00-17:00 Becker',
+      'OP1 07:00-15:30 PersonF',
+      'OP2 07:15-15:45 PersonG',
+      'OP3 08:00-16:00 PersonH',
+      'OP4 08:30-16:30 PersonI',
+      'OP5 09:00-17:00 PersonJ',
     ].join('\n');
     const det = detectOcrLayout({ text, lines: [], pageWidth: 1000 });
     expect(det.scores['day-plan']).toBeGreaterThan(0.4);

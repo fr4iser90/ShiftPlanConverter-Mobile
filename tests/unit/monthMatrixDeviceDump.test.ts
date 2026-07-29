@@ -7,11 +7,11 @@ import { isPlausiblePersonName } from '../../src/sources/ocr/names';
 import { hasPrivateDump, loadMonthMatrixDump } from './_ocrFixtures';
 
 describe('private device OCR dump (workplace — local /tmp only)', () => {
-  const run = hasPrivateDump('crop-1920');
+  const run = hasPrivateDump('crop');
 
   it('builds a matrix with real person names (not day/time junk)', () => {
     if (!run) return;
-    const fixture = loadMonthMatrixDump('crop-1920');
+    const fixture = loadMonthMatrixDump('crop');
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     expect(grid.ok).toBe(true);
     expect(grid.headers.some((h) => /^(Di|Mi|Do|Fr|Mo|Sa|So)/i.test(h))).toBe(true);
@@ -26,10 +26,10 @@ describe('private device OCR dump (workplace — local /tmp only)', () => {
 
   it('formats week chunks with all people (phone-readable)', () => {
     if (!run) return;
-    const fixture = loadMonthMatrixDump('crop-1920');
+    const fixture = loadMonthMatrixDump('crop');
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     const matched =
-      grid.rows.find((r) => /Alice|Bianca|Clara/i.test(r.name))?.name ||
+      grid.rows.find((r) => /Alpha|Beta|Gamma/i.test(r.name))?.name ||
       grid.rows[0]?.name ||
       '';
     const table = formatMonthMatrixTable(grid, {

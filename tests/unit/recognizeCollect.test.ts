@@ -22,7 +22,7 @@ describe('OCR recognize collectLines', () => {
 
   it('prefers word-level elements when line boundingBox is empty (Android ML Kit)', () => {
     const lines = collectLines({
-      text: 'Sa 1 Nordmann Alice',
+      text: 'Sa 1 PersonA Alpha',
       blocks: [
         {
           text: 'Sa 1',
@@ -39,15 +39,15 @@ describe('OCR recognize collectLines', () => {
           ],
         },
         {
-          text: 'Nordmann Alice',
+          text: 'PersonA Alpha',
           boundingBox: {},
           lines: [
             {
-              text: 'Nordmann Alice',
+              text: 'PersonA Alpha',
               boundingBox: {},
               elements: [
-                { text: 'Nordmann', boundingBox: { x: 10, y: 80, width: 50, height: 12 } },
-                { text: 'Alice', boundingBox: { x: 10, y: 95, width: 40, height: 12 } },
+                { text: 'PersonA', boundingBox: { x: 10, y: 80, width: 50, height: 12 } },
+                { text: 'Alpha', boundingBox: { x: 10, y: 95, width: 40, height: 12 } },
               ],
             },
           ],
@@ -56,7 +56,7 @@ describe('OCR recognize collectLines', () => {
     });
     expect(lines.length).toBeGreaterThanOrEqual(4);
     expect(lines.every((l) => l.boundingBox.width > 0)).toBe(true);
-    expect(lines.some((l) => l.text === 'Nordmann')).toBe(true);
+    expect(lines.some((l) => l.text === 'PersonA')).toBe(true);
     expect(lines.some((l) => l.text === 'Sa')).toBe(true);
   });
 });

@@ -80,15 +80,17 @@ export function estimateRowSlopeFromHeaders(
     const ys = headers.map((l) => yCenter(l));
     const ySpan = Math.max(...ys) - Math.min(...ys);
     const xSpan = Math.max(...xs) - Math.min(...xs);
-    // Flat strip: drop Y-outliers (stray title "MO"). Steep diagonal: keep all,
-    // then drop residual outliers after a rough fit.
+    // Flat strip: drop Y-outliers (stray title "MO"). Mild diagonal (few dozen
+    // px across the page) must NOT be collapsed to median-Y — that zeros slope
+    // and leaves overlays as flat AABBs on skewed photos.
     let use = headers;
-    if (xSpan > 40 && ySpan <= Math.max(48, pageWidth * 0.02)) {
+    const flatBand = Math.max(48, pageWidth * 0.02);
+    if (xSpan > 40 && ySpan <= 8) {
       const medY = median(ys);
       const yTol = Math.max(36, pageWidth * 0.015);
       const inliers = headers.filter((l) => Math.abs(yCenter(l) - medY) <= yTol);
       if (inliers.length >= 4) use = inliers;
-    } else if (xSpan > 80) {
+    } else if (xSpan > 80 || (xSpan > 40 && ySpan > 8 && ySpan <= flatBand)) {
       const rough = fitSlope(xs, ys);
       if (rough) {
         const x0 = median(xs);
@@ -106,8 +108,8 @@ export function estimateRowSlopeFromHeaders(
       use.map((l) => xCenter(l)),
       use.map((l) => yCenter(l))
     );
-    // Nearly-flat strip → treat as straight (noise / subpixel).
-    if (Math.abs(slope) < 0.02) return 0;
+    // Noise floor — keep mild wall-plan skew for overlays / scoop.
+    if (Math.abs(slope) < OCR_SKEW_MIN_ABS_SLOPE) return 0;
     return slope;
   }
   // Fallback: short shift tokens across the board (noisy — median of local slopes).

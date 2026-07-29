@@ -70,25 +70,30 @@ export function estimateRegionBoxes(
   if (!grid.ok || !pageWidth || !pageHeight || !grid.rows.length) return null;
   const slope = grid.rowSlope || 0;
   const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
-  const rh0 = rowHeightPx(grid, 0);
   const yFirst = grid.rows[0]!.yCenter;
-  const yLast = grid.rows[grid.rows.length - 1]!.yCenter;
-  const yTop = yFirst - rh0 * 0.55;
-  const yBot = yLast + rowHeightPx(grid, grid.rows.length - 1) * 0.5;
-  // Widest name edge along the column (for crop AABB).
+  const yTop =
+    grid.rows[0]!.yLo ??
+    grid.rows[0]!.yNameTop ??
+    yFirst - rowHeightPx(grid, 0) * 0.55;
+  const last = grid.rows.length - 1;
+  const yBot =
+    grid.rows[last]!.yHi ??
+    grid.rows[last]!.yNameBot ??
+    grid.rows[last]!.yCenter + rowHeightPx(grid, last) * 0.5;
   const xRightTop = Math.max(nameMaxX, nameMaxX - slope * (yTop - yFirst));
   const xRightBot = Math.max(24, nameMaxX - slope * (yBot - yFirst));
   const nameRight = Math.max(xRightTop, xRightBot) + 8;
 
-  const headerBand = Math.min(48, Math.max(18, rh0 * 0.55));
-  const yHeaderAtRef =
-    grid.headerBandY && grid.headerBandY > 0
-      ? grid.headerBandY
-      : yFirst - rh0 * 0.85;
-  const yHLeft = yHeaderAtRef - headerBand / 2;
-  const yHRight = yHeaderAtRef + slope * (pageWidth - nameMaxX) - headerBand / 2;
+  const hTop =
+    grid.headerBandTop ??
+    (grid.headerBandY && grid.headerBandY > 0 ? grid.headerBandY - 14 : yFirst - 48);
+  const hBot =
+    grid.headerBandBot ??
+    (grid.headerBandY && grid.headerBandY > 0 ? grid.headerBandY + 14 : yFirst - 20);
+  const yHLeft = hTop;
+  const yHRight = hTop + slope * (pageWidth - nameMaxX);
   const headerTop = Math.min(yHLeft, yHRight);
-  const headerBottom = Math.max(yHLeft, yHRight) + headerBand;
+  const headerBottom = Math.max(hBot, hBot + slope * (pageWidth - nameMaxX));
 
   const nameBox = {
     x: clamp01(0),
@@ -100,7 +105,7 @@ export function estimateRegionBoxes(
     x: clamp01(nameMaxX / pageWidth),
     y: clamp01(headerTop / pageHeight),
     width: clamp01(1 - nameMaxX / pageWidth),
-    height: clamp01(Math.max(0.02, (headerBottom - headerTop) / pageHeight)),
+    height: clamp01(Math.max(0.015, (headerBottom - headerTop) / pageHeight)),
   };
   return { name: nameBox, header: headerBox };
 }
@@ -121,21 +126,25 @@ export function estimateOwnNameBox(
   const row = grid.rows[idx]!;
   const slope = grid.rowSlope || 0;
   const nameMaxX = grid.nameMaxX ?? pageWidth * 0.22;
-  const h = rowHeightPx(grid, idx);
-  const yRow =
-    row.yNameTop != null && row.yNameBot != null
-      ? (row.yNameTop + row.yNameBot) / 2
-      : row.yCenter;
+  const y0 =
+    row.yNameTop != null
+      ? row.yNameTop - 4
+      : row.yLo != null
+        ? row.yLo
+        : row.yCenter - 20;
+  const y1 =
+    row.yNameBot != null
+      ? row.yNameBot + 4
+      : row.yHi != null
+        ? Math.min(row.yHi, row.yCenter + 28)
+        : row.yCenter + 20;
+  const yRow = (y0 + y1) / 2;
   const yFirst = grid.rows[0]!.yCenter;
-  // Perpendicular skew: name-col right edge at this row.
   const nameRight = Math.max(24, nameMaxX - slope * (yRow - yFirst)) + 10;
-  const padY = Math.max(8, h * 0.35);
-  const y0 = Math.max(0, yRow - h / 2 - padY);
-  const y1 = Math.min(pageHeight, yRow + h / 2 + padY);
 
   return {
     x: clamp01(0),
-    y: clamp01(y0 / pageHeight),
+    y: clamp01(Math.max(0, y0) / pageHeight),
     width: clamp01(Math.max(0.12, Math.min(0.45, (nameRight + 12) / pageWidth))),
     height: clamp01(Math.max(0.02, (y1 - y0) / pageHeight)),
   };

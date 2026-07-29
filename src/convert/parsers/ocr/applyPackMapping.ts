@@ -13,6 +13,7 @@ import {
   xCenter,
   yCenter,
 } from '@/src/sources/ocr/monthMatrix/geometry';
+import { lineBelongsToRow } from '@/src/sources/ocr/monthMatrix/rowOwnership';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
 
@@ -1677,10 +1678,13 @@ export function refinePersonRowFromOcr(
   const fps = listPackFingerprints(presetMapping);
   const vacSet = new Set(letterOnlyPackCodes(codes, fps));
   const nameMaxX = grid.nameMaxX ?? 0;
-  const rowYPad = (grid.rowYPad ?? 28) * 1.35;
-  const otherRowYs = grid.rows
-    .map((r, i) => (i === rowIdx ? null : r.yCenter))
-    .filter((y): y is number => y != null);
+  const slope = grid.rowSlope || 0;
+  const xAnchor = nameMaxX > 0 ? nameMaxX * 0.55 : 40;
+  const rowAnchors = grid.rows.map((r) => ({
+    yCenter: r.yCenter,
+    yLo: r.yLo,
+    yHi: r.yHi,
+  }));
 
   const nextCells: string[] = [];
   for (let colIndex = 0; colIndex < centers.length; colIndex++) {
@@ -1703,12 +1707,8 @@ export function refinePersonRowFromOcr(
       .filter((l) => {
         const xc = xCenter(l);
         if (nameMaxX > 0 && xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
-        const dy = Math.abs(yCenter(l) - row.yCenter);
-        if (dy > rowYPad) return false;
-        if (otherRowYs.length) {
-          const nearestOther = Math.min(...otherRowYs.map((y) => Math.abs(yCenter(l) - y)));
-          if (nearestOther + 2 < dy) return false;
-        }
+        // Nearest person row owns the glyph, so multi-line duties stay in one frame.
+        if (!lineBelongsToRow(l, rowIdx, rowAnchors, slope, xAnchor)) return false;
         return owningColIndex(l, centers, nameMaxX) === colIndex;
       })
       .map((l) => ({ l, dy: Math.abs(yCenter(l) - row.yCenter) }))

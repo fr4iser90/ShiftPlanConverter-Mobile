@@ -30,18 +30,18 @@ jest.mock('expo-file-system/legacy', () => ({
 jest.mock('../../src/sources/ocr/recognize', () => ({
   isOcrNativeAvailable: jest.fn(() => true),
   recognizeImageText: jest.fn(async () => ({
-    text: 'Sa1 So2 Mo3\nNordmann Alice U F\nSuedmann Bianca F S',
+    text: 'Sa1 So2 Mo3\nPersonA Alpha U F\nPersonB Beta F S',
     lineCount: 10,
     lines: [
       { text: 'Sa1', boundingBox: { x: 200, y: 20, width: 30, height: 14 } },
       { text: 'So2', boundingBox: { x: 350, y: 20, width: 30, height: 14 } },
       { text: 'Mo3', boundingBox: { x: 500, y: 20, width: 30, height: 14 } },
-      { text: 'Nordmann', boundingBox: { x: 10, y: 80, width: 70, height: 14 } },
-      { text: 'Alice', boundingBox: { x: 10, y: 95, width: 50, height: 14 } },
+      { text: 'PersonA', boundingBox: { x: 10, y: 80, width: 70, height: 14 } },
+      { text: 'Alpha', boundingBox: { x: 10, y: 95, width: 50, height: 14 } },
       { text: 'U', boundingBox: { x: 200, y: 88, width: 20, height: 14 } },
       { text: 'F', boundingBox: { x: 500, y: 88, width: 20, height: 14 } },
-      { text: 'Suedmann', boundingBox: { x: 10, y: 160, width: 70, height: 14 } },
-      { text: 'Bianca', boundingBox: { x: 10, y: 175, width: 50, height: 14 } },
+      { text: 'PersonB', boundingBox: { x: 10, y: 160, width: 70, height: 14 } },
+      { text: 'Beta', boundingBox: { x: 10, y: 175, width: 50, height: 14 } },
       { text: 'F', boundingBox: { x: 200, y: 168, width: 20, height: 14 } },
     ],
     pageWidth: 1000,
@@ -84,7 +84,7 @@ describe('camera-ocr source', () => {
       assets: [{ uri: 'file:///tmp/plan.jpg' }],
     });
     const pickRosterName = jest.fn(async (req: { candidates: { id: string; label: string }[] }) => {
-      expect(req.candidates.every((c) => /Nordmann|Suedmann/i.test(c.label))).toBe(true);
+      expect(req.candidates.every((c) => /PersonA|PersonB/i.test(c.label))).toBe(true);
       expect(req.candidates.some((c) => /Sa|Mo\d|11502/i.test(c.label))).toBe(false);
       const c = req.candidates[0];
       return c ? { id: c.id, label: c.label } : null;
@@ -97,7 +97,7 @@ describe('camera-ocr source', () => {
     const text = String((result.artifacts[0] as { text: string })?.text || '');
     expect(text).toContain('│');
     expect(text).toMatch(/month matrix|Monatsmatrix/i);
-    expect(text).toMatch(/Nordmann|Suedmann/);
+    expect(text).toMatch(/PersonA|PersonB/);
     expect(text).toMatch(/>/);
     expect(saveOcrPreferredName).toHaveBeenCalled();
     expect(result.selectedName).toBeTruthy();
@@ -107,7 +107,7 @@ describe('camera-ocr source', () => {
   });
 
   it('does not overwrite Mein Name with OCR junk when confirming a misread row', async () => {
-    (loadOcrPreferredName as jest.Mock).mockResolvedValue('Nordmann, Alice');
+    (loadOcrPreferredName as jest.Mock).mockResolvedValue('PersonA, Alpha');
     nativeImagePicker.launchImageLibraryAsync.mockResolvedValueOnce({
       canceled: false,
       assets: [{ uri: 'file:///tmp/plan.jpg' }],
@@ -122,9 +122,9 @@ describe('camera-ocr source', () => {
       layoutId: 'month-matrix',
       pickRosterName,
     });
-    expect(result.selectedName).toBe('Nordmann, Alice');
-    expect(saveOcrPreferredName).toHaveBeenCalledWith('Nordmann, Alice');
-    expect(saveOcrPreferredName).not.toHaveBeenCalledWith(expect.stringMatching(/Suedmann/i));
+    expect(result.selectedName).toBe('PersonA, Alpha');
+    expect(saveOcrPreferredName).toHaveBeenCalledWith('PersonA, Alpha');
+    expect(saveOcrPreferredName).not.toHaveBeenCalledWith(expect.stringMatching(/PersonB/i));
   });
 
   it('does not open a junk name picker when the month-matrix grid fails', async () => {

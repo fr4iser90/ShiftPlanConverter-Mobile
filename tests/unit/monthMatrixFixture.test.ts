@@ -15,16 +15,16 @@ function syntheticMonthBoard(): { pageWidth: number; lines: OcrLine[] } {
   const pageWidth = 1200;
   const headers = ['Sa1', 'So2', 'Mo3', 'Di4', 'Mi5', 'Do6', 'Fr7', 'Sa8', 'So9', 'Mo10'];
   const people: [string, string][] = [
-    ['Nordmann', 'Alice'],
-    ['Suedmann', 'Bianca'],
-    ['Westmann', 'Clara'],
-    ['Ostmann', 'Doris'],
-    ['Bergmann', 'Elena'],
-    ['Talmann', 'Franz'],
-    ['Seemann', 'Greta'],
-    ['Waldmann', 'Helena'],
-    ['Feldmann', 'Iris'],
-    ['Steinmann', 'Jonas'],
+    ['PersonA', 'Alpha'],
+    ['PersonB', 'Beta'],
+    ['PersonC', 'Gamma'],
+    ['PersonD', 'Zeta'],
+    ['PersonE', 'Eta'],
+    ['PersonF', 'Theta'],
+    ['PersonG', 'Iota'],
+    ['PersonH', 'Kappa'],
+    ['PersonI', 'Lambda'],
+    ['PersonJ', 'Mu'],
   ];
   const lines: OcrLine[] = [];
   headers.forEach((h, i) => {
@@ -62,18 +62,18 @@ describe('month-matrix synthetic fixture (no workplace PII)', () => {
 
     const names = matrixRowsAsNameCandidates(grid);
     expect(names.length).toBeGreaterThanOrEqual(8);
-    expect(names.some((n) => /Nordmann|Suedmann/i.test(n.label))).toBe(true);
+    expect(names.some((n) => /PersonA|PersonB/i.test(n.label))).toBe(true);
   });
 
   it('formats a comparable ASCII matrix (week chunks, all people)', () => {
     const grid = buildMonthMatrixGrid(fixture.lines, fixture.pageWidth);
     const table = formatMonthMatrixTable(grid, {
       title: 'Roster (month matrix)',
-      matchedName: 'Nordmann, Alice',
+      matchedName: 'PersonA, Alpha',
     });
     expect(table).toContain('│');
     expect(table).toMatch(/people|Personen/i);
-    expect(table).toMatch(/Nordmann|Suedmann/i);
+    expect(table).toMatch(/PersonA|PersonB/i);
     expect(table.split('\n').filter((l) => l.includes('│')).length).toBeGreaterThan(8);
   });
 });

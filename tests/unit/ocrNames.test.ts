@@ -17,31 +17,31 @@ describe('resolveConfirmedRosterLabel', () => {
   it('keeps Settings Mein Name when user taps an OCR-misread row', () => {
     expect(
       resolveConfirmedRosterLabel({
-        preferred: 'Nordmann, Alice',
-        ocrLabel: 'Nortmann, Alic',
-        pickedLabel: 'Nortmann, Alic',
+        preferred: 'PersonA, Alpha',
+        ocrLabel: 'PersonA, Alpa',
+        pickedLabel: 'PersonA, Alpa',
       })
-    ).toBe('Nordmann, Alice');
+    ).toBe('PersonA, Alpha');
   });
 
   it('allows pencil rename to a new spelling', () => {
     expect(
       resolveConfirmedRosterLabel({
-        preferred: 'Nordmann, Alice',
-        ocrLabel: 'Nortmann, Alic',
-        pickedLabel: 'Westmann, Clara',
+        preferred: 'PersonA, Alpha',
+        ocrLabel: 'PersonA, Alpa',
+        pickedLabel: 'PersonC, Gamma',
       })
-    ).toBe('Westmann, Clara');
+    ).toBe('PersonC, Gamma');
   });
 
   it('uses OCR label when no preferred name is set', () => {
     expect(
       resolveConfirmedRosterLabel({
         preferred: null,
-        ocrLabel: 'Nortmann, Alic',
-        pickedLabel: 'Nortmann, Alic',
+        ocrLabel: 'PersonA, Alpa',
+        pickedLabel: 'PersonA, Alpa',
       })
-    ).toBe('Nortmann, Alic');
+    ).toBe('PersonA, Alpa');
   });
 });
 
@@ -51,70 +51,70 @@ describe('OCR roster name detection', () => {
 
   const sample: OcrLine[] = [
     line('Sa 1 · So 2 · Mo 3', 200, 40, 600, 18),
-    line('Nordmann, Alice', 20, 120),
+    line('PersonA, Alpha', 20, 120),
     line('F 07:35-15:50', 200, 118, 80, 18),
-    line('Suedmann, Bianca', 25, 200),
+    line('PersonB, Beta', 25, 200),
     line('U', 210, 198, 40, 18),
     line('noise cell text without comma', 30, 280, 200, 18),
   ];
 
   it('finds left-column Lastname, Firstname labels', () => {
     const names = detectRosterNames(sample, pageWidth);
-    expect(names.map((n) => n.label)).toEqual(['Nordmann, Alice', 'Suedmann, Bianca']);
+    expect(names.map((n) => n.label)).toEqual(['PersonA, Alpha', 'PersonB, Beta']);
   });
 
   it('detects names at the start of dense matrix OCR lines', () => {
     const dense: OcrLine[] = [
       line('Sa 1 So 2 Mo 3', 100, 30, 700, 16),
-      line('Nordmann, Alice F 07:35-15:50 U S F2', 15, 140, 900, 22),
-      line('Westmann, Dr. Clara U U F 07:35-15:50', 18, 200, 880, 22),
+      line('PersonA, Alpha F 07:35-15:50 U S F2', 15, 140, 900, 22),
+      line('PersonC, Dr. Gamma U U F 07:35-15:50', 18, 200, 880, 22),
     ];
     const names = detectRosterNames(dense, pageWidth);
-    expect(names.map((n) => n.label)).toEqual(['Nordmann, Alice', 'Westmann, Dr. Clara']);
+    expect(names.map((n) => n.label)).toEqual(['PersonA, Alpha', 'PersonC, Dr. Gamma']);
     const row = extractPersonRowText(dense, names[0], pageHeight);
-    expect(row).toContain('Nordmann, Alice');
+    expect(row).toContain('PersonA, Alpha');
     expect(row).toContain('07:35-15:50');
-    expect(row).not.toContain('Westmann');
+    expect(row).not.toContain('PersonC');
   });
 
   it('auto-matches a saved preferred name', () => {
     const names = detectRosterNames(sample, pageWidth);
-    const hit = matchPreferredName('Nordmann, Alice', names);
-    expect(hit?.candidate.label).toBe('Nordmann, Alice');
+    const hit = matchPreferredName('PersonA, Alpha', names);
+    expect(hit?.candidate.label).toBe('PersonA, Alpha');
     expect(hit?.score).toBe(1);
   });
 
   it('matches OCR typos against the saved Settings name', () => {
     const names = [
       {
-        id: 'nordmann alic',
-        label: 'Nortmann, Alic',
+        id: 'persona alpa',
+        label: 'PersonA, Alpa',
         yCenter: 100,
         height: 14,
       },
       {
-        id: 'suedmann bianca',
-        label: 'Suedmann, Bianca',
+        id: 'personb beta',
+        label: 'PersonB, Beta',
         yCenter: 50,
         height: 14,
       },
     ];
-    const hit = matchPreferredName('Nordmann, Alice', names);
-    expect(hit?.candidate.label).toBe('Nortmann, Alic');
+    const hit = matchPreferredName('PersonA, Alpha', names);
+    expect(hit?.candidate.label).toBe('PersonA, Alpa');
     expect(hit!.score).toBeGreaterThanOrEqual(0.88);
   });
 
   it('uses aliases for previously corrected OCR spellings', () => {
     const names = [
       {
-        id: 'nordmann alic',
-        label: 'Nortmann, Alic',
+        id: 'persona alpa',
+        label: 'PersonA, Alpa',
         yCenter: 100,
         height: 14,
       },
     ];
-    const hit = matchPreferredName('Nordmann, Alice', names, {
-      'nortmann, alic': 'Nordmann, Alice',
+    const hit = matchPreferredName('PersonA, Alpha', names, {
+      'persona, alpa': 'PersonA, Alpha',
     });
     expect(hit?.score).toBe(1);
   });
@@ -124,17 +124,17 @@ describe('OCR roster name detection', () => {
     const alice = names[0];
     const text = extractPersonRowText(sample, alice, pageHeight);
     expect(text).toContain('Mo 3');
-    expect(text).toContain('Nordmann, Alice');
+    expect(text).toContain('PersonA, Alpha');
     expect(text).toContain('F 07:35-15:50');
-    expect(text).not.toContain('Suedmann');
+    expect(text).not.toContain('PersonB');
   });
 
   it('rejects day strips and mashed OCR blobs as person names', () => {
     expect(isPlausiblePersonName('SA 11502Mo 3 DI4 Mi5 Do 6 Fr7')).toBe(false);
     expect(isPlausiblePersonName('n 1n 6 60')).toBe(false);
-    expect(isPlausiblePersonName('Meerheim, 0:00 o7 96')).toBe(false);
-    expect(isPlausiblePersonName('Alice, Bob Charlie, Dana Eve')).toBe(false);
-    expect(isPlausiblePersonName('Nordmann, Alice')).toBe(true);
-    expect(isPlausiblePersonName('Nordm., Alice')).toBe(true);
+    expect(isPlausiblePersonName('PersonX, 0:00 o7 96')).toBe(false);
+    expect(isPlausiblePersonName('Alpha, Beta Charlie, Gamma Delta')).toBe(false);
+    expect(isPlausiblePersonName('PersonA, Alpha')).toBe(true);
+    expect(isPlausiblePersonName('PersonA., Alpha')).toBe(true);
   });
 });

@@ -23,13 +23,13 @@ describe('month matrix grid', () => {
     L('So2', 350, 20, 30),
     L('Mo3', 500, 20, 30),
     L('Di4', 650, 20, 30),
-    L('Nordmann', 10, 80, 70),
-    L('Alice', 10, 95, 50),
+    L('PersonA', 10, 80, 70),
+    L('Alpha', 10, 95, 50),
     L('U', 200, 88, 20),
     L('F', 500, 88, 20),
     L('07:35-15:50', 500, 102, 70),
-    L('Suedmann', 10, 160, 70),
-    L('Bianca', 10, 175, 50),
+    L('PersonB', 10, 160, 70),
+    L('Beta', 10, 175, 50),
     L('F', 200, 168, 20),
     L('S', 650, 168, 20),
   ];
@@ -40,11 +40,11 @@ describe('month matrix grid', () => {
       L('März', 400, 5, 50),
       L('2025', 460, 5, 40),
       ...Array.from({ length: 14 }, (_, i) => L(String(i + 1), 200 + i * 50, 25, 18)),
-      L('Nordmann', 10, 80, 70),
-      L('Alice', 10, 95, 50),
+      L('PersonA', 10, 80, 70),
+      L('Alpha', 10, 95, 50),
       L('F', 300, 88, 20),
-      L('Suedmann', 10, 160, 70),
-      L('Bianca', 10, 175, 50),
+      L('PersonB', 10, 160, 70),
+      L('Beta', 10, 175, 50),
       L('U', 250, 168, 20),
     ];
     const grid = buildMonthMatrixGrid(sparse, pageWidth);
@@ -59,17 +59,17 @@ describe('month matrix grid', () => {
     const grid = buildMonthMatrixGrid(lines, pageWidth);
     const table = formatMonthMatrixTable(grid, { title: 'Roster (month matrix)' });
     expect(table).toContain('│');
-    expect(table).toContain('Nordmann');
-    expect(table).toContain('Suedmann');
+    expect(table).toContain('PersonA');
+    expect(table).toContain('PersonB');
     expect(table).toMatch(/── .+ … .+ ──|── \w/);
     expect(table.split('\n').filter((l) => l.includes('│')).length).toBeGreaterThanOrEqual(3);
   });
 
   it('can filter to one person row', () => {
     const grid = buildMonthMatrixGrid(lines, pageWidth);
-    const one = formatMonthMatrixTable(grid, { onlyName: 'Nordmann' });
-    expect(one).toContain('Nordmann');
-    expect(one).not.toContain('Suedmann');
+    const one = formatMonthMatrixTable(grid, { onlyName: 'PersonA' });
+    expect(one).toContain('PersonA');
+    expect(one).not.toContain('PersonB');
   });
 
   it('merges a left-only last-name fragment into the next name row', () => {
@@ -77,17 +77,17 @@ describe('month matrix grid', () => {
       L('Sa1', 200, 20, 30),
       L('So2', 350, 20, 30),
       L('Mo3', 500, 20, 30),
-      L('Westmann', 10, 70, 80),
-      L('Clara', 10, 88, 50),
+      L('PersonC', 10, 70, 80),
+      L('Gamma', 10, 88, 50),
       L('B36', 200, 110, 30),
       L('F', 350, 110, 20),
-      L('Ostmann', 10, 180, 60),
-      L('Doris', 10, 195, 50),
+      L('PersonD', 10, 180, 60),
+      L('Zeta', 10, 195, 50),
       L('S', 200, 188, 20),
     ];
     const grid = buildMonthMatrixGrid(splitName, pageWidth);
     expect(grid.ok).toBe(true);
-    expect(grid.rows.some((r) => /Westmann/i.test(r.name) && /Clara/i.test(r.name))).toBe(true);
+    expect(grid.rows.some((r) => /PersonC/i.test(r.name) && /Gamma/i.test(r.name))).toBe(true);
     expect(grid.rows.every((r) => !/^B36$/i.test(r.name))).toBe(true);
   });
 
@@ -139,11 +139,11 @@ describe('month matrix grid', () => {
       L('Di4', 230, 20, 25),
       L('MI5Do', 270, 20, 60),
       L('6', 340, 20, 10),
-      L('Nordmann', 10, 80, 70),
-      L('Alice', 10, 95, 50),
+      L('PersonA', 10, 80, 70),
+      L('Alpha', 10, 95, 50),
       L('F', 100, 88, 20),
-      L('Suedmann', 10, 160, 70),
-      L('Bianca', 10, 175, 50),
+      L('PersonB', 10, 160, 70),
+      L('Beta', 10, 175, 50),
       L('U', 140, 168, 20),
     ];
     const expanded = expandGluedDayHeaderTokens(glued);
@@ -166,11 +166,11 @@ describe('month matrix grid', () => {
       L('Di4', 250, 20, 25),
       L('Mi5', 290, 20, 25),
       L('Do6', 330, 20, 25),
-      L('Nordmann', 10, 80, 70),
-      L('Alice', 10, 95, 50),
+      L('PersonA', 10, 80, 70),
+      L('Alpha', 10, 95, 50),
       L('F', 100, 88, 20),
-      L('Suedmann', 10, 160, 70),
-      L('Bianca', 10, 175, 50),
+      L('PersonB', 10, 160, 70),
+      L('Beta', 10, 175, 50),
       L('U', 150, 168, 20),
     ];
     const grid = buildMonthMatrixGrid(lines, pageWidth);
@@ -226,11 +226,11 @@ describe('month matrix grid', () => {
       L('Mi2', 595, 22, 28),
       L('Do13', 640, 22, 32),
       L('Fr14', 685, 22, 32),
-      L('Nordmann', 10, 80, 70),
-      L('Alice', 10, 95, 50),
+      L('PersonA', 10, 80, 70),
+      L('Alpha', 10, 95, 50),
       L('F', 190, 88, 20),
-      L('Suedmann', 10, 160, 70),
-      L('Bianca', 10, 175, 50),
+      L('PersonB', 10, 160, 70),
+      L('Beta', 10, 175, 50),
       L('U', 145, 168, 20),
     ];
     const grid = buildMonthMatrixGrid(mashed, pageWidth);

@@ -78,11 +78,13 @@ Preference: `ocr.activeLayoutId` via [`src/state/ocrLayout.ts`](../../src/state/
 
 **month-matrix rule:** if the grid cannot be built, show “table not recognized” — **never** open the name picker with plain-text OCR junk.
 
+**Cell-frame / lattice correction plan:** [`ocr-lattice-frames-plan.md`](./ocr-lattice-frames-plan.md) (professional H×V frames, scaling, privacy).
+
 ### Geometry fixtures
 
 - **Never commit workplace dumps/photos** (Dienstplan-PII).
-- Local-only path: `/tmp/shiftplan-ocr-private/` (or `$SHIFTPLAN_OCR_PRIVATE`)
-  - `dumps/crop-1920.json`, `dumps/hires-3000.json`
+- Local-only path: `$SHIFTPLAN_OCR_PRIVATE`
+  - `dumps/<SHIFTPLAN_OCR_PRIVATE_DUMP_CROP>.json`, `dumps/<SHIFTPLAN_OCR_PRIVATE_DUMP_HIRES>.json`
   - `expected.json`, `sample.json`, `photos/*`
 - In-repo safe: [`tests/fixtures/ocr/month-matrix/pack-expected.json`](../../tests/fixtures/ocr/month-matrix/pack-expected.json) (time→code only).
 - Device dump: set `EXPO_PUBLIC_OCR_DUMP_GEOMETRY=1`, run OCR once, copy geometry JSON into the private dir (do not push to git).

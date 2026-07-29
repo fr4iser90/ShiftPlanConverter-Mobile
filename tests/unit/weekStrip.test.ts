@@ -14,9 +14,9 @@ function syntheticWeekBoard(): { pageWidth: number; lines: OcrLine[]; text: stri
   const pageWidth = 900;
   const headers = ['Mo1', 'Di2', 'Mi3', 'Do4', 'Fr5', 'Sa6', 'So7'];
   const people = [
-    ['Nordmann', 'Alice'],
-    ['Suedmann', 'Bianca'],
-    ['Westmann', 'Clara'],
+    ['PersonA', 'Alpha'],
+    ['PersonB', 'Beta'],
+    ['PersonC', 'Gamma'],
   ];
   const lines: OcrLine[] = [];
   headers.forEach((h, i) => lines.push(L(h, 180 + i * 90, 18, 40)));
@@ -56,9 +56,9 @@ describe('week-strip layout', () => {
     });
     headers.forEach((h, i) => lines.push(L(h, 200 + i * 40, 18, 32)));
     const people = [
-      ['Nordmann', 'Alice'],
-      ['Suedmann', 'Bianca'],
-      ['Westmann', 'Clara'],
+      ['PersonA', 'Alpha'],
+      ['PersonB', 'Beta'],
+      ['PersonC', 'Gamma'],
     ];
     people.forEach(([last, first], r) => {
       const y = 60 + r * 42;

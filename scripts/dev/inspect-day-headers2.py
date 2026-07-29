@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 import json
 import re
+import os
 from pathlib import Path
 
+private_root = os.environ.get("SHIFTPLAN_OCR_PRIVATE", "").strip()
+hires_dump = os.environ.get("SHIFTPLAN_OCR_PRIVATE_DUMP_HIRES", "").strip()
+if not private_root or not hires_dump:
+    raise SystemExit("Set SHIFTPLAN_OCR_PRIVATE and SHIFTPLAN_OCR_PRIVATE_DUMP_HIRES first.")
 d = json.loads(
-    Path("/tmp/shiftplan-ocr-private/dumps/hires-3000.json").read_text()
+    (Path(private_root) / "dumps" / f"{hires_dump}.json").read_text()
 )
 lines = d["lines"]
 wd = re.compile(r"^(Mo|Di|Mi|Do|Fr|Sa|So)(\d{1,2})?$", re.I)

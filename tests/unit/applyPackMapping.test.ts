@@ -84,7 +84,7 @@ describe('applyPackMapping', () => {
     const grid: MonthMatrixGrid = {
       ok: true,
       headers: ['Sa1'],
-      rows: [{ name: 'Nordmann, Alice', yCenter: 10, cells: ['B41', 'URLAUB'] }],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 10, cells: ['B41', 'URLAUB'] }],
     };
     const out = applyPackMappingToGrid(grid, anaesthesie, colors, aliases);
     expect(out.rows[0].cells).toEqual(['B36', 'U']);
@@ -112,7 +112,7 @@ describe('applyPackMapping', () => {
       headers: ['Mo1', 'Di2'],
       rows: [
         {
-          name: 'Nordmann, Alice',
+          name: 'PersonA, Alpha',
           yCenter: 10,
           cells: ['06:00-14:12', '07:35-15:50'],
         },
@@ -128,14 +128,14 @@ describe('applyPackMapping', () => {
       headers: ['Sa1', 'So2'],
       rows: [
         {
-          name: 'Nordmann, Alice',
+          name: 'PersonA, Alpha',
           yCenter: 10,
           cells: ['07:35-15:50', 'URLAUB', ''],
         },
       ],
     };
     const out = applyPackMappingToGrid(grid, anaesthesie, colors);
-    expect(out.rows[0].name).toBe('Nordmann, Alice');
+    expect(out.rows[0].name).toBe('PersonA, Alpha');
     expect(out.rows[0].cells).toEqual(['F', 'URLAUB', '']);
   });
 
@@ -149,7 +149,7 @@ describe('applyPackMapping', () => {
       rowYPad: 20,
       rows: [
         {
-          name: 'Nordmann, Alice',
+          name: 'PersonA, Alpha',
           yCenter: 100,
           cells: ['', 'garbage'],
         },
@@ -160,7 +160,7 @@ describe('applyPackMapping', () => {
       { text: 'o735', boundingBox: { x: 340, y: 92, width: 30, height: 12 } },
       { text: '1550', boundingBox: { x: 345, y: 108, width: 30, height: 12 } },
     ];
-    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, anaesthesie, colors);
+    const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', lines, anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('F');
     expect(out.rows[0].cells[1]).toBe('F');
   });
@@ -189,14 +189,14 @@ describe('applyPackMapping', () => {
       nameMaxX: 80,
       colGap: 40,
       rowYPad: 20,
-      rows: [{ name: 'Nordmann, Alice', yCenter: 300, cells: [''] }],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 300, cells: [''] }],
     };
     const lines: OcrLine[] = [
       { text: 'MO', boundingBox: { x: 490, y: 285, width: 20, height: 12 } },
       { text: '1135', boundingBox: { x: 495, y: 300, width: 30, height: 12 } },
       { text: '19:50', boundingBox: { x: 495, y: 315, width: 30, height: 12 } },
     ];
-    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, mapping, colors);
+    const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', lines, mapping, colors);
     expect(out.rows[0].cells[0]).toBe('MO');
   });
 
@@ -208,9 +208,9 @@ describe('applyPackMapping', () => {
       nameMaxX: 80,
       colGap: 40,
       rowYPad: 20,
-      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: ['15:50-16:45'] }],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 100, cells: ['15:50-16:45'] }],
     };
-    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', [], anaesthesie, colors);
+    const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', [], anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('⚠️ 15:50-16:45');
   });
 
@@ -222,9 +222,9 @@ describe('applyPackMapping', () => {
       nameMaxX: 80,
       colGap: 40,
       rowYPad: 20,
-      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: ['xyz-garbage'] }],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 100, cells: ['xyz-garbage'] }],
     };
-    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', [], anaesthesie, colors);
+    const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', [], anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('');
   });
 
@@ -236,14 +236,14 @@ describe('applyPackMapping', () => {
       nameMaxX: 80,
       colGap: 40,
       rowYPad: 28,
-      rows: [{ name: 'Nordmann, Alice', yCenter: 100, cells: [''] }],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 100, cells: [''] }],
     };
     const lines: OcrLine[] = [
       // Not a unique pack start/end — must stay empty
       { text: '12:00', boundingBox: { x: 190, y: 70, width: 40, height: 12 } },
       { text: '99:99-88:88', boundingBox: { x: 188, y: 105, width: 50, height: 12 } },
     ];
-    const out = refinePersonRowFromOcr(grid, 'Nordmann, Alice', lines, anaesthesie, colors);
+    const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', lines, anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('');
   });
 });

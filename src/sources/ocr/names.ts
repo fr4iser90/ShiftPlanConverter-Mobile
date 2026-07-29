@@ -234,7 +234,7 @@ export function normalizeNameKeyPublic(s: string): string {
 
 /**
  * Fuzzy match preferred name → candidates (1.0 = exact normalized).
- * Tolerates OCR typos (Nortmann/Nordmann, Alic/Alice) via edit distance.
+ * Tolerates OCR typos (e.g. last-token / given-token variations) via edit distance.
  * Optional aliases: previous OCR spellings → your corrected name.
  */
 export function matchPreferredName(

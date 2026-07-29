@@ -11,6 +11,45 @@ export type MatrixRow = {
   /** Optional tight vertical extent of the name glyphs (page px) for overlays. */
   yNameTop?: number;
   yNameBot?: number;
+  /**
+   * Duty-row band at the name column (page px): midpoint to neighbor names.
+   * Same geometry for cell scoop + own-row overlay (incl. 2–3 block rows).
+   */
+  yLo?: number;
+  yHi?: number;
+  /** Printed frame source for this person band. */
+  bandSource?: 'ruled' | 'soft';
+};
+
+export type DayFrame = {
+  dayIndex: number;
+  label: string;
+  x0: number;
+  x1: number;
+};
+
+export type PersonFrame = {
+  rowIndex: number;
+  y0: number;
+  y1: number;
+  source: 'ruled' | 'soft';
+};
+
+export type HeaderFrame = {
+  y0: number;
+  y1: number;
+};
+
+export type LatticeQuality = {
+  ok: boolean;
+  reason?: string;
+  hLines: number;
+  vLines: number;
+  expectedCols?: number;
+  inferredCols?: number;
+  regularity?: number;
+  keepRatio?: number;
+  dayPitchCv?: number;
 };
 
 export type MonthMatrixGrid = {
@@ -32,6 +71,25 @@ export type MonthMatrixGrid = {
   rowSlope?: number;
   /** Y center of the day-header strip (page pixels) — for overlay / crops. */
   headerBandY?: number;
+  /** Tight Mo/Di glyph band (not the rule line under the headers). */
+  headerBandTop?: number;
+  headerBandBot?: number;
+  /** Exact printed or reconstructed day frames used for scoop/overlay. */
+  dayFrames?: DayFrame[];
+  /** Exact person frames used for scoop/overlay. */
+  personFrames?: PersonFrame[];
+  /** Exact header strip used for overlay/validation. */
+  headerFrame?: HeaderFrame;
+  /** One-path lattice readiness and diagnostics. */
+  latticeQuality?: LatticeQuality;
+  /**
+   * OCR content AABB (page px) — table ink, not photo margins / metal frame.
+   * Overlays clamp to this so name/own-row strips don't span the whole image.
+   */
+  contentLeft?: number;
+  contentRight?: number;
+  contentTop?: number;
+  contentBottom?: number;
 };
 
 /** Compact quality stats for status UI (one-shot; no second OCR). */

@@ -49,11 +49,12 @@ describe('private roster case expectations (tmp/test-files)', () => {
 });
 
 describe('private roster geometry dumps vs expectations (optional)', () => {
-  for (const c of cases) {
+  for (const [caseIndex, c] of cases.entries()) {
     const stem = path.basename(c.expect.photo, path.extname(c.expect.photo));
+    const caseId = `case-${String(caseIndex + 1).padStart(2, '0')}`;
     const dumpPath = path.join(rosterCasesDir(), 'dumps', `${stem}.json`);
 
-    it(`${stem}: grid cells vs ground truth (needs dumps/${stem}.json)`, () => {
+    it(`${caseId}: grid cells vs ground truth (needs local dumps)`, () => {
       if (!fs.existsSync(dumpPath)) return; // skip until OCR geometry dump exists
       const dump = JSON.parse(fs.readFileSync(dumpPath, 'utf8')) as MonthMatrixDump;
       const grid = buildMonthMatrixGrid(dump.lines, dump.pageWidth, dump.pageHeight);
@@ -85,7 +86,7 @@ describe('private roster geometry dumps vs expectations (optional)', () => {
       // OCR_EXPORT_OVERLAYS REPORT.md (not a CI red for every time/code OCR miss).
       if (misses.length) {
         // eslint-disable-next-line no-console
-        console.warn(`[${stem}] cell drift (${misses.length}):`, misses.slice(0, 8));
+        console.warn(`[${caseId}] cell drift (${misses.length}):`, misses.slice(0, 8));
       }
       expect(grid.headers.length).toBeGreaterThanOrEqual(10);
       expect(row!.cells.some((c) => String(c || '').trim())).toBe(true);
