@@ -3,15 +3,19 @@ import * as Sharing from 'expo-sharing';
 import { generateIcs } from '../convert/ics';
 import type { ShiftEntry } from '../convert/types';
 import { t } from '../i18n';
+import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
 
 export async function shareIcsFile(
   entries: ShiftEntry[],
-  { richDetails = false, filename = 'dienstplan.ics' }: { richDetails?: boolean; filename?: string } = {}
+  {
+    eventFormat = DEFAULT_EVENT_FORMAT,
+    filename = 'dienstplan.ics',
+  }: { eventFormat?: EventFormatPrefs; filename?: string } = {}
 ): Promise<void> {
   if (!entries.length) {
     throw new Error(t('icsNoEntries'));
   }
-  const ics = generateIcs(entries, { richDetails });
+  const ics = generateIcs(entries, { eventFormat });
   const base = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!base) throw new Error(t('icsNoStorage'));
   const path = `${base}${filename}`;

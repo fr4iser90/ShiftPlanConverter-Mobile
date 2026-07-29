@@ -146,7 +146,7 @@ export function GoogleSyncCard({
         setGoogleEmail(getGoogleAccountEmail());
       }
       const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
-        richDetails: snap.richDetails,
+        eventFormat: snap.eventFormat,
         source: 'settings',
         onCalendarMissing: async (oldId) => {
           const next = await askRecreateGoogleCalendar(oldId);

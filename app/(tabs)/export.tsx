@@ -41,7 +41,7 @@ export default function ExportScreen() {
           'areaId',
           'preset',
           'userMappings',
-          'richDetails',
+          'eventFormat',
         ],
         () => setTick((n) => n + 1)
       );
@@ -64,7 +64,7 @@ export default function ExportScreen() {
   const onShareIcs = async () => {
     try {
       setBusy(true);
-      await shareIcsFile(resolvedEntries(), { richDetails: snap.richDetails });
+      await shareIcsFile(resolvedEntries(), { eventFormat: snap.eventFormat });
     } catch (e) {
       Alert.alert('ICS', String(e));
     } finally {

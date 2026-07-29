@@ -6,6 +6,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { buildEventDescription, buildEventSummary } from '../convert/eventDescription';
 import type { ShiftEntry } from '../convert/types';
 import { t } from '../i18n';
+import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
 import { getGoogleCalendarId, setGoogleCalendarId } from '../state/store';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -356,11 +357,11 @@ export async function syncEntriesToGoogle(
   entries: ShiftEntry[],
   calendarId: string,
   {
-    richDetails = false,
+    eventFormat = DEFAULT_EVENT_FORMAT,
     onCalendarMissing,
     source = 'sync',
   }: {
-    richDetails?: boolean;
+    eventFormat?: EventFormatPrefs;
     onCalendarMissing?: (oldId: string) => Promise<string | null>;
     /** Label for TIMING logs (export | fetch). */
     source?: string;
@@ -403,8 +404,8 @@ export async function syncEntriesToGoogle(
   let created = 0;
   const createT0 = Date.now();
   for (const entry of entries) {
-    const summary = buildEventSummary(entry, { richDetails });
-    const description = buildEventDescription(entry, { richDetails });
+    const summary = buildEventSummary(entry, eventFormat);
+    const description = buildEventDescription(entry, eventFormat);
     let endDate = entry.date;
     if (!entry.allDay && entry.start && entry.end && entry.end < entry.start) {
       const d = new Date(entry.date + 'T12:00:00');

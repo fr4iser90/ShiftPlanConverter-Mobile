@@ -42,7 +42,7 @@ export const googleExportTarget: ExportTarget = {
         userMappings: snap.userMappings,
       });
       const { created, deleted } = await syncEntriesToGoogle(resolved, calId, {
-        richDetails: opts.richDetails ?? snap.richDetails,
+        eventFormat: opts.eventFormat ?? snap.eventFormat,
         onCalendarMissing: opts.onCalendarMissing ?? askRecreateGoogleCalendar,
         source: 'fetch',
       });

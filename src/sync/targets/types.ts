@@ -1,4 +1,5 @@
 import type { ShiftEntry } from '../../convert/types';
+import type { EventFormatPrefs } from '../../state/eventFormat';
 
 /** How the target receives shifts. */
 export type ExportTargetKind = 'oauth' | 'file';
@@ -11,7 +12,7 @@ export type ExportTargetResult = {
 };
 
 export type ExportTargetSyncOpts = {
-  richDetails?: boolean;
+  eventFormat?: EventFormatPrefs;
   /** When true, file targets open the share sheet; when false, they only report readiness. */
   interactive?: boolean;
   /**

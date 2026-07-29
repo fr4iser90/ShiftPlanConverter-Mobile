@@ -5,7 +5,6 @@ import { t } from '@/src/i18n';
 import {
   getSnapshot,
   setLocale,
-  setRichDetails,
   setThemePref,
   subscribeKeys,
   type AppLocale,
@@ -34,7 +33,7 @@ export default function SettingsAppearanceScreen() {
 
   useEffect(
     () =>
-      subscribeKeys(['locale', 'themePref', 'richDetails', 'entries'], () =>
+      subscribeKeys(['locale', 'themePref', 'entries'], () =>
         setTick((n) => n + 1)
       ),
     []
@@ -143,20 +142,6 @@ export default function SettingsAppearanceScreen() {
               thumbColor="#fff"
             />
           </View>
-        </AppCard>
-
-        <AppCard>
-          <SectionTitle>{t('richDetails')}</SectionTitle>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{t('richDetails')}</Text>
-            <Switch
-              value={snap.richDetails}
-              onValueChange={(v) => void setRichDetails(v)}
-              trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
-              thumbColor="#fff"
-            />
-          </View>
-          <Meta>{t('richDetailsHint')}</Meta>
         </AppCard>
       </ScrollView>
     </Screen>

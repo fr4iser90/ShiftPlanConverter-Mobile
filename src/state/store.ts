@@ -1,6 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
+import {
+  DEFAULT_EVENT_FORMAT,
+  migrateFromRichDetails,
+  parseEventFormat,
+  type EventFormatPrefs,
+} from './eventFormat';
 import { clearDataEncryptionKey, decryptUtf8, encryptUtf8 } from './securePayload';
+
+export type { EventFormatPrefs } from './eventFormat';
+export { DEFAULT_EVENT_FORMAT } from './eventFormat';
 
 function pingHomeWidgets(entries: ShiftEntry[]): void {
   void import('../widget/refresh')
@@ -16,7 +25,9 @@ const KEYS = {
   userMappings: 'loga3.userMappings',
   locale: 'loga3.locale',
   themePref: 'loga3.themePref',
+  /** @deprecated migrated into eventFormat */
   richDetails: 'loga3.richDetails',
+  eventFormat: 'loga3.eventFormat',
   preset: 'loga3.preset',
   hospitalId: 'loga3.hospitalId',
   groupId: 'loga3.groupId',
@@ -36,7 +47,8 @@ export type AppStateSnapshot = {
   userMappings: Record<string, string>;
   locale: AppLocale;
   themePref: ThemePref;
-  richDetails: boolean;
+  /** ICS / Google event title & description options */
+  eventFormat: EventFormatPrefs;
   /** Empty until user picks an employer pack on this device */
   preset: string;
   hospitalId: string;
@@ -53,7 +65,7 @@ let cache: AppStateSnapshot = {
   userMappings: {},
   locale: 'de',
   themePref: 'system',
-  richDetails: false,
+  eventFormat: { ...DEFAULT_EVENT_FORMAT },
   preset: '',
   hospitalId: '',
   groupId: '',
@@ -122,6 +134,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       mappingsRaw,
       locale,
       themePrefRaw,
+      eventFormatRaw,
       rich,
       preset,
       hospitalId,
@@ -135,6 +148,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.userMappings),
       AsyncStorage.getItem(KEYS.locale),
       AsyncStorage.getItem(KEYS.themePref),
+      AsyncStorage.getItem(KEYS.eventFormat),
       AsyncStorage.getItem(KEYS.richDetails),
       AsyncStorage.getItem(KEYS.preset),
       AsyncStorage.getItem(KEYS.hospitalId),
@@ -148,6 +162,12 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
         ? themePrefRaw
         : 'system';
 
+    let eventFormat = parseEventFormat(eventFormatRaw);
+    if (!eventFormat) {
+      eventFormat = migrateFromRichDetails(rich);
+      await AsyncStorage.setItem(KEYS.eventFormat, JSON.stringify(eventFormat));
+    }
+
     // Workplace keys are plaintext — apply them even if encrypted fields fail to decrypt.
     cache = {
       ...cache,
@@ -160,7 +180,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       })(),
       locale: locale === 'en' ? 'en' : 'de',
       themePref,
-      richDetails: rich === '1',
+      eventFormat,
       preset: preset || '',
       hospitalId: hospitalId || '',
       groupId: groupId || '',
@@ -274,9 +294,10 @@ export async function setThemePref(themePref: ThemePref): Promise<void> {
   notify();
 }
 
-export async function setRichDetails(enabled: boolean): Promise<void> {
-  cache = { ...cache, richDetails: enabled };
-  await AsyncStorage.setItem(KEYS.richDetails, enabled ? '1' : '0');
+export async function setEventFormat(patch: Partial<EventFormatPrefs>): Promise<void> {
+  const eventFormat = { ...cache.eventFormat, ...patch };
+  cache = { ...cache, eventFormat };
+  await AsyncStorage.setItem(KEYS.eventFormat, JSON.stringify(eventFormat));
   notify();
 }
 

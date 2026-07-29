@@ -26,7 +26,7 @@ export const icsExportTarget: ExportTarget = {
     }
     try {
       const snap = getSnapshot();
-      await shareIcsFile(entries, { richDetails: opts.richDetails ?? snap.richDetails });
+      await shareIcsFile(entries, { eventFormat: opts.eventFormat ?? snap.eventFormat });
       return { skipped: false, created: entries.length };
     } catch (e) {
       return { skipped: true, reason: e instanceof Error ? e.message : String(e) };

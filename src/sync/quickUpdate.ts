@@ -115,7 +115,7 @@ export async function runQuickUpdate(opts: {
   });
 
   const targets = await runEnabledOauthTargets(entries, {
-    richDetails: snap.richDetails,
+    eventFormat: snap.eventFormat,
     onStatus: opts.onStatus,
     onCalendarMissing: opts.onCalendarMissing,
   });

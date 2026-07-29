@@ -505,7 +505,7 @@ export default function FetchScreen() {
         });
         const result = await icsExportTarget.sync(entries, {
           interactive: true,
-          richDetails: snap.richDetails,
+          eventFormat: snap.eventFormat,
         });
         if (result.skipped && result.reason) {
           Alert.alert('ICS', result.reason);

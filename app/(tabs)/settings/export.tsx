@@ -20,6 +20,12 @@ export default function SettingsExportHubScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
         <AppCard style={styles.menuCard}>
           <SettingsMenuRow
+            title={t('settingsHubEventFormat')}
+            meta={t('settingsHubEventFormatMeta')}
+            onPress={() => go('event-format')}
+            styles={styles}
+          />
+          <SettingsMenuRow
             title={t('settingsHubGoogle')}
             meta={t('settingsHubGoogleMeta')}
             onPress={() => go('google')}

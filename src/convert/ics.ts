@@ -1,5 +1,6 @@
 import { buildEventDescription, buildEventSummary } from './eventDescription';
 import type { ShiftEntry } from './types';
+import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
 
 function formatDateTime(date: string, time?: string): string {
   if (!time) return date.replace(/-/g, '') + 'T000000';
@@ -25,7 +26,7 @@ function nextDay(dateStr: string): string {
  */
 export function generateIcs(
   entries: ShiftEntry[],
-  { richDetails = false }: { richDetails?: boolean } = {}
+  { eventFormat = DEFAULT_EVENT_FORMAT }: { eventFormat?: EventFormatPrefs } = {}
 ): string {
   const lines = [
     'BEGIN:VCALENDAR',
@@ -57,8 +58,8 @@ export function generateIcs(
       .join('-')
       .replace(/\s/g, '');
 
-    const summary = buildEventSummary(entry, { richDetails });
-    const description = buildEventDescription(entry, { richDetails });
+    const summary = buildEventSummary(entry, eventFormat);
+    const description = buildEventDescription(entry, eventFormat);
 
     lines.push('BEGIN:VEVENT');
     lines.push('UID:' + uid + '@loga3-mobile');
