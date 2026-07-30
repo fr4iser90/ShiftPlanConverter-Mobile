@@ -21,6 +21,9 @@ import type { ShiftEntry } from '../convert/types';
 
 export type QuickUpdateFetchResult = {
   entries: ShiftEntry[];
+  /** Shifts from this fetch's PDFs only (not full store). */
+  fetchedCount: number;
+  storeCount: number;
   texts: string[];
   savedPdfs: string[];
   skippedNoPlan: string[];
@@ -62,6 +65,8 @@ export async function runQuickUpdate(opts: {
   const groups = groupMonthsByYear(window);
   const merged: QuickUpdateFetchResult = {
     entries: [],
+    fetchedCount: 0,
+    storeCount: 0,
     texts: [],
     savedPdfs: [],
     skippedNoPlan: [],
@@ -92,6 +97,7 @@ export async function runQuickUpdate(opts: {
       merged.skippedNoPlan.push(...part.skippedNoPlan);
       merged.errors.push(...part.errors);
       merged.artifactsCount += part.artifacts.length;
+      merged.fetchedCount += part.fetchedCount || 0;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       merged.errors.push(`${g.year}: ${msg}`);
@@ -101,6 +107,7 @@ export async function runQuickUpdate(opts: {
 
   const snap = getSnapshot();
   merged.entries = snap.entries;
+  merged.storeCount = snap.entries.length;
 
   const mapping =
     snap.packId && snap.groupId && snap.areaId

@@ -637,10 +637,27 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         appendDiag(`parsePdf ${label}: ${msg}`);
+        // eslint-disable-next-line no-console
+        console.warn(`parsePdf FAIL ${label} size=${buf.byteLength}B: ${msg}`);
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          try {
+            const { Directory, File, Paths } = await import('expo-file-system');
+            const dir = new Directory(Paths.document, 'pdfs-fail');
+            dir.create({ intermediates: true, idempotent: true });
+            const fail = new File(dir, `${String(month).padStart(2, '0')}-${year}.pdf`);
+            fail.create({ intermediates: true, overwrite: true });
+            fail.write(new Uint8Array(buf));
+            // eslint-disable-next-line no-console
+            console.warn(`parsePdf FAIL saved ${fail.uri}`);
+          } catch (saveErr) {
+            // eslint-disable-next-line no-console
+            console.warn('parsePdf FAIL save skipped', saveErr);
+          }
+        }
         if (/login|HTML/i.test(msg) && !/PDF_TEXT_EMPTY|FlateDecode|Tj/i.test(msg)) {
           throw new Error(t('fjPdfLoginHtml'));
         }
-        throw new Error(t('fjPdfTextEmpty'));
+        throw new Error(`${t('fjPdfTextEmpty')} (${buf.byteLength} B · ${msg.slice(0, 120)})`);
       }
       tick(`parsePdf ${label}`, parseT0);
       status(
@@ -648,7 +665,9 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         t('fjStepDone', { step: `parsePdf ${label}`, ms: Date.now() - parseT0, total: ago(ctx.jobT0) })
       );
       if (!text.trim()) {
-        throw new Error(t('fjPdfTextEmpty'));
+        // eslint-disable-next-line no-console
+        console.warn(`parsePdf EMPTY ${label} size=${buf.byteLength}B`);
+        throw new Error(`${t('fjPdfTextEmpty')} (${buf.byteLength} B · empty text)`);
       }
 
       const periodCheck = validatePdfPeriod(text, month, year);

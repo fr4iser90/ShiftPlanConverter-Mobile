@@ -591,7 +591,10 @@ export default function FetchScreen() {
         return;
       }
       const parts = [
-        t('fjResultShifts', { count: result.entries.length }),
+        t('fjResultShifts', { count: result.fetchedCount }),
+        result.storeCount !== result.fetchedCount
+          ? t('fjResultStoreTotal', { count: result.storeCount })
+          : null,
         result.errors.length
           ? t('fjResultErrors', {
               errors: result.errors.map((e) => `· ${e}`).join('\n'),
@@ -599,7 +602,7 @@ export default function FetchScreen() {
           : null,
       ].filter(Boolean);
       setStatus(parts.join(' · '));
-      if (result.entries.length > 0) {
+      if (result.fetchedCount > 0 || result.entries.length > 0) {
         router.replace(CALENDAR_HREF);
       }
       Alert.alert(t('sourceLocalDone'), parts.join('\n'));
@@ -882,7 +885,10 @@ export default function FetchScreen() {
       });
       const parts = [
         result.windowLabel,
-        t('fjResultShifts', { count: result.fetch.entries.length }),
+        t('fjResultShifts', { count: result.fetch.fetchedCount }),
+        result.fetch.storeCount !== result.fetch.fetchedCount
+          ? t('fjResultStoreTotal', { count: result.fetch.storeCount })
+          : null,
         result.fetch.savedPdfs.length
           ? t('fjResultPdfs', { count: result.fetch.savedPdfs.length })
           : null,
@@ -1131,7 +1137,10 @@ export default function FetchScreen() {
           gateTrace: false,
         });
         const parts = [
-          t('fjResultShifts', { count: result.entries.length }),
+          t('fjResultShifts', { count: result.fetchedCount }),
+          result.storeCount !== result.fetchedCount
+            ? t('fjResultStoreTotal', { count: result.storeCount })
+            : null,
           result.savedPdfs.length ? t('fjResultPdfs', { count: result.savedPdfs.length }) : null,
           result.skippedNoPlan.length
             ? t('fjResultNoPlan', { months: result.skippedNoPlan.join(', ') })
@@ -1144,7 +1153,7 @@ export default function FetchScreen() {
         ].filter(Boolean);
         setStatus(parts.join(' · '));
         await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
-        if (result.entries.length > 0) {
+        if (result.fetchedCount > 0 || result.entries.length > 0) {
           router.replace(CALENDAR_HREF);
         }
         Alert.alert(t('alertDone'), parts.join('\n'));

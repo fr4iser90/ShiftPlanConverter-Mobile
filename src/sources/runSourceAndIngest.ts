@@ -69,6 +69,8 @@ export async function runSourceAndIngest(
     if (errors.length) throw new Error(errors.join(' · '));
     return {
       entries: [],
+      fetchedCount: 0,
+      storeCount: getSnapshot().entries.length,
       summaries: [],
       texts: [],
       savedPdfs: [],

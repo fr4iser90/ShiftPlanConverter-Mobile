@@ -18,7 +18,12 @@ export type IngestOptions = {
 };
 
 export type IngestResult = {
+  /** Full workplace store after merge (for sync / callers that need everything). */
   entries: ShiftEntry[];
+  /** Shifts produced by this ingest from the new artifacts only. */
+  fetchedCount: number;
+  /** entries.length after merge (= store size for active workplace merge). */
+  storeCount: number;
   summaries: MonthSummary[];
   texts: string[];
   savedPdfs: string[];
@@ -62,6 +67,8 @@ export async function ingestArtifacts(
   const { snap, mapping, engineId, pdfConfig } = workplaceOrThrow();
   const result: IngestResult = {
     entries: [],
+    fetchedCount: 0,
+    storeCount: 0,
     summaries: [],
     texts: [],
     savedPdfs: [],
@@ -138,6 +145,8 @@ export async function ingestArtifacts(
   );
 
   if (!result.entries.length) {
+    result.fetchedCount = 0;
+    result.storeCount = getSnapshot().entries.length;
     return result;
   }
 
@@ -145,6 +154,7 @@ export async function ingestArtifacts(
   const taggedNew = wpId
     ? result.entries.map((e) => ({ ...e, workplaceId: wpId }))
     : result.entries;
+  const fetchedCount = taggedNew.length;
   const taggedSummaries = wpId
     ? result.summaries.map((s) => ({ ...s, workplaceId: wpId }))
     : result.summaries;
@@ -207,6 +217,8 @@ export async function ingestArtifacts(
     summaries,
     summary: summaries[summaries.length - 1] || null,
   });
+  result.fetchedCount = fetchedCount;
+  result.storeCount = unique.length;
   result.entries = unique;
   await markSuccessfulFetch();
   void refreshHomeWidgets(unique);
