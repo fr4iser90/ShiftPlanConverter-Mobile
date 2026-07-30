@@ -402,7 +402,6 @@ export const de = {
   quickUpdateDone: 'Abrufen fertig',
   quickUpdateHint:
     'Monate anhaken, dann Zeitprotokolle (Monatsabrechnungen) aus LOGA3 laden. Startauswahl = Fenster aus den Einstellungen.',
-  fetchApplyWindow: 'Fenster aus Einstellungen',
   quickUpdateWindow: 'Auswahl',
   quickUpdateGoogleOn: 'inkl. Sync',
   quickUpdateGoogleOff: 'nur laden',

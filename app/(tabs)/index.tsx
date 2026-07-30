@@ -474,13 +474,6 @@ export default function FetchScreen() {
     [busy, ocrLayoutId]
   );
 
-  const applySettingsWindow = useCallback((prefs?: QuickUpdatePrefs | null) => {
-    const p = prefs || quickPrefs;
-    if (!p) return;
-    setSelected(buildMonthWindow(p.prevMonths, p.nextMonths));
-    setYear(new Date().getFullYear());
-  }, [quickPrefs]);
-
   const packMapping = useMemo(() => {
     if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
     return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
@@ -1221,13 +1214,6 @@ export default function FetchScreen() {
                     editable={!busy}
                     value={String(year)}
                     onChangeText={(v) => setYear(Number(v) || year)}
-                  />
-                  <AppButton
-                    title={t('fetchApplyWindow')}
-                    variant="ghost"
-                    compact
-                    onPress={() => applySettingsWindow()}
-                    disabled={busy}
                   />
                   <AppButton
                     title={

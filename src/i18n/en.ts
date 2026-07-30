@@ -400,7 +400,6 @@ export const en: { [K in keyof typeof de]: string } = {
   quickUpdateDone: 'Fetch finished',
   quickUpdateHint:
     'One button: tick months and fetch. Initial selection = month window from Settings.',
-  fetchApplyWindow: 'Apply Settings window',
   quickUpdateWindow: 'Selection',
   quickUpdateGoogleOn: 'incl. Sync',
   quickUpdateGoogleOff: 'fetch only',
