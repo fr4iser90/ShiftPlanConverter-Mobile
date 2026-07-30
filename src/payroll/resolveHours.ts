@@ -1,4 +1,6 @@
 import type { ShiftEntry } from '../convert/types';
+import type { MappingValue } from '../convert/types';
+import { mappingType, shiftTypeForCode } from '../convert/shiftMapping';
 import type { PayrollDienstart, PayrollHourFields, PayrollProfile } from './types';
 import {
   calendarInfo,
@@ -172,12 +174,45 @@ function findById(profile: PayrollProfile, id: string): PayrollDienstart | undef
   return profile.dienstarten.find((d) => d.id === id);
 }
 
+function findByMatchType(
+  profile: PayrollProfile,
+  matchType: string
+): PayrollDienstart | undefined {
+  const t = matchType.trim().toLowerCase();
+  return profile.dienstarten.find((d) => String(d.matchType || '').trim().toLowerCase() === t);
+}
+
+function resolvePflegeShiftType(
+  entry: ShiftEntry,
+  code: string,
+  presetMapping?: Record<string, MappingValue> | null,
+  codeAliases?: Record<string, string> | null
+): string | null {
+  if (presetMapping) {
+    const byCode = shiftTypeForCode(code, presetMapping, codeAliases);
+    if (byCode) return byCode;
+    if (entry.start && entry.end) {
+      const key = `${entry.start}-${entry.end}`;
+      const t = mappingType(presetMapping[key]);
+      if (t) return t;
+    }
+  }
+  return null;
+}
+
+export type HoursForEntryOpts = {
+  /** Pack preset (time→code). Required for Pflege matchType resolution. */
+  presetMapping?: Record<string, MappingValue> | null;
+  codeAliases?: Record<string, string> | null;
+};
+
 /**
  * Resolve hour contributions for one calendar entry.
  */
 export function hoursForEntry(
   profile: PayrollProfile,
-  entry: ShiftEntry
+  entry: ShiftEntry,
+  opts?: HoursForEntryOpts
 ): { hours: Required<PayrollHourFields>; matched: boolean; dienstartId?: string; note?: string } {
   const code = String(entry.type || '').trim().toUpperCase();
   if (!code) return { hours: emptyHours(), matched: false };
@@ -203,8 +238,17 @@ export function hoursForEntry(
     return { hours: h, matched: true, dienstartId: def.id };
   }
 
-  // Pflege Anästhesie: static code → hours (+ Saturday surcharge from duration)
-  const def = findByCode(profile, code);
+  // Pflege: codes + types from pack mapping; payroll only has matchType → hours
+  const shiftType = resolvePflegeShiftType(
+    entry,
+    code,
+    opts?.presetMapping,
+    opts?.codeAliases
+  );
+  const def =
+    (shiftType ? findByMatchType(profile, shiftType) : undefined) ||
+    // Legacy fallback if profile still lists codes
+    findByCode(profile, code);
   if (!def) return { hours: emptyHours(), matched: false };
 
   let h = addHours(emptyHours(), def.hours);
@@ -220,23 +264,31 @@ export function hoursForEntry(
   }
 
   // Month-crossing night: strip 00–04 from current month (like Ärzte)
-  if (ci && (def.id === 'B38_NIGHT' || def.id === 'B39_NIGHT')) {
-    const crosses =
-      ci.nextIso && !sameYearMonth(entry.date, ci.nextIso);
+  const isNightRule =
+    String(def.matchType || '').toLowerCase() === 'night' ||
+    def.id === 'B38_NIGHT' ||
+    def.id === 'B39_NIGHT' ||
+    def.id === 'NIGHT';
+  if (ci && isNightRule) {
+    const crosses = ci.nextIso && !sameYearMonth(entry.date, ci.nextIso);
     if (crosses) {
       h.bdNight004 = 0;
-      // Night before midnight for B39 19:50–00:00 ≈ 4.17; gold used full-month nights.
-      // Keep bdNight from profile for non-crossing; for crossing use ~4h pre-midnight.
+      // Night before midnight ≈ 4h; gold used full-month nights otherwise.
       h.bdNight = Math.min(h.bdNight, 4);
     }
   }
 
-  return { hours: h, matched: Object.keys(def.hours || {}).length > 0 || h.saturdayReg > 0, dienstartId: def.id };
+  return {
+    hours: h,
+    matched: Object.keys(def.hours || {}).length > 0 || h.saturdayReg > 0,
+    dienstartId: def.id,
+  };
 }
 
 export function sumHoursForEntries(
   profile: PayrollProfile,
-  entries: ShiftEntry[]
+  entries: ShiftEntry[],
+  opts?: HoursForEntryOpts
 ): {
   hours: Required<PayrollHourFields>;
   matched: number;
@@ -255,7 +307,7 @@ export function sumHoursForEntries(
       matched += 1;
       continue;
     }
-    const r = hoursForEntry(profile, e);
+    const r = hoursForEntry(profile, e, opts);
     if (!r.matched) {
       if (code) unmatched += 1;
       continue;

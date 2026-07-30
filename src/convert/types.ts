@@ -55,7 +55,10 @@ export type MappingValue =
   | string
   | {
       code: string;
+      /** Same timeslot, alternate printed codes (OCR/payroll); time→code stays `code`. */
+      also?: string[];
       label?: string;
+      /** Semantic class for payroll etc.: work | night | long | oncall */
       type?: string;
       isValidated?: boolean;
     };

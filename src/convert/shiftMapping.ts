@@ -11,6 +11,50 @@ export function mappingCode(value: MappingValue | undefined): {
   return { code: value, isValidated: false };
 }
 
+export function mappingType(value: MappingValue | undefined): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const t = String(value.type || '').trim().toLowerCase();
+  return t || null;
+}
+
+export function mappingAlso(value: MappingValue | undefined): string[] {
+  if (!value || typeof value !== 'object' || !Array.isArray(value.also)) return [];
+  return value.also.map((c) => String(c || '').trim()).filter(Boolean);
+}
+
+/** Resolve semantic type for a calendar/OCR code from the pack preset. */
+export function shiftTypeForCode(
+  code: string,
+  mapping: Record<string, MappingValue>,
+  codeAliases?: Record<string, string> | null
+): string | null {
+  let u = String(code || '')
+    .trim()
+    .toUpperCase();
+  if (!u) return null;
+  if (codeAliases) {
+    for (const [from, to] of Object.entries(codeAliases)) {
+      if (from.toUpperCase() === u) {
+        u = String(to || '')
+          .trim()
+          .toUpperCase() || u;
+        break;
+      }
+    }
+  }
+  for (const value of Object.values(mapping)) {
+    if (typeof value !== 'object') continue;
+    const primary = String(value.code || '')
+      .trim()
+      .toUpperCase();
+    if (primary === u) return mappingType(value);
+    for (const a of mappingAlso(value)) {
+      if (a.toUpperCase() === u) return mappingType(value);
+    }
+  }
+  return null;
+}
+
 function minutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;

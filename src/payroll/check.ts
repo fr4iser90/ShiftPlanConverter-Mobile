@@ -1,4 +1,5 @@
 import type { ShiftEntry } from '../convert/types';
+import type { MappingValue } from '../convert/types';
 import type {
   PayDiffRow,
   PayrollCheckResult,
@@ -69,6 +70,9 @@ export function runPayrollCheck(opts: {
   entries: ShiftEntry[];
   workplaceId?: string;
   tarif?: PayrollTarifPrefs;
+  /** Pack preset — source of duty codes/types for Pflege. */
+  presetMapping?: Record<string, MappingValue> | null;
+  codeAliases?: Record<string, string> | null;
 }): PayrollCheckResult {
   const { profile, payslip } = opts;
   const tarif = opts.tarif || {};
@@ -83,7 +87,11 @@ export function runPayrollCheck(opts: {
 
   const { hours: hourSums, matched, unmatched, urlaubDays } = sumHoursForEntries(
     profile,
-    monthEntries
+    monthEntries,
+    {
+      presetMapping: opts.presetMapping,
+      codeAliases: opts.codeAliases,
+    }
   );
 
   if (monthEntries.length && unmatched) {

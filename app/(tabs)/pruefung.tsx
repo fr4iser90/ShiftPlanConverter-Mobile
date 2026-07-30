@@ -20,6 +20,7 @@ import type { PayrollTarifPrefs, PayslipDocument } from '@/src/payroll/types';
 import { setImportMonthIntent } from '@/src/setup/importMonthIntent';
 import {
   getPayrollProfileForScope,
+  getMappingForScope,
   isPayrollSupportedForScope,
   isSourceSupportedByPack,
   getPackById,
@@ -149,14 +150,28 @@ export default function PayrollScreen() {
 
   const check = useMemo(() => {
     if (!profile || !payslip) return null;
+    const packMapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
+    const presetMapping = packMapping?.presets?.[snap.preset] || null;
     return runPayrollCheck({
       profile,
       payslip,
       entries: snap.entries,
       workplaceId: snap.activeWorkplaceId || undefined,
       tarif,
+      presetMapping,
+      codeAliases: packMapping?.codeAliases || null,
     });
-  }, [profile, payslip, snap.entries, snap.activeWorkplaceId, tarif]);
+  }, [
+    profile,
+    payslip,
+    snap.entries,
+    snap.activeWorkplaceId,
+    snap.packId,
+    snap.groupId,
+    snap.areaId,
+    snap.preset,
+    tarif,
+  ]);
 
   const onImport = async () => {
     setBusy(true);

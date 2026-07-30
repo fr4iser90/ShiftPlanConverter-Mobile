@@ -36,7 +36,6 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "SCHEDULE_EXACT_ALARM",
-        "USE_EXACT_ALARM",
         "POST_NOTIFICATIONS"
       ],
       "adaptiveIcon": {

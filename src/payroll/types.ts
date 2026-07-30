@@ -48,7 +48,14 @@ export type PayrollDienstart = {
   name: string;
   kat: string;
   zeit?: string;
-  /** Calendar shift codes that map to this pattern (optional). */
+  /**
+   * Pflege: match mapping `type` (work|night|long|oncall). Codes live only in the pack mapping.
+   * Ärzte: unused — calendar derive / explicit `codes` below.
+   */
+  matchType?: string;
+  /**
+   * Ärzte / legacy: explicit codes (ITS, OP, …). Prefer mapping `type` + `matchType` for Pflege.
+   */
   codes?: string[];
   hours: PayrollHourFields;
 };

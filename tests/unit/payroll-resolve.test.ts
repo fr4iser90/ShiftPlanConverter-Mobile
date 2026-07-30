@@ -1,6 +1,6 @@
 import { calendarInfo, saxonyHolidayMap } from '../../src/payroll/calendar';
 import { deriveArztDienstId, hoursForEntry, sumHoursForEntries } from '../../src/payroll/resolveHours';
-import { getPayrollProfileForScope } from '../../src/packs';
+import { getPayrollProfileForScope, getMappingForScope } from '../../src/packs';
 import type { ShiftEntry } from '../../src/convert/types';
 
 describe('payroll calendar (SN)', () => {
@@ -37,15 +37,27 @@ describe('Ärzte derive + overrides', () => {
   });
 });
 
-describe('Pflege B39 calibration (früher oft als B38)', () => {
+describe('Pflege night via mapping type (not payroll codes[])', () => {
   const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')!;
+  const pack = getMappingForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')!;
+  const preset = pack.presets!.Anästhesie;
+  const opts = { presetMapping: preset, codeAliases: pack.codeAliases };
 
   it('sums one B39 like Mai 2026 gold (19:50–07:35)', () => {
     const entries: ShiftEntry[] = [{ type: 'B39', date: '2026-04-15', start: '19:50', end: '07:35' }];
-    const { hours, matched } = sumHoursForEntries(profile, entries);
+    const { hours, matched } = sumHoursForEntries(profile, entries, opts);
     expect(matched).toBe(1);
     expect(hours.paidBd).toBe(6.03);
     expect(hours.bdNight).toBe(5);
     expect(hours.bdNight004).toBe(4);
+  });
+
+  it('maps also-code E1n to work via mapping', () => {
+    const r = hoursForEntry(
+      profile,
+      { type: 'E1n', date: '2026-04-18', start: '07:35', end: '15:50' },
+      opts
+    );
+    expect(r.dienstartId).toBe('WORK');
   });
 });

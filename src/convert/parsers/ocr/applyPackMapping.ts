@@ -64,6 +64,14 @@ export function collectPackCodes(
     for (const v of Object.values(presetMapping)) {
       const { code } = mappingCode(v);
       if (code) codes.add(code.trim().toUpperCase());
+      if (typeof v === 'object' && Array.isArray(v.also)) {
+        for (const a of v.also) {
+          const c = String(a || '')
+            .trim()
+            .toUpperCase();
+          if (c) codes.add(c);
+        }
+      }
     }
   }
   if (codeAliases) {
