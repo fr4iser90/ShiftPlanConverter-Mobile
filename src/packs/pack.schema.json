@@ -44,7 +44,20 @@
                   "description": "Relative path to mapping JSON under this pack"
                 },
                 "supported": { "type": "boolean" },
-                "defaultPreset": { "type": "string" }
+                "defaultPreset": { "type": "string" },
+                "payroll": {
+                  "type": "object",
+                  "description": "Optional Abrechnungsprüfer profile (omit = feature off for this area)",
+                  "additionalProperties": false,
+                  "required": ["supported", "profile"],
+                  "properties": {
+                    "supported": { "type": "boolean" },
+                    "profile": {
+                      "type": "string",
+                      "description": "Relative path to *.payroll.json under this pack"
+                    }
+                  }
+                }
               }
             }
           }

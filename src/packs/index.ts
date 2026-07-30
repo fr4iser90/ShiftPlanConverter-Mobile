@@ -1,5 +1,6 @@
 import type { PackMapping } from '../convert/types';
 import type { Messages } from '../i18n';
+import type { PackAreaPayroll, PayrollProfile } from '../payroll/types';
 import { DEFAULT_PARSER_ID } from '../convert/parsers';
 import type { PackPdfConfig } from '../convert/parsers/engines';
 import { DEFAULT_OCR_ENGINE_ID } from '../convert/parsers/ocr';
@@ -14,6 +15,8 @@ import opMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
 import stationEmptyMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/station-empty.json';
 import serviceAllgemeinMapping from './builtin/st-elisabeth-leipzig/mappings/service/allgemein.json';
 import arztOpMapping from './builtin/st-elisabeth-leipzig/mappings/arzt/op.json';
+import arztOpPayroll from './builtin/st-elisabeth-leipzig/mappings/arzt/op.payroll.json';
+import pflegeOpPayroll from './builtin/st-elisabeth-leipzig/mappings/pflege/op.payroll.json';
 
 export type PackArea = {
   id: string;
@@ -21,6 +24,8 @@ export type PackArea = {
   mapping: string;
   supported: boolean;
   defaultPreset?: string;
+  /** Optional Abrechnungsprüfer — omit or supported:false = feature off. */
+  payroll?: PackAreaPayroll;
 };
 
 export type PackGroup = {
@@ -117,6 +122,11 @@ registerScopeMappings(
   arztOpMapping as PackMapping
 );
 
+const PAYROLL_PROFILES: Record<string, PayrollProfile> = {
+  'st-elisabeth-leipzig/pflege/op-bereich': pflegeOpPayroll as PayrollProfile,
+  'st-elisabeth-leipzig/arzt/op': arztOpPayroll as PayrollProfile,
+};
+
 /** Validated St. Elisabeth · Pflege · OP scope (default smoke / fixture pack). */
 export const BUILTIN_PACK_ID = 'st-elisabeth-leipzig';
 export const BUILTIN_GROUP_ID = 'pflege';
@@ -205,6 +215,37 @@ export function getMappingForScope(
   areaId: string
 ): PackMapping | null {
   return MAPPINGS[`${packId}/${groupId}/${areaId}`] || null;
+}
+
+export function getPackArea(
+  packId: string,
+  groupId: string,
+  areaId: string
+): PackArea | null {
+  const pack = getPackById(packId);
+  const group = pack?.groups.find((g) => g.id === groupId);
+  return group?.areas.find((a) => a.id === areaId) || null;
+}
+
+/** True when active scope ships a supported payroll profile. */
+export function isPayrollSupportedForScope(
+  packId: string,
+  groupId: string,
+  areaId: string
+): boolean {
+  const area = getPackArea(packId, groupId, areaId);
+  if (!area?.payroll?.supported) return false;
+  return !!getPayrollProfileForScope(packId, groupId, areaId);
+}
+
+export function getPayrollProfileForScope(
+  packId: string,
+  groupId: string,
+  areaId: string
+): PayrollProfile | null {
+  const area = getPackArea(packId, groupId, areaId);
+  if (!area?.payroll?.supported) return null;
+  return PAYROLL_PROFILES[`${packId}/${groupId}/${areaId}`] || null;
 }
 
 export function getBuiltinMapping(): PackMapping {

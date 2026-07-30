@@ -1,0 +1,290 @@
+{
+  "id": "st-elisabeth-arzt-op",
+  "label": "Ärzte · OP (Dienst-/Abrechnungsprüfer)",
+  "tarifFamily": "avr-aerzte",
+  "holidayRegion": "SN",
+  "hourDivisor": 173.92,
+  "fixedLa": [
+    "100",
+    "200",
+    "245"
+  ],
+  "dienstarten": [
+    {
+      "id": "ITS_MO_DO",
+      "name": "ITS Montag–Donnerstag",
+      "kat": "Hausdienst",
+      "zeit": "20:00–08:30",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 4.5,
+        "timeOff": 8,
+        "bd15": 12.5,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "ITS_FR_VF",
+      "name": "ITS Freitag / Wochentag vor Feiertag",
+      "kat": "Hausdienst",
+      "zeit": "20:00–09:00",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 9,
+        "timeOff": 4,
+        "bd15": 13,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "ITS_SA_SO_FT_TAG",
+      "name": "ITS Samstag / Sonntag / Feiertag – 12 h Tag",
+      "kat": "Hausdienst",
+      "zeit": "08:00–20:30",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 8.5,
+        "timeOff": 4,
+        "bd15": 10.5,
+        "activeNight": 0.5
+      }
+    },
+    {
+      "id": "ITS_SA_NACHT",
+      "name": "ITS Samstag – Nacht",
+      "kat": "Hausdienst",
+      "zeit": "19:30–08:00",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 9.5,
+        "timeOff": 2,
+        "bd15": 11.5,
+        "bdNight": 5.5,
+        "bdNight004": 4,
+        "activeNight": 0.5,
+        "sundayReg": 1
+      }
+    },
+    {
+      "id": "ITS_SO_FT_NACHT_VWT",
+      "name": "ITS Sonntag/Feiertag – vor Wochentag – Nacht",
+      "kat": "Hausdienst",
+      "zeit": "19:30–07:30",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 9,
+        "timeOff": 2,
+        "bd15": 11,
+        "bdNight": 5.5,
+        "bdNight004": 4,
+        "activeNight": 0.5
+      }
+    },
+    {
+      "id": "ITS_FT_NACHT_VF",
+      "name": "ITS Feiertag – vor Feiertag/Wochenende – Nacht",
+      "kat": "Hausdienst",
+      "zeit": "19:30–08:00",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "paidBd": 9.5,
+        "timeOff": 2,
+        "bd15": 11.5,
+        "bdNight": 5.5,
+        "bdNight004": 4,
+        "activeNight": 0.5
+      }
+    },
+    {
+      "id": "OP_MO_DO",
+      "name": "OP Montag–Donnerstag",
+      "kat": "Rufdienst",
+      "zeit": "20:00–08:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "paidBd": 4,
+        "timeOff": 8,
+        "bd15": 12,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "OP_FR_VF",
+      "name": "OP Freitag / Wochentag vor Feiertag",
+      "kat": "Rufdienst",
+      "zeit": "20:00–08:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "paidBd": 8,
+        "timeOff": 4,
+        "bd15": 12,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "OP_SA_SO_FT_TAG",
+      "name": "OP Samstag/Sonntag/Feiertag – 12 h Tag",
+      "kat": "Rufdienst",
+      "zeit": "08:00–20:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "paidBd": 8,
+        "timeOff": 4,
+        "bd15": 12
+      }
+    },
+    {
+      "id": "OP_SA_SO_FT_NACHT_VF",
+      "name": "OP Sa/So/Feiertag – vor Feiertag – 12 h Nacht",
+      "kat": "Rufdienst",
+      "zeit": "20:00–08:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "paidBd": 8,
+        "timeOff": 4,
+        "bd15": 12,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "OP_SO_FT_NACHT_VWT",
+      "name": "OP Sonntag/Feiertag – vor Wochentag – 12 h Nacht",
+      "kat": "Rufdienst",
+      "zeit": "20:00–08:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "paidBd": 8,
+        "timeOff": 4,
+        "bd15": 12,
+        "bdNight": 6,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "UEBERTRAG_ITS",
+      "name": "Übertrag aus Vormonat – ITS-Nachtanteil",
+      "kat": "Übertrag",
+      "zeit": "00:00–08:30/09:00",
+      "codes": [
+        "ITS"
+      ],
+      "hours": {
+        "bdNight": 2,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "UEBERTRAG_OP",
+      "name": "Übertrag aus Vormonat – OP-Nachtanteil",
+      "kat": "Übertrag",
+      "zeit": "00:00–08:00",
+      "codes": [
+        "OP",
+        "RD"
+      ],
+      "hours": {
+        "bdNight": 2,
+        "bdNight004": 4
+      }
+    }
+  ],
+  "lohnarten": [
+    {
+      "la": "100",
+      "text": "Tarifliches Grundgehalt",
+      "kind": "gross"
+    },
+    {
+      "la": "200",
+      "text": "AG-Anteil zur Vermögensbildung",
+      "kind": "gross"
+    },
+    {
+      "la": "245",
+      "text": "Schichtzulage",
+      "kind": "gross"
+    },
+    {
+      "la": "304",
+      "text": "Bereitschaftsdienst",
+      "kind": "gross"
+    },
+    {
+      "la": "314",
+      "text": "Nachtzuschlag",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "361",
+      "text": "Feiertagszuschlag Bereitschaftsdienst",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "310",
+      "text": "Sonntagszuschlag 25%",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "31F",
+      "text": "Feiertagszuschlag 35%",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "316",
+      "text": "Nachtzuschlag Bereitschaft",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "317",
+      "text": "Nachtzuschlag Bereitschaft (00-04)",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "345",
+      "text": "Zuschlag BD Ärzte 15%",
+      "kind": "zuschlag"
+    },
+    {
+      "la": "34U",
+      "text": "U/K-Aufschlag Urlaub",
+      "kind": "gross"
+    }
+  ],
+  "notes": [
+    "EG salary/BD tables are not shipped in-repo (private / payslip only).",
+    "Port from Dienst- und Abrechnungsprüfer v3.2 (Thomas).",
+    "Kalender-Overrides (Feiertags-BD 25 %, Monatswechsel) folgen in der Engine."
+  ]
+}

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getSnapshot, hydrateStore, subscribe } from '@/src/state/store';
+import { isPayrollSupportedForScope } from '@/src/packs';
 import { t } from '@/src/i18n';
 
 function TabBarIcon(props: { name: React.ComponentProps<typeof FontAwesome>['name']; color: string }) {
@@ -22,14 +23,20 @@ export default function TabLayout() {
   useEffect(() => {
     hydrateStore();
     let locale = getSnapshot().locale;
+    let scopeKey = `${getSnapshot().packId}/${getSnapshot().groupId}/${getSnapshot().areaId}`;
     return subscribe(() => {
-      const next = getSnapshot().locale;
-      if (next !== locale) {
-        locale = next;
+      const snap = getSnapshot();
+      const nextScope = `${snap.packId}/${snap.groupId}/${snap.areaId}`;
+      if (snap.locale !== locale || nextScope !== scopeKey) {
+        locale = snap.locale;
+        scopeKey = nextScope;
         setTick((n) => n + 1);
       }
     });
   }, []);
+
+  const snap = getSnapshot();
+  const payrollTab = isPayrollSupportedForScope(snap.packId, snap.groupId, snap.areaId);
 
   return (
     <Tabs
@@ -71,6 +78,14 @@ export default function TabLayout() {
         options={{
           title: t('tabPreview'),
           tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={String(color)} />,
+        }}
+      />
+      <Tabs.Screen
+        name="pruefung"
+        options={{
+          title: t('tabPayroll'),
+          href: payrollTab ? undefined : null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="balance-scale" color={String(color)} />,
         }}
       />
       <Tabs.Screen

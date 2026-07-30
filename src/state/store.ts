@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
+import type { PayslipDocument } from '../payroll/types';
 import { getPackById } from '../packs';
 import {
   DEFAULT_EVENT_FORMAT,
@@ -47,6 +48,7 @@ const KEYS = {
   googleCalendarId: 'loga3.googleCalendarId',
   summary: 'loga3.summary',
   summaries: 'loga3.summaries',
+  payslips: 'loga3.payslips',
 } as const;
 
 export type AppLocale = 'de' | 'en';
@@ -70,6 +72,8 @@ export type AppStateSnapshot = {
   activeWorkplaceId: string;
   summary: MonthSummary | null;
   summaries: MonthSummary[];
+  /** Verdienstnachweise keyed for active multi-WP (Abrechnungsprüfer). */
+  payslips: PayslipDocument[];
 };
 
 const listeners = new Set<() => void>();
@@ -88,6 +92,7 @@ let cache: AppStateSnapshot = {
   activeWorkplaceId: '',
   summary: null,
   summaries: [],
+  payslips: [],
 };
 let hydrated = false;
 /** Encrypted payloads present but undecryptable — block overwrites. */
@@ -238,6 +243,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       activeWorkplaceIdRaw,
       summaryRaw,
       summariesRaw,
+      payslipsRaw,
     ] = await Promise.all([
       AsyncStorage.getItem(KEYS.entries),
       AsyncStorage.getItem(KEYS.rawText),
@@ -253,6 +259,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.activeWorkplaceId),
       AsyncStorage.getItem(KEYS.summary),
       AsyncStorage.getItem(KEYS.summaries),
+      AsyncStorage.getItem(KEYS.payslips),
     ]);
     const themePref: ThemePref =
       themePrefRaw === 'light' || themePrefRaw === 'dark' || themePrefRaw === 'system'
@@ -322,17 +329,21 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
     };
 
     try {
-      const [entriesIn, rawText, summary, summariesIn] = await Promise.all([
+      const [entriesIn, rawText, summary, summariesIn, payslipsIn] = await Promise.all([
         parseJsonEnc<ShiftEntry[]>(entriesRaw, []),
         decryptUtf8(rawTextEnc),
         parseJsonEnc<MonthSummary | null>(summaryRaw, null),
         parseJsonEnc<MonthSummary[]>(summariesRaw, []),
+        parseJsonEnc<PayslipDocument[]>(payslipsRaw, []),
       ]);
       const defaultWp = mirrored.activeWorkplaceId;
       const entries = defaultWp ? tagEntries(entriesIn, defaultWp) : entriesIn;
       const summaries = defaultWp
         ? summariesIn.map((s) => (s.workplaceId ? s : { ...s, workplaceId: defaultWp }))
         : summariesIn;
+      const payslips = defaultWp
+        ? payslipsIn.map((p) => (p.workplaceId ? p : { ...p, workplaceId: defaultWp }))
+        : payslipsIn;
       const summaryTagged =
         summary && defaultWp && !summary.workplaceId
           ? { ...summary, workplaceId: defaultWp }
@@ -344,6 +355,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
         rawText,
         summary: summaryTagged,
         summaries,
+        payslips,
       };
       payloadLocked = false;
       payloadError = null;
@@ -371,13 +383,23 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
           await encryptUtf8(JSON.stringify(summaries))
         );
       }
+      if (
+        (payslipsRaw && !payslipsRaw.startsWith('enc:v1:')) ||
+        (defaultWp && payslipsIn.some((p) => !p.workplaceId))
+      ) {
+        await AsyncStorage.setItem(
+          KEYS.payslips,
+          await encryptUtf8(JSON.stringify(payslips))
+        );
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       const hasCipher =
         isEncryptedPayload(entriesRaw) ||
         isEncryptedPayload(rawTextEnc) ||
         isEncryptedPayload(summaryRaw) ||
-        isEncryptedPayload(summariesRaw);
+        isEncryptedPayload(summariesRaw) ||
+        isEncryptedPayload(payslipsRaw);
       if (hasCipher) {
         // Keep ciphertext intact — never treat as empty store.
         payloadLocked = true;
@@ -461,6 +483,26 @@ export async function setEntries(
     .catch(() => {
       // optional
     });
+}
+
+/** Upsert one Verdienstnachweis by payMonth + workplace. */
+export async function upsertPayslip(doc: PayslipDocument): Promise<void> {
+  if (payloadLocked) {
+    throw new Error(t('storePayloadLocked'));
+  }
+  const wpId = doc.workplaceId || cache.activeWorkplaceId;
+  const tagged = wpId && !doc.workplaceId ? { ...doc, workplaceId: wpId } : doc;
+  const rest = cache.payslips.filter(
+    (p) =>
+      !(
+        p.payMonth === tagged.payMonth &&
+        (p.workplaceId || '') === (tagged.workplaceId || '')
+      )
+  );
+  const payslips = [...rest, tagged].sort((a, b) => a.payMonth.localeCompare(b.payMonth));
+  cache = { ...cache, payslips };
+  await AsyncStorage.setItem(KEYS.payslips, await encryptUtf8(JSON.stringify(payslips)));
+  notify();
 }
 
 export async function setUserMappings(mappings: Record<string, string>): Promise<void> {
@@ -616,12 +658,14 @@ export async function removeWorkplace(id: string): Promise<void> {
       rawText: '',
       summary: null,
       summaries: [],
+      payslips: [],
     };
     await persistWorkplaces([], '');
     await AsyncStorage.setItem(KEYS.entries, await encryptUtf8('[]'));
     await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(''));
     await AsyncStorage.setItem(KEYS.summary, await encryptUtf8('null'));
     await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8('[]'));
+    await AsyncStorage.setItem(KEYS.payslips, await encryptUtf8('[]'));
     notify();
     pingHomeWidgets([]);
     return;
@@ -631,17 +675,20 @@ export async function removeWorkplace(id: string): Promise<void> {
     cache.activeWorkplaceId === id ? workplaces[0].id : cache.activeWorkplaceId;
   const entries = cache.entries.filter((e) => e.workplaceId !== id);
   const summaries = cache.summaries.filter((s) => s.workplaceId !== id);
+  const payslips = cache.payslips.filter((p) => p.workplaceId !== id);
   const mirrored = mirrorActive(workplaces, nextActive);
   cache = {
     ...cache,
     ...mirrored,
     entries,
     summaries,
+    payslips,
     summary: summaries[summaries.length - 1] || null,
   };
   await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
   await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
   await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
+  await AsyncStorage.setItem(KEYS.payslips, await encryptUtf8(JSON.stringify(payslips)));
   await AsyncStorage.setItem(
     KEYS.summary,
     await encryptUtf8(JSON.stringify(cache.summary))
@@ -716,6 +763,7 @@ export async function wipeAllLocalData(): Promise<void> {
       KEYS.googleCalendarId,
       KEYS.summary,
       KEYS.summaries,
+      KEYS.payslips,
     ]),
   ]);
   const { clearActiveSourceId } = await import('./activeSource');
@@ -735,6 +783,7 @@ export async function wipeAllLocalData(): Promise<void> {
     activeWorkplaceId: '',
     summary: null,
     summaries: [],
+    payslips: [],
   };
   notify();
   pingHomeWidgets([]);

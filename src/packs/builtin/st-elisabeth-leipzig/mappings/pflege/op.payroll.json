@@ -1,0 +1,81 @@
+{
+  "id": "st-elisabeth-pflege-op-anaesthesie",
+  "label": "Pflege · OP · Anästhesie (Dienst-/Abrechnungsprüfer)",
+  "tarifFamily": "avr-c-pflege",
+  "holidayRegion": "SN",
+  "hourDivisor": 173.92,
+  "fullWeekHours": 38.5,
+  "fixedLa": ["100", "2Y1", "2Z7"],
+  "defaults": {
+    "shiftAllowanceFull": 315,
+    "vlAg": 0
+  },
+  "dienstarten": [
+    {
+      "id": "B38_NIGHT",
+      "name": "Nachtdienst B38 (19:50–07:35)",
+      "kat": "Bereitschaft",
+      "zeit": "19:50–07:35",
+      "codes": ["B38"],
+      "hours": {
+        "paidBd": 6.03,
+        "bdNight": 5,
+        "bdNight004": 4
+      }
+    },
+    {
+      "id": "B36_LONG",
+      "name": "Langdienst B36 (07:35–19:35)",
+      "kat": "Arbeit",
+      "zeit": "07:35–19:35",
+      "codes": ["B36", "B41"],
+      "hours": {}
+    },
+    {
+      "id": "MO_ONCALL",
+      "name": "Rufbereitschaft MO (11:35–07:35)",
+      "kat": "Rufdienst",
+      "zeit": "11:35–07:35",
+      "codes": ["MO"],
+      "hours": {}
+    },
+    {
+      "id": "F_EARLY",
+      "name": "Frühdienst",
+      "kat": "Arbeit",
+      "codes": ["F", "F1", "F2", "F3", "ST"],
+      "hours": {}
+    },
+    {
+      "id": "M_MID",
+      "name": "Mitteldienst",
+      "kat": "Arbeit",
+      "codes": ["M1", "M2", "M3"],
+      "hours": {}
+    },
+    {
+      "id": "S_LATE",
+      "name": "Spätdienst",
+      "kat": "Arbeit",
+      "codes": ["S"],
+      "hours": {}
+    }
+  ],
+  "lohnarten": [
+    { "la": "100", "text": "Tarifliches Grundgehalt", "kind": "gross" },
+    { "la": "2Y1", "text": "Zulage §12(4) Anlage 31", "kind": "gross" },
+    { "la": "2Z7", "text": "Zulage §12(3) Anlage 31", "kind": "gross" },
+    { "la": "245", "text": "Schichtzulage", "kind": "gross" },
+    { "la": "304", "text": "Bereitschaftsdienst", "kind": "gross" },
+    { "la": "314", "text": "Nachtzuschlag", "kind": "zuschlag" },
+    { "la": "316", "text": "Nachtzuschlag Bereitschaft", "kind": "zuschlag" },
+    { "la": "317", "text": "Nachtzuschlag Bereitschaft (00-04)", "kind": "zuschlag" },
+    { "la": "362", "text": "Samstagszuschlag", "kind": "zuschlag" },
+    { "la": "34U", "text": "U/K-Aufschlag Urlaub", "kind": "gross" }
+  ],
+  "notes": [
+    "B38-Stundenregeln: 304/316/317 je Nachtdienst (lokale Kalibrierung).",
+    "Tarif (EG, Stufe, Wochenstunden, Zulagen) kommt aus dem Verdienstnachweis — nicht aus dem Pack.",
+    "Default ohne VN: Vollzeit (= fullWeekHours)."
+  ]
+}

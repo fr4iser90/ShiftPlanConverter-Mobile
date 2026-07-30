@@ -17,7 +17,11 @@
           "label": "OP",
           "mapping": "mappings/pflege/op.json",
           "supported": true,
-          "defaultPreset": "Anästhesie"
+          "defaultPreset": "Anästhesie",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/pflege/op.payroll.json"
+          }
         },
         {
           "id": "station-1",
@@ -176,7 +180,11 @@
           "label": "OP",
           "mapping": "mappings/arzt/op.json",
           "supported": false,
-          "defaultPreset": "Anästhesie"
+          "defaultPreset": "Anästhesie",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/arzt/op.payroll.json"
+          }
         }
       ]
     }

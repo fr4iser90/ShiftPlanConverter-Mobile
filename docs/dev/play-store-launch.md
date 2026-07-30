@@ -68,7 +68,12 @@ export const PROJECT_PLAY_STORE =
 
 ## E. Privacy on shift.fr4iser.com
 
-Source: **ShiftPlanConverter** repo (`privacy.html`, `privacy-en.html`, nginx `/privacy`). Deploy that site; App About already opens `PROJECT_PRIVACY`.
+Source (edit here, then deploy): **`~/Documents/Git/ShiftPlanConverter/`** — `privacy.html`, `privacy-en.html` (nginx `/privacy`).  
+**Not** in ShiftPlanConverter-Mobile. App About opens `PROJECT_PRIVACY` (`https://shift.fr4iser.com/privacy`).
+
+After policy changes: deploy the website repo so Play Console and in-app link show the new text (Verdienstnachweis, OCR, package `com.fr4iser.shiftplan`).
+
+See also [play-data-safety.md](./play-data-safety.md) for Console answers.
 
 ---
 

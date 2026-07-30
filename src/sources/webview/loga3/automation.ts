@@ -50,6 +50,9 @@ export type AutomationCommand =
   | { type: 'getDialogAbrechnungsmonat' }
   | { type: 'isZeitprotokollDialogVisible' }
   | { type: 'clickOeffnen' }
+  | { type: 'clickVerdienstOeffnen' }
+  | { type: 'assertVerdienstContext' }
+  | { type: 'openVerdienstDocument'; month?: number; year?: number }
   | { type: 'clickZeiten' }
   | { type: 'armCalendarReload' }
   | { type: 'selectMonth'; month: number; year: number }
@@ -94,6 +97,9 @@ export type AutomationMessage = {
   exportPanel?: boolean;
   /** Zeitprotokoll generieren tile (LAGSDZPG) visible */
   lagsdzpg?: boolean;
+  /** Personal Cloud / Verdienstnachweis öffnen visible or opened */
+  verdienstFound?: boolean;
+  verdienstOpen?: boolean;
   target?: string;
   month?: string | null;
   year?: string | null;
@@ -1009,6 +1015,36 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
       return buttons.find(function(el) { return nearZeiten(el) !== false; }) || buttons[0] || null;
     }
 
+    function findVerdienstOeffnenControl() {
+      // Prefer Private-Cloud / Verdienstnachweis widget — never Zeiten
+      function nearVerdienst(el) {
+        var p = el;
+        for (var i = 0; i < 8 && p; i++) {
+          var blob = ((p.innerText || '') + ' ' + (p.className || '')).slice(0, 500);
+          if (/\\bZeiten\\b|Kalendarium|Zeitdaten|Buchungen/i.test(blob) && !/Private\\s*Cloud|Verdienstnachweis|personal-cloud|Gehalts/i.test(blob)) {
+            return false;
+          }
+          if (/Private\\s*Cloud|Verdienstnachweis|personal-cloud|Verdienstabrechnung|Gehaltsabrechnung/i.test(blob)) return true;
+          p = p.parentElement;
+        }
+        return null;
+      }
+      var buttons = qa('div.LG-Button[aria-label="öffnen"], div.LG-Button[aria-label="Öffnen"], button, a, [role="button"], div.LG-Button, span.LG-Button').filter(function(el) {
+        var t = textOf(el);
+        var aria = (el.getAttribute && (el.getAttribute('aria-label') || '')) || '';
+        return (/^öffnen$/i.test(t) || /^öffnen$/i.test(aria)) && visible(el);
+      });
+      var preferred = buttons.find(function(el) { return nearVerdienst(el) === true; });
+      if (preferred) return preferred;
+      // Also accept a tile titled Verdienstnachweis itself
+      var tile = qa('div, span, a, button, [role="button"]').find(function(el) {
+        var t = textOf(el);
+        return /Verdienstnachweis|Private\\s*Cloud|personal-cloud/i.test(t) && visible(el) && t.length < 48;
+      });
+      if (tile) return tile;
+      return null;
+    }
+
     function findZeitenControl() {
       // Desktop does not use this — keep extremely narrow (Zeiten label only).
       return (
@@ -1144,6 +1180,88 @@ export function buildAutomationScript(cmd: AutomationCommand): string {
         post({ ok: true, type: 'clickOeffnen', note: textOf(oeffnen).slice(0, 40) || 'aria-öffnen' });
       } else {
         post({ ok: false, type: 'clickOeffnen', error: 'oeffnen_not_found', oeffnenFound: false });
+      }
+      return true;
+    }
+
+    if (cmd.type === 'clickVerdienstOeffnen') {
+      var vo = findVerdienstOeffnenControl();
+      if (vo) {
+        vo.click();
+        post({
+          ok: true,
+          type: 'clickVerdienstOeffnen',
+          verdienstFound: true,
+          note: textOf(vo).slice(0, 60) || 'verdienst-öffnen'
+        });
+      } else {
+        post({
+          ok: false,
+          type: 'clickVerdienstOeffnen',
+          error: 'verdienst_oeffnen_not_found',
+          code: 'VERDIENST_OPEN_MISSING',
+          verdienstFound: false,
+          sample: (document.body && document.body.innerText || '').slice(0, 280)
+        });
+      }
+      return true;
+    }
+
+    if (cmd.type === 'assertVerdienstContext') {
+      var bodyV = (document.body && document.body.innerText || '');
+      var verdienstOpen =
+        /Verdienstabrechnung|Verdienstnachweis|Private\\s*Cloud|personal-cloud|Gehaltsabrechnung/i.test(bodyV) &&
+        !q('#ZeitdatenMonthPicker');
+      var voBtn = findVerdienstOeffnenControl();
+      post({
+        ok: !!verdienstOpen || !!voBtn,
+        type: 'assertVerdienstContext',
+        verdienstFound: !!voBtn,
+        verdienstOpen: !!verdienstOpen,
+        pickerFound: !!q('#ZeitdatenMonthPicker'),
+        sample: bodyV.slice(0, 240),
+        code: verdienstOpen || voBtn ? undefined : 'VERDIENST_CONTEXT_MISSING'
+      });
+      return true;
+    }
+
+    if (cmd.type === 'openVerdienstDocument') {
+      var month = cmd.month;
+      var year = cmd.year;
+      var monthNames = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+      var wantLabel = (month && year) ? (monthNames[month - 1] + ' ' + year) : '';
+      var wantSlash = (month && year) ? (String(month).padStart(2,'0') + '/' + year) : '';
+      // Prefer a document row that looks like Verdienstabrechnung for the month
+      var candidates = qa('a, button, [role="button"], div, span, tr, td, li').filter(function(el) {
+        if (!visible(el)) return false;
+        var t = textOf(el);
+        if (t.length > 120) return false;
+        return /Verdienstabrechnung|Verdienstnachweis|Gehaltsabrechnung|\\bPDF\\b/i.test(t);
+      });
+      var pick = null;
+      if (wantLabel || wantSlash) {
+        pick = candidates.find(function(el) {
+          var t = textOf(el);
+          return (wantLabel && t.indexOf(wantLabel) >= 0) || (wantSlash && t.indexOf(wantSlash) >= 0);
+        }) || null;
+      }
+      if (!pick) pick = candidates[0] || null;
+      if (pick) {
+        pick.click();
+        post({
+          ok: true,
+          type: 'openVerdienstDocument',
+          note: textOf(pick).slice(0, 80),
+          label: wantLabel || wantSlash || null
+        });
+      } else {
+        post({
+          ok: false,
+          type: 'openVerdienstDocument',
+          error: 'verdienst_document_not_found',
+          code: 'VERDIENST_DOC_MISSING',
+          sample: (document.body && document.body.innerText || '').slice(0, 280)
+        });
       }
       return true;
     }
