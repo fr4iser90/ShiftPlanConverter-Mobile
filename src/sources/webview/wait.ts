@@ -8,7 +8,8 @@ export class WaitTimeoutError extends Error {
   readonly timeoutMs: number;
 
   constructor(label: string, timeoutMs: number) {
-    super(`Timeout: ${label} (${timeoutMs}ms)`);
+    const seconds = Math.round(timeoutMs / 1000);
+    super(`${label} — Timeout nach ${seconds}s`);
     this.name = 'WaitTimeoutError';
     this.label = label;
     this.timeoutMs = timeoutMs;

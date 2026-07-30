@@ -34,7 +34,7 @@ describe('St. Elisabeth parser (pdf-payroll + pack pdf.json)', () => {
   it('maps Anästhesie preset to validated codes', () => {
     const result = convertPdfText(fixture, {
       preset: 'Anästhesie',
-      parserId: 'pdf-payroll',
+      engineId: 'pdf-payroll',
       pdfConfig: stPdf,
       mapping: getBuiltinMapping(),
     });
@@ -80,7 +80,7 @@ describe('ICS generator', () => {
   it('emits valid VCALENDAR/VEVENT', () => {
     const { entries } = convertPdfText(fixture, {
       preset: 'Anästhesie',
-      parserId: 'pdf-payroll',
+      engineId: 'pdf-payroll',
       pdfConfig: stPdf,
       mapping: getBuiltinMapping(),
     });

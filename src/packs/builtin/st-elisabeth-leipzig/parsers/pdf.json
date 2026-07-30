@@ -7,7 +7,7 @@
     "yearGroup": 2
   },
   "mainSectionRestart": "Zeitabrechnung",
-  "bereitschaftSection": "Bereitschaftsdienste",
+  "onCallSection": "Bereitschaftsdienste",
   "shift": {
     "pattern": "^\\s*(\\d{2})\\s+\\S+\\s+KO\\*\\s+(\\d{2}:\\d{2})\\s+GE\\*\\s+(\\d{2}:\\d{2})(?:\\s+([\\d,]+)\\s+([\\d,]+)\\s+([\\d,]+)\\s+([\\d,]+)\\s+([+-]?[\\d,]+)\\s+([\\d,]+))?",
     "type": "WORK",
@@ -15,12 +15,12 @@
     "startGroup": 2,
     "endGroup": 3,
     "extra": {
-      "pause": 4,
-      "pepSoll": 5,
-      "vertrSoll": 6,
-      "ist": 7,
-      "azkDaily": 8,
-      "azkKum": 9
+      "breakMinutes": 4,
+      "pepTarget": 5,
+      "contractTarget": 6,
+      "actual": 7,
+      "timeAccountDaily": 8,
+      "timeAccountCumulative": 9
     }
   },
   "allDay": [
@@ -48,37 +48,37 @@
     "dateGroup": 1,
     "startGroup": 2,
     "endGroup": 3,
-    "bereitPercentGroup": 5,
-    "bewertetGroup": 6
+    "onCallPercentGroup": 5,
+    "onCallRatedGroup": 6
   },
   "summary": [
     {
-      "field": "uebertragVormonat",
+      "field": "carryOverPreviousMonth",
       "pattern": "(?:Ü|Ue|U)bertrag\\s+aus\\s+Vormonat\\s+([+-]?[\\d,]+)",
       "group": 1
     },
     {
-      "field": "uebertragFolgemonat",
+      "field": "carryOverNextMonth",
       "pattern": "(?:Ü|Ue|U)bertrag\\s+in\\s+Folgemonat\\s+([+-]?[\\d,]+)",
       "group": 1
     },
     {
-      "field": "periodeIst",
+      "field": "periodActual",
       "pattern": "Periode\\s*\\([^)]+\\)\\s+([\\d,]+)\\s+([\\d,]+)\\s+([\\d,]+)\\s+([+-]?[\\d,]+)",
       "groups": {
-        "periodePepSoll": 1,
-        "periodeVertrSoll": 2,
-        "periodeIst": 3,
-        "periodeSaldo": 4
+        "periodPepTarget": 1,
+        "periodContractTarget": 2,
+        "periodActual": 3,
+        "periodBalance": 4
       }
     },
     {
-      "field": "bereitschaftAuszahlung",
+      "field": "onCallPayout",
       "pattern": "Bereitschaft\\s+zur\\s+Auszahlung\\s+([+-]?[\\d,]+)",
       "group": 1
     },
     {
-      "field": "bereitschaftAzk",
+      "field": "onCallTimeAccount",
       "pattern": "Bereitschaft\\s+in\\s+das\\s+AZK\\s+([+-]?[\\d,]+)",
       "group": 1
     }

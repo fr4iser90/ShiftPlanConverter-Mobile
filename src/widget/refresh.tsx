@@ -68,8 +68,3 @@ export async function refreshHomeWidgets(entries?: ShiftEntry[]): Promise<void> 
     console.warn('widget refresh failed', e);
   }
 }
-
-/** @deprecated use refreshHomeWidgets */
-export async function refreshNextShiftWidget(entries: ShiftEntry[]): Promise<void> {
-  return refreshHomeWidgets(entries);
-}

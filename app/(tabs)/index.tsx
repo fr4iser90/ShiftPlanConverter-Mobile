@@ -22,7 +22,7 @@ import { AutomationBridge } from '@/src/sources/webview/bridge';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
 import { getMappingForScope, getPackById, getOcrConfigForPack, getOcrEngineIdForPack, getPreferredSourceId, isSourceSupportedByPack } from '@/src/packs';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
-import { getSnapshot, subscribeKeys } from '@/src/state/store';
+import { getSnapshot, subscribeKeys, probeEncryptedStorage, isPayloadLocked } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
 import {
   takeSmokeFetchIntent,
@@ -41,6 +41,7 @@ import {
 import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { listSourcesForPack } from '@/src/sources';
+import { isLocalImportSourceId } from '@/src/sources/ids';
 import { runCameraOcr } from '@/src/sources/cameraOcr';
 import {
   captureOcrImage,
@@ -66,6 +67,7 @@ import { OcrCompareReview } from '@/src/ui/OcrCompareReview';
 import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
+import { appendDiag } from '@/src/support/diagLog';
 import { openErrorReportMail } from '@/src/support/mailto';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
@@ -277,7 +279,11 @@ export default function FetchScreen() {
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [creds, setCreds] = useState<{ username: string; password: string } | null>(null);
   const [showWeb, setShowWeb] = useState(true);
-  const [status, setStatus] = useState(t('statusReady'));
+  const [status, setStatusState] = useState(t('statusReady'));
+  const setStatus = useCallback((line: string) => {
+    appendDiag(line);
+    setStatusState(line);
+  }, []);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   busyRef.current = busy;
@@ -295,8 +301,7 @@ export default function FetchScreen() {
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
   const [activeSourceId, setActiveSourceId] = useState('local-files');
   const isLoga3Source = activeSourceId === 'loga3-webview';
-  const isLocalSource = activeSourceId === 'local-files';
-  const isCameraOcrSource = activeSourceId === 'camera-ocr';
+  const isLocalImport = isLocalImportSourceId(activeSourceId);
   const [ocrText, setOcrText] = useState('');
   const [ocrMatrix, setOcrMatrix] = useState<MonthMatrixGrid | null>(null);
   const [ocrImageUri, setOcrImageUri] = useState<string | null>(null);
@@ -330,8 +335,8 @@ export default function FetchScreen() {
   const seededWindowRef = useRef(false);
   const snap = getSnapshot();
   const pack = useMemo(
-    () => (snap.hospitalId ? getPackById(snap.hospitalId) : null),
-    [snap.hospitalId]
+    () => (snap.packId ? getPackById(snap.packId) : null),
+    [snap.packId]
   );
   const ocrConfig = useMemo(() => getOcrConfigForPack(pack), [pack]);
   const ocrLayouts = useMemo(
@@ -366,7 +371,7 @@ export default function FetchScreen() {
 
   useEffect(() => {
     return subscribeKeys(
-      ['entries', 'locale', 'themePref', 'hospitalId', 'groupId', 'areaId', 'preset', 'summary'],
+      ['entries', 'locale', 'themePref', 'packId', 'groupId', 'areaId', 'preset', 'summary', 'workplaces', 'activeWorkplaceId'],
       () => setTick((n) => n + 1)
     );
   }, []);
@@ -380,7 +385,24 @@ export default function FetchScreen() {
   const refreshSetup = useCallback(async () => {
     const st = await getSetupStatus();
     const snapNow = getSnapshot();
-    const packNow = snapNow.hospitalId ? getPackById(snapNow.hospitalId) : null;
+    try {
+      const probe = await probeEncryptedStorage();
+      appendDiag(
+        t('storeProbeLine', {
+          entries: String(probe.loadedEntries),
+          chars: String(probe.entriesChars),
+          enc: probe.entriesEncrypted ? ' enc' : '',
+          key: probe.keyPresent ? 'ok' : 'MISSING',
+          locked: probe.locked ? ' LOCKED' : '',
+        })
+      );
+      if (isPayloadLocked()) {
+        setStatusState(t('storePayloadLocked'));
+      }
+    } catch {
+      // ignore probe failures
+    }
+    const packNow = snapNow.packId ? getPackById(snapNow.packId) : null;
     let sourceId = st.preferredSourceId;
     // Never leave LOGA3 selected when portal login/URL is incomplete.
     if (sourceId === 'loga3-webview' && !st.loga3Ready) {
@@ -445,9 +467,7 @@ export default function FetchScreen() {
         if (!st.loga3Ready) {
           showLoga3LockedAlert(st);
           if (activeSourceId === 'loga3-webview') {
-            const fallback = isSourceSupportedByPack(pack, 'local-files')
-              ? 'local-files'
-              : 'camera-ocr';
+            const fallback = 'local-files';
             setActiveSourceId(fallback);
             await saveActiveSourceId(fallback);
           }
@@ -475,9 +495,9 @@ export default function FetchScreen() {
   );
 
   const packMapping = useMemo(() => {
-    if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
-    return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
-  }, [snap.hospitalId, snap.groupId, snap.areaId]);
+    if (!snap.packId || !snap.groupId || !snap.areaId) return null;
+    return getMappingForScope(snap.packId, snap.groupId, snap.areaId);
+  }, [snap.packId, snap.groupId, snap.areaId]);
 
   // Pref: sync configured calendar targets after fetch (Google today; more later).
   const quickWillSync = !!quickPrefs?.syncGoogle;
@@ -488,8 +508,8 @@ export default function FetchScreen() {
     void (async () => {
       try {
         const mapping =
-          snap.hospitalId && snap.groupId && snap.areaId
-            ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+          snap.packId && snap.groupId && snap.areaId
+            ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
             : undefined;
         const entries = resolveStoredEntries(snap.entries, {
           preset: snap.preset || undefined,
@@ -835,19 +855,50 @@ export default function FetchScreen() {
               errors: result.fetch.errors.map((e) => `· ${e}`).join('\n'),
             })
           : null,
-        ...result.targets.map((r) =>
-          r.skipped
+      ].filter(Boolean) as string[];
+      const syncFailures = result.targets.filter((r) => r.failed);
+      const syncLines = result.targets.map((r) =>
+        r.failed
+          ? `${r.id}: ${r.reason || '—'}`
+          : r.skipped
             ? `${r.id}: ${r.reason || '—'}`
             : `${r.id}: +${r.created || 0}/−${r.deleted || 0}`
-        ),
-      ].filter(Boolean);
+      );
+      if (syncLines.length) {
+        parts.push(t('fjResultSyncHeader'), ...syncLines);
+      }
       setStatus(parts.join(' · '));
-      await setMatrixStatus(`MATRIX_FETCH_PASS ${parts.join(' · ')}`);
+      const hasErrors = result.fetch.errors.length > 0 || syncFailures.length > 0;
+      await setMatrixStatus(
+        `${hasErrors ? 'MATRIX_FETCH_FAIL' : 'MATRIX_FETCH_PASS'} ${parts.join(' · ')}`
+      );
       const buttons: {
         text: string;
         style?: 'cancel' | 'default';
         onPress?: () => void;
       }[] = [{ text: 'OK', style: 'cancel' }];
+      if (hasErrors) {
+        const errText = [
+          ...result.fetch.errors,
+          ...syncFailures.map((r) => `${r.id}: ${r.reason || '—'}`),
+        ].join('\n');
+        buttons.push({
+          text: t('reportError'),
+          onPress: () => {
+            void openErrorReportMail({
+              error: errText,
+              context: 'Fetch / soft-fail result',
+            }).catch((e) => {
+              Alert.alert(
+                t('reportError'),
+                t('reportErrorFailed', {
+                  msg: e instanceof Error ? e.message : String(e),
+                })
+              );
+            });
+          },
+        });
+      }
       if (result.offerIcs) {
         buttons.push({
           text: t('quickUpdateShareIcs'),
@@ -857,7 +908,11 @@ export default function FetchScreen() {
       if (result.fetch.entries.length > 0) {
         router.replace(CALENDAR_HREF);
       }
-      Alert.alert(t('quickUpdateDone'), parts.join('\n'), buttons);
+      Alert.alert(
+        hasErrors ? t('quickUpdateDoneWithErrors') : t('quickUpdateDone'),
+        parts.join('\n'),
+        buttons
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(t('fjResultErrorLine', { msg }));
@@ -954,7 +1009,8 @@ export default function FetchScreen() {
             inject: (cmd) => webRef.current?.run(cmd),
           },
           onStatus: setStatus,
-          replaceEntries: true,
+          replaceEntries: false,
+          preserveOutsideMonths: true,
           gateTrace: false,
         });
         const parts = [
@@ -1038,8 +1094,8 @@ export default function FetchScreen() {
       }
       started = true;
       stopPoll();
-      setActiveSourceId('camera-ocr');
-      void saveActiveSourceId('camera-ocr');
+      setActiveSourceId('local-files');
+      void saveActiveSourceId('local-files');
       if (intent.layoutId) {
         setOcrLayoutId(intent.layoutId as OcrLayoutId);
         void saveOcrLayoutId(intent.layoutId);
@@ -1147,18 +1203,24 @@ export default function FetchScreen() {
         >
             <AppCard accent>
               <SectionTitle>{t('sourcePick')}</SectionTitle>
+              {snap.workplaces.length > 1 ? (
+                <Meta>
+                  {t('workplaceProfiles')}:{' '}
+                  {snap.workplaces.find((w) => w.id === snap.activeWorkplaceId)?.label || '—'}
+                </Meta>
+              ) : null}
               <View style={styles.monthGrid}>
                 {sources.map((s) => {
-                  const on = activeSourceId === s.id;
+                  const on = isLocalImportSourceId(s.id)
+                    ? isLocalImport
+                    : activeSourceId === s.id;
                   const loga3Locked = s.id === 'loga3-webview' && !setup.loga3Ready;
                   const label =
                     s.id === 'loga3-webview'
                       ? t('sourceLoga3')
-                      : s.id === 'local-files'
+                      : isLocalImportSourceId(s.id)
                         ? t('sourceLocalFiles')
-                        : s.id === 'camera-ocr'
-                          ? t('sourceCameraOcr')
-                          : t(s.labelKey as 'sourceLoga3');
+                        : t(s.labelKey as 'sourceLoga3');
                   return (
                     <Pressable
                       key={s.id}
@@ -1233,7 +1295,7 @@ export default function FetchScreen() {
                     </Meta>
                   ) : null}
                 </>
-              ) : isLocalSource ? (
+              ) : isLocalImport ? (
                 <>
                   <Meta>{t('fetchHintLocal')}</Meta>
                   <AppButton
@@ -1242,13 +1304,6 @@ export default function FetchScreen() {
                     disabled={busy || !setup.workplaceReady}
                     busy={busy}
                   />
-                  {!setup.workplaceReady ? (
-                    <Meta>{t('setupIncompleteWorkplace')}</Meta>
-                  ) : null}
-                </>
-              ) : isCameraOcrSource ? (
-                <>
-                  <Meta>{t('sourceCameraOcrHint')}</Meta>
                   <View style={styles.ocrActionRow}>
                     <AppButton
                       title={
@@ -1259,7 +1314,7 @@ export default function FetchScreen() {
                       onPress={() =>
                         void onCameraOcr(scannerAvailable ? 'scan' : 'camera')
                       }
-                      disabled={busy}
+                      disabled={busy || !setup.workplaceReady}
                       busy={busy}
                       style={styles.ocrActionBtn}
                     />
@@ -1267,10 +1322,13 @@ export default function FetchScreen() {
                       title={t('sourceCameraOcrGoGallery')}
                       variant="secondary"
                       onPress={() => void onCameraOcr('gallery')}
-                      disabled={busy}
+                      disabled={busy || !setup.workplaceReady}
                       style={styles.ocrActionBtn}
                     />
                   </View>
+                  {!setup.workplaceReady ? (
+                    <Meta>{t('setupIncompleteWorkplace')}</Meta>
+                  ) : null}
                   <SectionTitle>{t('sourceCameraOcrLayout')}</SectionTitle>
                   <View style={styles.monthGrid}>
                     {ocrLayouts.map((layout) => {

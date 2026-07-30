@@ -1,7 +1,12 @@
 /**
  * Lightweight source flags for Setup / status — no native plugin imports.
  */
-import { isKnownSourceId, type KnownSourceId } from './ids';
+import {
+  canonicalizeSourceId,
+  isKnownSourceId,
+  isLocalImportSourceId,
+  type KnownSourceId,
+} from './ids';
 
 export type SourceMeta = {
   needsCredentials: boolean;
@@ -16,5 +21,7 @@ const META: Record<KnownSourceId, SourceMeta> = {
 
 export function getSourceMeta(id: string | null | undefined): SourceMeta | null {
   if (!isKnownSourceId(id)) return null;
-  return META[id];
+  return META[canonicalizeSourceId(id) as KnownSourceId] || META[id];
 }
+
+export { isLocalImportSourceId, canonicalizeSourceId };

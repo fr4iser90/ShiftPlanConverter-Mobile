@@ -7,6 +7,8 @@ export type ExportTargetKind = 'oauth' | 'file';
 export type ExportTargetResult = {
   skipped: boolean;
   reason?: string;
+  /** Sync was attempted and failed (401, network, …) — not a deliberate skip. */
+  failed?: boolean;
   created?: number;
   deleted?: number;
 };

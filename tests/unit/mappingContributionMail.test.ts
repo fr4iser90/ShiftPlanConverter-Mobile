@@ -34,7 +34,7 @@ describe('mapping contribution mail', () => {
 
   it('includes workplace meta and JSON fragment in the mail body', () => {
     const body = buildMappingContributionMailBody({
-      hospital: 'st-elisabeth-leipzig',
+      pack: 'st-elisabeth-leipzig',
       group: 'pflege',
       area: 'station-1',
       preset: 'Standard',

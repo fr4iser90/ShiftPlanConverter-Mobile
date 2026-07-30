@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 
 import { t } from '../i18n';
 import { getSnapshot } from '../state/store';
+import { appendDiag, formatDiagLog } from './diagLog';
 import { MAILTO_SAFE_CHARS, SUPPORT_EMAIL } from './legal';
 
 export function trimForMailto(text: string, maxChars = MAILTO_SAFE_CHARS): string {
@@ -37,7 +38,7 @@ export function appVersionLabel(): string {
 }
 
 export function buildSupportMailBody(opts: {
-  hospital?: string;
+  pack?: string;
   group?: string;
   area?: string;
   note?: string;
@@ -49,7 +50,7 @@ export function buildSupportMailBody(opts: {
     t('mailSupportIntro'),
     '',
     t('mailAppVersion', { version: appVersionLabel() }),
-    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailEmployer', { value: opts.pack || '—' }),
     t('mailGroup', { value: opts.group || '—' }),
     t('mailArea', { value: opts.area || '—' }),
   ];
@@ -64,13 +65,14 @@ export function buildSupportMailBody(opts: {
   return parts.join('\n');
 }
 
-/** Error report: message + pack meta only — never credentials, never raw PDF. */
+/** Error report: message + pack meta + recent status log — never credentials, never raw PDF. */
 export function buildErrorReportMailBody(opts: {
   error: string;
-  hospital?: string;
+  pack?: string;
   group?: string;
   area?: string;
   context?: string;
+  diagLog?: string;
 }): string {
   const parts = [
     t('mailHello'),
@@ -78,29 +80,35 @@ export function buildErrorReportMailBody(opts: {
     t('mailErrorIntro'),
     '',
     t('mailAppVersion', { version: appVersionLabel() }),
-    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailEmployer', { value: opts.pack || '—' }),
     t('mailGroup', { value: opts.group || '—' }),
     t('mailArea', { value: opts.area || '—' }),
   ];
   if (opts.context?.trim()) parts.push(t('mailContext', { value: opts.context.trim() }));
-  parts.push('', t('mailErrorHeader'), '---', trimForMailto(opts.error, 900), '---');
+  parts.push('', t('mailErrorHeader'), '---', trimForMailto(opts.error, 500), '---');
+  const diag = (opts.diagLog ?? formatDiagLog(650)).trim();
+  if (diag) {
+    parts.push('', t('mailDiagHeader'), '---', trimForMailto(diag, 650), '---');
+  }
   parts.push('', t('mailNoSecrets'), '', t('mailThanks'));
-  return parts.join('\n');
+  return trimForMailto(parts.join('\n'), MAILTO_SAFE_CHARS);
 }
 
 export async function openErrorReportMail(opts: {
   error: string;
   context?: string;
 }): Promise<void> {
+  appendDiag(`ERROR${opts.context ? ` [${opts.context}]` : ''}: ${opts.error}`);
   const snap = getSnapshot();
   await openSupportMail({
     subject: t('mailErrorSubject'),
     body: buildErrorReportMailBody({
       error: opts.error,
       context: opts.context,
-      hospital: snap.hospitalId || undefined,
+      pack: snap.packId || undefined,
       group: snap.groupId || undefined,
       area: snap.areaId || undefined,
+      diagLog: formatDiagLog(650),
     }),
   });
 }
@@ -122,7 +130,7 @@ export function buildPackPresetFragmentFromUserMappings(
 }
 
 export function buildMappingContributionMailBody(opts: {
-  hospital?: string;
+  pack?: string;
   group?: string;
   area?: string;
   preset?: string;
@@ -137,7 +145,7 @@ export function buildMappingContributionMailBody(opts: {
     t('mailMappingIntro'),
     '',
     t('mailAppVersion', { version: appVersionLabel() }),
-    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailEmployer', { value: opts.pack || '—' }),
     t('mailGroup', { value: opts.group || '—' }),
     t('mailArea', { value: opts.area || '—' }),
     t('mailPreset', { value: preset }),
@@ -156,7 +164,7 @@ export function buildMappingContributionMailBody(opts: {
 
 /** Full body text for clipboard when mailto URL would be too long. */
 export function mappingContributionClipboardText(opts: {
-  hospital?: string;
+  pack?: string;
   group?: string;
   area?: string;
   preset?: string;
@@ -168,7 +176,7 @@ export function mappingContributionClipboardText(opts: {
     t('mailMappingIntro'),
     '',
     t('mailAppVersion', { version: appVersionLabel() }),
-    t('mailEmployer', { value: opts.hospital || '—' }),
+    t('mailEmployer', { value: opts.pack || '—' }),
     t('mailGroup', { value: opts.group || '—' }),
     t('mailArea', { value: opts.area || '—' }),
     t('mailPreset', { value: preset }),
@@ -178,7 +186,7 @@ export function mappingContributionClipboardText(opts: {
 }
 
 export async function openMappingContributionMail(opts: {
-  hospital?: string;
+  pack?: string;
   group?: string;
   area?: string;
   preset?: string;

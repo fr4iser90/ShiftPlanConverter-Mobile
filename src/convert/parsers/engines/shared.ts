@@ -5,7 +5,7 @@ export function emptyParseResult(): ParseResult {
     year: '',
     month: '',
     mainEntries: [],
-    bereitschaftEntries: [],
+    onCallEntries: [],
     summary: null,
     summaries: [],
   };
@@ -45,7 +45,7 @@ export function finishParseResult(entries: ShiftEntry[]): ParseResult {
     year,
     month,
     mainEntries: entries,
-    bereitschaftEntries: [],
+    onCallEntries: [],
     summary: null,
     summaries: [],
   };

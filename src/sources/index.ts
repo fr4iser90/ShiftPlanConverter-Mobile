@@ -6,6 +6,7 @@ import {
   getSupportedSourceIds,
   type PackConfig,
 } from '../packs';
+import { canonicalizeSourceId, collapseSourceIdsForChips, isLocalImportSourceId } from './ids';
 
 export type { Source, SourceArtifact, SourceRunOpts, SourceRunResult } from './types';
 
@@ -19,16 +20,19 @@ export function listSources(): Source[] {
   return Object.values(REGISTRY);
 }
 
-/** Import chips for the current employer pack — order follows supportedSourceIds. */
+/**
+ * Import chips for the current employer pack.
+ * `local-files` + `camera-ocr` collapse to one “Datei & Foto” chip.
+ */
 export function listSourcesForPack(pack: PackConfig | null | undefined): Source[] {
-  return getSupportedSourceIds(pack)
+  return collapseSourceIdsForChips(getSupportedSourceIds(pack))
     .map((id) => REGISTRY[id])
     .filter((s): s is Source => !!s);
 }
 
 export function getSource(id: string | null | undefined): Source | null {
   if (!id) return null;
-  return REGISTRY[id] || null;
+  return REGISTRY[id] || REGISTRY[canonicalizeSourceId(id)] || null;
 }
 
 export function requireSource(id: string): Source {

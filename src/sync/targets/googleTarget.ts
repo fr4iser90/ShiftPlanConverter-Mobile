@@ -33,8 +33,8 @@ export const googleExportTarget: ExportTarget = {
       await ensureGoogleSession();
       const snap = getSnapshot();
       const mapping =
-        snap.hospitalId && snap.groupId && snap.areaId
-          ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+        snap.packId && snap.groupId && snap.areaId
+          ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
           : undefined;
       const resolved = resolveStoredEntries(entries, {
         preset: snap.preset || undefined,
@@ -48,7 +48,11 @@ export const googleExportTarget: ExportTarget = {
       });
       return { skipped: false, created, deleted };
     } catch (e) {
-      return { skipped: true, reason: e instanceof Error ? e.message : String(e) };
+      return {
+        skipped: true,
+        failed: true,
+        reason: e instanceof Error ? e.message : String(e),
+      };
     }
   },
 };

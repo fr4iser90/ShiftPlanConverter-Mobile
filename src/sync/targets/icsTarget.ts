@@ -29,7 +29,11 @@ export const icsExportTarget: ExportTarget = {
       await shareIcsFile(entries, { eventFormat: opts.eventFormat ?? snap.eventFormat });
       return { skipped: false, created: entries.length };
     } catch (e) {
-      return { skipped: true, reason: e instanceof Error ? e.message : String(e) };
+      return {
+        skipped: true,
+        failed: true,
+        reason: e instanceof Error ? e.message : String(e),
+      };
     }
   },
 };

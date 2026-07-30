@@ -15,7 +15,7 @@ const qs = new URLSearchParams({
   url: vals.LOGA3_BASE_URL,
   user: vals.LOGA3_USERNAME,
   pass: vals.LOGA3_PASSWORD,
-  hospital: 'st-elisabeth-leipzig',
+  pack: 'st-elisabeth-leipzig',
   group: 'pflege',
   area: 'op-bereich',
   preset: 'Anästhesie',

@@ -3,6 +3,7 @@ import { loadCredentials } from '../sources/webview/loga3/credentials';
 import { getLoga3BaseUrl, hydrateLoga3Env, isValidLoga3BaseUrl } from '../sources/webview/loga3/env';
 import { resolveActiveSourceId } from '../state/activeSource';
 import { getSnapshot, hydrateStore, isWorkplaceConfigured } from '../state/store';
+import { defaultLabelForPack } from '../state/workplaces';
 import { getPackById } from '../packs';
 import { getSourceMeta } from '../sources/meta';
 
@@ -31,14 +32,18 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const loga3Ready = urlOk && credentialsOk;
   const snap = getSnapshot();
   const workplaceOk = isWorkplaceConfigured(snap);
-  const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
+  const pack = snap.packId ? getPackById(snap.packId) : null;
   const preferredSourceId = await resolveActiveSourceId(pack);
   const source = getSourceMeta(preferredSourceId);
   const sourceReady = source
     ? (!source.needsCredentials || credentialsOk) &&
       (!source.needsWebView || urlOk)
     : false;
-  const parts = [pack?.name, snap.preset].filter(Boolean);
+  const group = pack?.groups.find((g) => g.id === snap.groupId);
+  const area = group?.areas.find((a) => a.id === snap.areaId);
+  const summary = workplaceOk
+    ? defaultLabelForPack(snap.packId, pack?.name, area?.label, snap.preset)
+    : '';
   return {
     urlOk,
     credentialsOk,
@@ -47,7 +52,7 @@ export async function getSetupStatus(): Promise<SetupStatus> {
     workplaceReady: workplaceOk,
     preferredSourceId,
     complete: workplaceOk && sourceReady,
-    summary: parts.length ? parts.join(' · ') : '',
+    summary,
   };
 }
 

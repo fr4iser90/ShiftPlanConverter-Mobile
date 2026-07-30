@@ -18,9 +18,9 @@ export type PackPdfShiftRule = {
   dayGroup?: number;
   startGroup?: number;
   endGroup?: number;
-  /** Optional numeric columns after times (pause, pepSoll, …). */
+  /** Optional numeric columns after times (pause, pepTarget, …). */
   extra?: Partial<
-    Record<'pause' | 'pepSoll' | 'vertrSoll' | 'ist' | 'azkDaily' | 'azkKum', number>
+    Record<'breakMinutes' | 'pepTarget' | 'contractTarget' | 'actual' | 'timeAccountDaily' | 'timeAccountCumulative', number>
   >;
 };
 
@@ -45,28 +45,28 @@ export type PackPdfOnCallRule = {
   dateGroup?: number;
   startGroup?: number;
   endGroup?: number;
-  bereitPercentGroup?: number;
-  bewertetGroup?: number;
+  onCallPercentGroup?: number;
+  onCallRatedGroup?: number;
 };
 
 export type PackPdfSummaryField = {
   /** MonthSummary key */
   field:
-    | 'uebertragVormonat'
-    | 'uebertragFolgemonat'
-    | 'periodePepSoll'
-    | 'periodeVertrSoll'
-    | 'periodeIst'
-    | 'periodeSaldo'
-    | 'bereitschaftAuszahlung'
-    | 'bereitschaftAzk';
+    | 'carryOverPreviousMonth'
+    | 'carryOverNextMonth'
+    | 'periodPepTarget'
+    | 'periodContractTarget'
+    | 'periodActual'
+    | 'periodBalance'
+    | 'onCallPayout'
+    | 'onCallTimeAccount';
   pattern: string;
   flags?: string;
   group?: number;
   /** When set, fills multiple summary fields from one match (periode). */
   groups?: Partial<
     Record<
-      'periodePepSoll' | 'periodeVertrSoll' | 'periodeIst' | 'periodeSaldo',
+      'periodPepTarget' | 'periodContractTarget' | 'periodActual' | 'periodBalance',
       number
     >
   >;
@@ -77,11 +77,11 @@ export type PackPdfConfig = {
   preferredLayout?: string;
   scoreHints?: string[];
   monthHeader?: PackPdfMonthHeader;
-  /** Leave main/bereitschaft when this matches (e.g. Zeitabrechnung). */
+  /** Leave main/on-call when this matches (e.g. Zeitabrechnung). */
   mainSectionRestart?: string;
   mainSectionRestartFlags?: string;
-  bereitschaftSection?: string;
-  bereitschaftSectionFlags?: string;
+  onCallSection?: string;
+  onCallSectionFlags?: string;
   shift?: PackPdfShiftRule;
   allDay?: PackPdfAllDayRule[];
   onCall?: PackPdfOnCallRule;

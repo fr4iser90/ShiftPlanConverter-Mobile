@@ -324,7 +324,7 @@ export const PDF_CAPTURE_INJECT = `
               if (t.indexOf('%PDF') === 0) {
                 var arr = new Uint8Array(t.length);
                 for (var i = 0; i < t.length; i++) arr[i] = t.charCodeAt(i) & 0xff;
-                emitArrayBuffer(arr.buffer, _url, ct || 'application/pdf', true);
+                emitArrayBuffer(arr.slice().buffer, _url, ct || 'application/pdf', true);
               }
             }
           } catch (e) {}

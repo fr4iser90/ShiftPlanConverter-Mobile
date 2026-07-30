@@ -76,5 +76,6 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const len = binary.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
+  // Exact slice — never return a pooled/larger backing buffer.
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }

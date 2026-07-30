@@ -13,10 +13,6 @@
       "type": "string",
       "description": "i18n key for pack hint (UI). Never put German match targets here."
     },
-    "parserId": {
-      "type": "string",
-      "description": "Deprecated — use parsers/pdf.json engine instead."
-    },
     "preferredSourceId": { "type": "string" },
     "supportedSourceIds": {
       "type": "array",
@@ -110,8 +106,8 @@
         },
         "mainSectionRestart": { "type": "string" },
         "mainSectionRestartFlags": { "type": "string" },
-        "bereitschaftSection": { "type": "string" },
-        "bereitschaftSectionFlags": { "type": "string" },
+        "onCallSection": { "type": "string" },
+        "onCallSectionFlags": { "type": "string" },
         "shift": { "type": "object" },
         "allDay": { "type": "array", "items": { "type": "object" } },
         "onCall": { "type": "object" },

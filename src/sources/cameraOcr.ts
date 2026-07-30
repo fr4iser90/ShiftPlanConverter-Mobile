@@ -353,7 +353,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     let layoutId = requestedLayoutId;
     let layoutScore: number | null = null;
     const snapEarly = getSnapshot();
-    const packEarly = getPackById(snapEarly.hospitalId);
+    const packEarly = getPackById(snapEarly.packId);
     const ocrConfigEarly = getOcrConfigForPack(packEarly);
     const allowedLayouts = packAllowedConcreteLayouts(ocrConfigEarly);
 
@@ -776,10 +776,10 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     if (grid.ok) {
       // Pack OCR JSON → shared engine; codes/times from mapping JSON.
       const snap = getSnapshot();
-      const pack = getPackById(snap.hospitalId);
+      const pack = getPackById(snap.packId);
       const ocrConfig = getOcrConfigForPack(pack);
       const ocrEngine = getOcrEngine(getOcrEngineIdForPack(pack));
-      const packMapping = getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
+      const packMapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
       const presetMap = packMapping?.presets?.[snap.preset] ?? null;
       const useMapping = ocrConfig.usePackMapping !== false;
       outGrid = useMapping

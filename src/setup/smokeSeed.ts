@@ -1,6 +1,6 @@
 /**
  * QA / emulator smoke: apply setup via deep link (Unicode-safe).
- * shiftplan://smoke-setup?url=...&user=...&pass=...&hospital=...&group=...&area=...&preset=...
+ * shiftplan://smoke-setup?url=...&user=...&pass=...&pack=...&group=...&area=...&preset=...
  *
  * Credential seeding is __DEV__-only — release/preview APKs ignore pass= deep links.
  */
@@ -12,7 +12,7 @@ import { setWorkplace } from '../state/store';
 import {
   BUILTIN_AREA_ID,
   BUILTIN_GROUP_ID,
-  BUILTIN_HOSPITAL_ID,
+  BUILTIN_PACK_ID,
   BUILTIN_PRESET,
 } from '../packs';
 import { setSmokeFetchIntent, clearMatrixStatus, setMatrixStatus } from './smokeFetchIntent';
@@ -87,7 +87,7 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
   await setLoga3BaseUrl(baseUrl);
   await saveCredentials({ username: user, password: pass });
   await setWorkplace({
-    hospitalId: String(one('hospital') || BUILTIN_HOSPITAL_ID),
+    packId: String(one('pack') || BUILTIN_PACK_ID),
     groupId: String(one('group') || BUILTIN_GROUP_ID),
     areaId: String(one('area') || BUILTIN_AREA_ID),
     preset: String(one('preset') || BUILTIN_PRESET),

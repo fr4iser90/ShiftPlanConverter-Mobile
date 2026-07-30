@@ -53,8 +53,8 @@ export async function cancelAllShiftAlarms(): Promise<void> {
 function resolvedEntriesFromStore(): ShiftEntry[] {
   const snap = getSnapshot();
   const mapping =
-    snap.hospitalId && snap.groupId && snap.areaId
-      ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+    snap.packId && snap.groupId && snap.areaId
+      ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
       : undefined;
   return resolveStoredEntries(snap.entries, {
     preset: snap.preset || undefined,

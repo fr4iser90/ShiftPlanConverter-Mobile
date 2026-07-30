@@ -25,30 +25,18 @@ export {
   runPdfEngine,
 };
 
-/** @deprecated use DEFAULT_PDF_ENGINE_ID (`pdf-auto`) */
+/** Default when pack has no `parsers/pdf.json` engine. */
 export const DEFAULT_PARSER_ID = DEFAULT_PDF_ENGINE_ID;
 
-/**
- * Legacy parserId aliases → engine id (tests / older call sites).
- * Prefer pack `parsers/pdf.json` → `engine`.
- */
-const LEGACY_PARSER_TO_ENGINE: Record<string, string> = {
-  'default-pdf-auto': 'pdf-auto',
-  'default-pdf-list': 'pdf-list',
-  'default-pdf-timesheet': 'pdf-timesheet',
-  'st-elisabeth-zeitprotokoll-pdf': 'pdf-payroll',
-};
-
-const LEGACY_CONFIG: Record<string, PackPdfConfig> = {
-  'pdf-auto': defaultGenericPdf as PackPdfConfig,
-  'pdf-list': { ...(defaultGenericPdf as PackPdfConfig), engine: 'pdf-list' },
-  'pdf-timesheet': { ...(defaultGenericPdf as PackPdfConfig), engine: 'pdf-timesheet' },
-  'pdf-payroll': stElisabethPdf as PackPdfConfig,
-};
-
-function resolveEngineId(parserId: string | null | undefined): string {
-  const raw = (parserId || DEFAULT_PDF_ENGINE_ID).trim();
-  return LEGACY_PARSER_TO_ENGINE[raw] || raw;
+function builtinConfigForEngine(engineId: string): PackPdfConfig {
+  if (engineId === 'pdf-payroll') return stElisabethPdf as PackPdfConfig;
+  if (engineId === 'pdf-list') {
+    return { ...(defaultGenericPdf as PackPdfConfig), engine: 'pdf-list' };
+  }
+  if (engineId === 'pdf-timesheet') {
+    return { ...(defaultGenericPdf as PackPdfConfig), engine: 'pdf-timesheet' };
+  }
+  return defaultGenericPdf as PackPdfConfig;
 }
 
 /**
@@ -56,22 +44,14 @@ function resolveEngineId(parserId: string | null | undefined): string {
  * Pass `pdfConfig` from pack `parsers/pdf.json` when available.
  */
 export function getParser(
-  parserId: string | null | undefined,
+  engineId: string | null | undefined,
   pdfConfig?: PackPdfConfig | null
 ): ParserFn {
-  const engineId = resolveEngineId(parserId);
-  const config =
-    pdfConfig ||
-    LEGACY_CONFIG[engineId] ||
-    (engineId === 'pdf-payroll' ? (stElisabethPdf as PackPdfConfig) : (defaultGenericPdf as PackPdfConfig));
-  return (text: string) => runPdfEngine(engineId, text, config);
+  const id = (engineId || DEFAULT_PDF_ENGINE_ID).trim() || DEFAULT_PDF_ENGINE_ID;
+  const config = pdfConfig || builtinConfigForEngine(id);
+  return (text: string) => runPdfEngine(id, text, config);
 }
 
 export function listParserIds(): string[] {
-  return [...listPdfEngineIds(), ...Object.keys(LEGACY_PARSER_TO_ENGINE)];
-}
-
-/** @deprecated engines are fixed — no runtime registration */
-export function registerParser(_id: string, _fn: ParserFn): void {
-  throw new Error('registerParser removed — use pack parsers/pdf.json + convert engines');
+  return listPdfEngineIds();
 }

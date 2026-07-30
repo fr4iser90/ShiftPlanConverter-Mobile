@@ -10,18 +10,18 @@ import {
   isSourceSupportedByPack,
   type PackConfig,
 } from '../packs';
-import { isKnownSourceId } from '../sources/ids';
+import { canonicalizeSourceId, isKnownSourceId, isLocalImportSourceId } from '../sources/ids';
 
 const KEY = 'source.activeId';
 
 export async function loadActiveSourceId(fallback: string): Promise<string> {
   try {
     const raw = (await AsyncStorage.getItem(KEY))?.trim();
-    if (raw && isKnownSourceId(raw)) return raw;
+    if (raw && isKnownSourceId(raw)) return canonicalizeSourceId(raw);
   } catch {
     // ignore
   }
-  return fallback;
+  return canonicalizeSourceId(fallback);
 }
 
 /** Active source for this pack: stored id if still allowed, else pack preferred (and persist). */
@@ -30,18 +30,33 @@ export async function resolveActiveSourceId(
 ): Promise<string> {
   const preferred = getPreferredSourceId(pack);
   const active = await loadActiveSourceId(preferred);
-  if (isKnownSourceId(active) && isSourceSupportedByPack(pack, active)) return active;
-  if (isKnownSourceId(preferred)) {
-    await saveActiveSourceId(preferred);
-    return preferred;
+  const normalized = canonicalizeSourceId(active);
+  if (
+    isKnownSourceId(normalized) &&
+    (isSourceSupportedByPack(pack, normalized) ||
+      (isLocalImportSourceId(normalized) &&
+        (isSourceSupportedByPack(pack, 'local-files') ||
+          isSourceSupportedByPack(pack, 'camera-ocr'))))
+  ) {
+    if (normalized !== active) await saveActiveSourceId(normalized);
+    return normalized;
   }
-  return preferred;
+  if (isKnownSourceId(preferred)) {
+    const next = canonicalizeSourceId(preferred);
+    await saveActiveSourceId(next);
+    return next;
+  }
+  return canonicalizeSourceId(preferred);
 }
 
 export async function saveActiveSourceId(id: string): Promise<string> {
-  if (!isKnownSourceId(id)) throw new Error(`Unknown source: ${id}`);
-  await AsyncStorage.setItem(KEY, id);
-  return id;
+  const next = canonicalizeSourceId(id);
+  if (!isKnownSourceId(next) && !isKnownSourceId(id)) {
+    throw new Error(`Unknown source: ${id}`);
+  }
+  const store = isKnownSourceId(next) ? next : id;
+  await AsyncStorage.setItem(KEY, store);
+  return store;
 }
 
 export async function clearActiveSourceId(): Promise<void> {

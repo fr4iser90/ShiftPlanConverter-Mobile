@@ -34,21 +34,3 @@ export function parseEventFormat(raw: string | null): EventFormatPrefs | null {
     return null;
   }
 }
-
-/**
- * Map legacy `loga3.richDetails` when eventFormat is missing.
- * `'0'` = user turned the old switch off → minimal events.
- * `'1'` or unset → new product default (Kürzel + times + details).
- */
-export function migrateFromRichDetails(rich: string | null): EventFormatPrefs {
-  if (rich === '0') {
-    return {
-      titleTimes: false,
-      descPause: false,
-      descIst: false,
-      descAzk: false,
-      descStandby: false,
-    };
-  }
-  return { ...DEFAULT_EVENT_FORMAT };
-}

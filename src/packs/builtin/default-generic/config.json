@@ -3,7 +3,7 @@
   "name": "Standard",
   "hintKey": "packHintDefaultGeneric",
   "preferredSourceId": "local-files",
-  "supportedSourceIds": ["local-files", "camera-ocr"],
+  "supportedSourceIds": ["local-files"],
   "groups": [
     {
       "id": "generic",

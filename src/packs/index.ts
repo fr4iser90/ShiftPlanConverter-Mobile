@@ -1,4 +1,4 @@
-import type { HospitalMapping } from '../convert/types';
+import type { PackMapping } from '../convert/types';
 import type { Messages } from '../i18n';
 import { DEFAULT_PARSER_ID } from '../convert/parsers';
 import type { PackPdfConfig } from '../convert/parsers/engines';
@@ -7,12 +7,13 @@ import defaultGenericConfig from './builtin/default-generic/config.json';
 import defaultGenericOcr from './builtin/default-generic/parsers/ocr.json';
 import defaultGenericPdf from './builtin/default-generic/parsers/pdf.json';
 import defaultGenericMapping from './builtin/default-generic/mappings/generic.json';
-import hospitalConfig from './builtin/st-elisabeth-leipzig/config.json';
-import hospitalOcr from './builtin/st-elisabeth-leipzig/parsers/ocr.json';
-import hospitalPdf from './builtin/st-elisabeth-leipzig/parsers/pdf.json';
+import stElisabethConfig from './builtin/st-elisabeth-leipzig/config.json';
+import stElisabethOcr from './builtin/st-elisabeth-leipzig/parsers/ocr.json';
+import stElisabethPdf from './builtin/st-elisabeth-leipzig/parsers/pdf.json';
 import opMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
 import stationEmptyMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/station-empty.json';
 import serviceAllgemeinMapping from './builtin/st-elisabeth-leipzig/mappings/service/allgemein.json';
+import arztOpMapping from './builtin/st-elisabeth-leipzig/mappings/arzt/op.json';
 
 export type PackArea = {
   id: string;
@@ -44,8 +45,6 @@ export type PackConfig = {
   hint?: string;
   hintKey?: keyof Messages;
   groups: PackGroup[];
-  /** @deprecated use `pdf.engine` from parsers/pdf.json */
-  parserId?: string;
   /** PDF engine + match params from pack `parsers/pdf.json` */
   pdf?: PackPdfConfig;
   /** OCR engine + options from pack `parsers/ocr.json` */
@@ -70,18 +69,18 @@ const BUILTIN_PACKS: PackConfig[] = [
   },
   {
     id: 'st-elisabeth-leipzig',
-    ...(hospitalConfig as Omit<PackConfig, 'id' | 'ocr' | 'pdf'>),
-    ocr: hospitalOcr as PackOcrConfig,
-    pdf: hospitalPdf as PackPdfConfig,
+    ...(stElisabethConfig as Omit<PackConfig, 'id' | 'ocr' | 'pdf'>),
+    ocr: stElisabethOcr as PackOcrConfig,
+    pdf: stElisabethPdf as PackPdfConfig,
   },
 ];
 
 function registerScopeMappings(
-  out: Record<string, HospitalMapping>,
+  out: Record<string, PackMapping>,
   packId: string,
   groupId: string,
   areaIds: string[],
-  mapping: HospitalMapping
+  mapping: PackMapping
 ): void {
   for (const areaId of areaIds) {
     out[`${packId}/${groupId}/${areaId}`] = mapping;
@@ -90,10 +89,10 @@ function registerScopeMappings(
 
 const ST_ELISABETH_STATION_AREA_IDS = Array.from({ length: 19 }, (_, i) => `station-${i + 1}`);
 
-const MAPPINGS: Record<string, HospitalMapping> = {
+const MAPPINGS: Record<string, PackMapping> = {
   [`${DEFAULT_GENERIC_PACK_ID}/${DEFAULT_GENERIC_GROUP_ID}/${DEFAULT_GENERIC_AREA_ID}`]:
-    defaultGenericMapping as HospitalMapping,
-  'st-elisabeth-leipzig/pflege/op-bereich': opMapping as HospitalMapping,
+    defaultGenericMapping as PackMapping,
+  'st-elisabeth-leipzig/pflege/op-bereich': opMapping as PackMapping,
 };
 
 registerScopeMappings(
@@ -101,18 +100,25 @@ registerScopeMappings(
   'st-elisabeth-leipzig',
   'pflege',
   ST_ELISABETH_STATION_AREA_IDS,
-  stationEmptyMapping as HospitalMapping
+  stationEmptyMapping as PackMapping
 );
 registerScopeMappings(
   MAPPINGS,
   'st-elisabeth-leipzig',
   'service',
   ['allgemein'],
-  serviceAllgemeinMapping as HospitalMapping
+  serviceAllgemeinMapping as PackMapping
+);
+registerScopeMappings(
+  MAPPINGS,
+  'st-elisabeth-leipzig',
+  'arzt',
+  ['op'],
+  arztOpMapping as PackMapping
 );
 
-/** @deprecated use listBuiltinPacks — kept for older call sites / smoke seed */
-export const BUILTIN_HOSPITAL_ID = 'st-elisabeth-leipzig';
+/** Validated St. Elisabeth · Pflege · OP scope (default smoke / fixture pack). */
+export const BUILTIN_PACK_ID = 'st-elisabeth-leipzig';
 export const BUILTIN_GROUP_ID = 'pflege';
 export const BUILTIN_AREA_ID = 'op-bereich';
 export const BUILTIN_PRESET = 'Anästhesie';
@@ -121,12 +127,12 @@ export function listBuiltinPacks(): PackConfig[] {
   return BUILTIN_PACKS;
 }
 
-export function getPackById(hospitalId: string): PackConfig | null {
-  return BUILTIN_PACKS.find((p) => p.id === hospitalId) || null;
+export function getPackById(packId: string): PackConfig | null {
+  return BUILTIN_PACKS.find((p) => p.id === packId) || null;
 }
 
 export function getBuiltinPackConfig(): PackConfig {
-  return getPackById(BUILTIN_HOSPITAL_ID) || BUILTIN_PACKS[0];
+  return getPackById(BUILTIN_PACK_ID) || BUILTIN_PACKS[0];
 }
 
 export function getDefaultGenericPack(): PackConfig {
@@ -134,7 +140,7 @@ export function getDefaultGenericPack(): PackConfig {
 }
 
 export function getParserIdForPack(pack: PackConfig | null | undefined): string {
-  return pack?.pdf?.engine?.trim() || pack?.parserId?.trim() || DEFAULT_PARSER_ID;
+  return pack?.pdf?.engine?.trim() || DEFAULT_PARSER_ID;
 }
 
 export function getPdfConfigForPack(pack: PackConfig | null | undefined): PackPdfConfig {
@@ -144,11 +150,6 @@ export function getPdfConfigForPack(pack: PackConfig | null | undefined): PackPd
 
 export function getOcrEngineIdForPack(pack: PackConfig | null | undefined): string {
   return pack?.ocr?.engine?.trim() || DEFAULT_OCR_ENGINE_ID;
-}
-
-/** @deprecated use getOcrEngineIdForPack */
-export function getOcrParserIdForPack(pack: PackConfig | null | undefined): string {
-  return getOcrEngineIdForPack(pack);
 }
 
 export function getOcrConfigForPack(pack: PackConfig | null | undefined): PackOcrConfig {
@@ -166,14 +167,15 @@ const FALLBACK_SOURCE_ID = 'local-files';
 
 /**
  * Sources offered on Fetch for this pack.
- * Missing/empty list → file + OCR (no LOGA3 unless pack declares it).
+ * Missing/empty list → local import (file + photo) only.
+ * Packs may still list `camera-ocr`; UI collapses it with `local-files`.
  */
 export function getSupportedSourceIds(pack: PackConfig | null | undefined): string[] {
   const raw = pack?.supportedSourceIds
     ?.map((s) => String(s || '').trim())
     .filter(Boolean);
   if (raw?.length) return raw;
-  return ['local-files', 'camera-ocr'];
+  return ['local-files'];
 }
 
 export function isSourceSupportedByPack(
@@ -181,7 +183,13 @@ export function isSourceSupportedByPack(
   sourceId: string | null | undefined
 ): boolean {
   if (!sourceId) return false;
-  return getSupportedSourceIds(pack).includes(sourceId);
+  const supported = getSupportedSourceIds(pack);
+  if (supported.includes(sourceId)) return true;
+  // Merged local import: either id counts if the other is listed.
+  if (sourceId === 'local-files' || sourceId === 'camera-ocr') {
+    return supported.includes('local-files') || supported.includes('camera-ocr');
+  }
+  return false;
 }
 
 export function getPreferredSourceId(pack: PackConfig | null | undefined): string {
@@ -192,51 +200,99 @@ export function getPreferredSourceId(pack: PackConfig | null | undefined): strin
 }
 
 export function getMappingForScope(
-  hospitalId: string,
+  packId: string,
   groupId: string,
   areaId: string
-): HospitalMapping | null {
-  return MAPPINGS[`${hospitalId}/${groupId}/${areaId}`] || null;
+): PackMapping | null {
+  return MAPPINGS[`${packId}/${groupId}/${areaId}`] || null;
 }
 
-export function getBuiltinMapping(): HospitalMapping {
+export function getBuiltinMapping(): PackMapping {
   return (
-    getMappingForScope(BUILTIN_HOSPITAL_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID) ||
-    (opMapping as HospitalMapping)
+    getMappingForScope(BUILTIN_PACK_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID) ||
+    (opMapping as PackMapping)
   );
 }
 
-export function getDefaultGenericMapping(): HospitalMapping {
+export function getDefaultGenericMapping(): PackMapping {
   return (
     getMappingForScope(
       DEFAULT_GENERIC_PACK_ID,
       DEFAULT_GENERIC_GROUP_ID,
       DEFAULT_GENERIC_AREA_ID
-    ) || (defaultGenericMapping as HospitalMapping)
+    ) || (defaultGenericMapping as PackMapping)
   );
 }
 
 export function listPresetsForScope(
-  hospitalId: string,
+  packId: string,
   groupId: string,
   areaId: string
 ): string[] {
-  const mapping = getMappingForScope(hospitalId, groupId, areaId);
+  const mapping = getMappingForScope(packId, groupId, areaId);
   return Object.keys(mapping?.presets || {});
 }
 
+/**
+ * Preset usable for setup / import.
+ * Employer packs: needs ≥1 time→code row (empty = placeholder / bald).
+ * default-generic: empty Standard is valid (no employer codes).
+ */
+export function isPresetReady(
+  packId: string,
+  groupId: string,
+  areaId: string,
+  preset: string
+): boolean {
+  const mapping = getMappingForScope(packId, groupId, areaId);
+  const table = mapping?.presets?.[preset];
+  if (!table) return false;
+  if (Object.keys(table).length > 0) return true;
+  const pack = getPackById(packId);
+  const area = pack?.groups
+    .find((g) => g.id === groupId)
+    ?.areas.find((a) => a.id === areaId);
+  return packId === DEFAULT_GENERIC_PACK_ID && !!area?.supported;
+}
+
+/** First supported area + ready preset across builtin packs (files-only default). */
+export function firstReadyWorkplaceScope(): {
+  packId: string;
+  groupId: string;
+  areaId: string;
+  preset: string;
+} | null {
+  for (const p of listBuiltinPacks()) {
+    for (const g of p.groups) {
+      for (const a of g.areas) {
+        if (!a.supported) continue;
+        const presets = listPresetsForScope(p.id, g.id, a.id);
+        const ready =
+          (a.defaultPreset && isPresetReady(p.id, g.id, a.id, a.defaultPreset)
+            ? a.defaultPreset
+            : null) ||
+          presets.find((pr) => isPresetReady(p.id, g.id, a.id, pr));
+        if (ready) {
+          return { packId: p.id, groupId: g.id, areaId: a.id, preset: ready };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export function listBuiltinPresets(): string[] {
-  return listPresetsForScope(BUILTIN_HOSPITAL_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID);
+  return listPresetsForScope(BUILTIN_PACK_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID);
 }
 
 export function isBuiltinValidatedScope(
-  hospitalId: string,
+  packId: string,
   groupId: string,
   areaId: string,
   preset: string
 ): boolean {
   return (
-    hospitalId === BUILTIN_HOSPITAL_ID &&
+    packId === BUILTIN_PACK_ID &&
     groupId === BUILTIN_GROUP_ID &&
     areaId === BUILTIN_AREA_ID &&
     preset === BUILTIN_PRESET

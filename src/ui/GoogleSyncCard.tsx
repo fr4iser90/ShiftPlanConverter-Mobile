@@ -103,8 +103,8 @@ export function GoogleSyncCard({
 
   const resolvedEntries = () => {
     const mapping =
-      snap.hospitalId && snap.groupId && snap.areaId
-        ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+      snap.packId && snap.groupId && snap.areaId
+        ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
         : undefined;
     return resolveStoredEntries(snap.entries, {
       preset: snap.preset || undefined,

@@ -1,15 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ShiftEntry, MonthSummary } from '../convert/types';
+import { getPackById } from '../packs';
 import {
   DEFAULT_EVENT_FORMAT,
-  migrateFromRichDetails,
   parseEventFormat,
   type EventFormatPrefs,
 } from './eventFormat';
-import { clearDataEncryptionKey, decryptUtf8, encryptUtf8 } from './securePayload';
+import { clearDataEncryptionKey, decryptUtf8, encryptUtf8, getExistingDataKey, isEncryptedPayload } from './securePayload';
+import { appendDiag } from '../support/diagLog';
+import { t } from '../i18n';
+import {
+  defaultLabelForPack,
+  newWorkplaceId,
+  parseWorkplacesJson,
+  profileConfigured,
+  relabelWorkplace,
+  type WorkplaceProfile,
+} from './workplaces';
 
 export type { EventFormatPrefs } from './eventFormat';
 export { DEFAULT_EVENT_FORMAT } from './eventFormat';
+export type { WorkplaceProfile } from './workplaces';
 
 function pingHomeWidgets(entries: ShiftEntry[]): void {
   void import('../widget/refresh')
@@ -25,13 +36,14 @@ const KEYS = {
   userMappings: 'loga3.userMappings',
   locale: 'loga3.locale',
   themePref: 'loga3.themePref',
-  /** @deprecated migrated into eventFormat */
-  richDetails: 'loga3.richDetails',
   eventFormat: 'loga3.eventFormat',
+  /** Mirrored from active workplace for quick reads / older tooling. */
   preset: 'loga3.preset',
-  hospitalId: 'loga3.hospitalId',
+  packId: 'loga3.packId',
   groupId: 'loga3.groupId',
   areaId: 'loga3.areaId',
+  workplaces: 'loga3.workplaces',
+  activeWorkplaceId: 'loga3.activeWorkplaceId',
   googleCalendarId: 'loga3.googleCalendarId',
   summary: 'loga3.summary',
   summaries: 'loga3.summaries',
@@ -49,11 +61,13 @@ export type AppStateSnapshot = {
   themePref: ThemePref;
   /** ICS / Google event title & description options */
   eventFormat: EventFormatPrefs;
-  /** Empty until user picks an employer pack on this device */
+  /** Mirrored from active workplace (empty until configured). */
   preset: string;
-  hospitalId: string;
+  packId: string;
   groupId: string;
   areaId: string;
+  workplaces: WorkplaceProfile[];
+  activeWorkplaceId: string;
   summary: MonthSummary | null;
   summaries: MonthSummary[];
 };
@@ -67,13 +81,51 @@ let cache: AppStateSnapshot = {
   themePref: 'system',
   eventFormat: { ...DEFAULT_EVENT_FORMAT },
   preset: '',
-  hospitalId: '',
+  packId: '',
   groupId: '',
   areaId: '',
+  workplaces: [],
+  activeWorkplaceId: '',
   summary: null,
   summaries: [],
 };
 let hydrated = false;
+/** Encrypted payloads present but undecryptable — block overwrites. */
+let payloadLocked = false;
+let payloadError: string | null = null;
+
+export function isPayloadLocked(): boolean {
+  return payloadLocked;
+}
+
+export function getPayloadError(): string | null {
+  return payloadError;
+}
+
+export type StorageProbe = {
+  entriesPresent: boolean;
+  entriesEncrypted: boolean;
+  entriesChars: number;
+  keyPresent: boolean;
+  loadedEntries: number;
+  locked: boolean;
+  error: string | null;
+};
+
+/** Non-destructive check — for UI / Fehler melden. */
+export async function probeEncryptedStorage(): Promise<StorageProbe> {
+  const raw = await AsyncStorage.getItem(KEYS.entries);
+  const key = await getExistingDataKey();
+  return {
+    entriesPresent: !!raw,
+    entriesEncrypted: isEncryptedPayload(raw),
+    entriesChars: raw?.length || 0,
+    keyPresent: !!key,
+    loadedEntries: cache.entries.length,
+    locked: payloadLocked,
+    error: payloadError,
+  };
+}
 
 function notify() {
   listeners.forEach((l) => l());
@@ -111,8 +163,27 @@ export function getSnapshot(): AppStateSnapshot {
   return cache;
 }
 
+export function getActiveWorkplace(
+  snap: AppStateSnapshot = cache
+): WorkplaceProfile | null {
+  if (!snap.activeWorkplaceId) return null;
+  return snap.workplaces.find((w) => w.id === snap.activeWorkplaceId) || null;
+}
+
+function mirrorActive(workplaces: WorkplaceProfile[], activeId: string) {
+  const active = workplaces.find((w) => w.id === activeId) || workplaces[0] || null;
+  return {
+    workplaces,
+    activeWorkplaceId: active?.id || '',
+    packId: active?.packId || '',
+    groupId: active?.groupId || '',
+    areaId: active?.areaId || '',
+    preset: active?.preset || '',
+  };
+}
+
 export function isWorkplaceConfigured(snap: AppStateSnapshot = cache): boolean {
-  return !!(snap.hospitalId && snap.groupId && snap.areaId && snap.preset);
+  return profileConfigured(getActiveWorkplace(snap));
 }
 
 async function parseJsonEnc<T>(raw: string | null, fallback: T): Promise<T> {
@@ -125,6 +196,30 @@ async function parseJsonEnc<T>(raw: string | null, fallback: T): Promise<T> {
   }
 }
 
+function tagEntries(
+  entries: ShiftEntry[],
+  workplaceId: string
+): ShiftEntry[] {
+  return entries.map((e) =>
+    e.workplaceId ? e : { ...e, workplaceId }
+  );
+}
+
+async function persistWorkplaces(
+  workplaces: WorkplaceProfile[],
+  activeWorkplaceId: string
+): Promise<void> {
+  const mirrored = mirrorActive(workplaces, activeWorkplaceId);
+  await Promise.all([
+    AsyncStorage.setItem(KEYS.workplaces, JSON.stringify(mirrored.workplaces)),
+    AsyncStorage.setItem(KEYS.activeWorkplaceId, mirrored.activeWorkplaceId),
+    AsyncStorage.setItem(KEYS.packId, mirrored.packId),
+    AsyncStorage.setItem(KEYS.groupId, mirrored.groupId),
+    AsyncStorage.setItem(KEYS.areaId, mirrored.areaId),
+    AsyncStorage.setItem(KEYS.preset, mirrored.preset),
+  ]);
+}
+
 export async function hydrateStore(): Promise<AppStateSnapshot> {
   if (hydrated) return cache;
   try {
@@ -135,11 +230,12 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       locale,
       themePrefRaw,
       eventFormatRaw,
-      rich,
       preset,
-      hospitalId,
+      packIdStored,
       groupId,
       areaId,
+      workplacesRaw,
+      activeWorkplaceIdRaw,
       summaryRaw,
       summariesRaw,
     ] = await Promise.all([
@@ -149,11 +245,12 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       AsyncStorage.getItem(KEYS.locale),
       AsyncStorage.getItem(KEYS.themePref),
       AsyncStorage.getItem(KEYS.eventFormat),
-      AsyncStorage.getItem(KEYS.richDetails),
       AsyncStorage.getItem(KEYS.preset),
-      AsyncStorage.getItem(KEYS.hospitalId),
+      AsyncStorage.getItem(KEYS.packId),
       AsyncStorage.getItem(KEYS.groupId),
       AsyncStorage.getItem(KEYS.areaId),
+      AsyncStorage.getItem(KEYS.workplaces),
+      AsyncStorage.getItem(KEYS.activeWorkplaceId),
       AsyncStorage.getItem(KEYS.summary),
       AsyncStorage.getItem(KEYS.summaries),
     ]);
@@ -164,11 +261,51 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
 
     let eventFormat = parseEventFormat(eventFormatRaw);
     if (!eventFormat) {
-      eventFormat = migrateFromRichDetails(rich);
+      eventFormat = { ...DEFAULT_EVENT_FORMAT };
       await AsyncStorage.setItem(KEYS.eventFormat, JSON.stringify(eventFormat));
     }
 
-    // Workplace keys are plaintext — apply them even if encrypted fields fail to decrypt.
+    const packId = packIdStored || '';
+
+    let workplaces = parseWorkplacesJson(workplacesRaw);
+    let activeWorkplaceId = String(activeWorkplaceIdRaw || '').trim();
+
+    // Migrate flat workplace → one profile.
+    if (!workplaces.length && (packId || groupId || areaId || preset)) {
+      const pack = packId ? getPackById(packId) : null;
+      const group = pack?.groups.find((g) => g.id === groupId);
+      const area = group?.areas.find((a) => a.id === areaId);
+      const id = newWorkplaceId();
+      workplaces = [
+        {
+          id,
+          label: defaultLabelForPack(packId || '', pack?.name, area?.label, preset || ''),
+          packId: packId || '',
+          groupId: groupId || '',
+          areaId: areaId || '',
+          preset: preset || '',
+        },
+      ];
+      activeWorkplaceId = id;
+      await persistWorkplaces(workplaces, activeWorkplaceId);
+    }
+
+    if (workplaces.length && !workplaces.some((w) => w.id === activeWorkplaceId)) {
+      activeWorkplaceId = workplaces[0].id;
+      await persistWorkplaces(workplaces, activeWorkplaceId);
+    }
+
+    // Refresh chip labels (locale / generic “Ohne Arbeitgeber”).
+    {
+      const relabeled = workplaces.map(relabelWorkplace);
+      if (JSON.stringify(relabeled) !== JSON.stringify(workplaces)) {
+        workplaces = relabeled;
+        await persistWorkplaces(workplaces, activeWorkplaceId);
+      }
+    }
+
+    const mirrored = mirrorActive(workplaces, activeWorkplaceId);
+
     cache = {
       ...cache,
       userMappings: (() => {
@@ -181,41 +318,75 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       locale: locale === 'en' ? 'en' : 'de',
       themePref,
       eventFormat,
-      preset: preset || '',
-      hospitalId: hospitalId || '',
-      groupId: groupId || '',
-      areaId: areaId || '',
+      ...mirrored,
     };
 
     try {
-      const [entries, rawText, summary, summaries] = await Promise.all([
+      const [entriesIn, rawText, summary, summariesIn] = await Promise.all([
         parseJsonEnc<ShiftEntry[]>(entriesRaw, []),
         decryptUtf8(rawTextEnc),
         parseJsonEnc<MonthSummary | null>(summaryRaw, null),
         parseJsonEnc<MonthSummary[]>(summariesRaw, []),
       ]);
+      const defaultWp = mirrored.activeWorkplaceId;
+      const entries = defaultWp ? tagEntries(entriesIn, defaultWp) : entriesIn;
+      const summaries = defaultWp
+        ? summariesIn.map((s) => (s.workplaceId ? s : { ...s, workplaceId: defaultWp }))
+        : summariesIn;
+      const summaryTagged =
+        summary && defaultWp && !summary.workplaceId
+          ? { ...summary, workplaceId: defaultWp }
+          : summary;
+
       cache = {
         ...cache,
         entries,
         rawText,
-        summary,
+        summary: summaryTagged,
         summaries,
       };
+      payloadLocked = false;
+      payloadError = null;
       // Migrate legacy plaintext sensitive keys → encrypted at rest.
       if (entriesRaw && !entriesRaw.startsWith('enc:v1:')) {
+        await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+      } else if (defaultWp && entriesIn.some((e) => !e.workplaceId)) {
         await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
       }
       if (rawTextEnc && !rawTextEnc.startsWith('enc:v1:') && rawText) {
         await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(rawText));
       }
       if (summaryRaw && !summaryRaw.startsWith('enc:v1:')) {
-        await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(summary)));
+        await AsyncStorage.setItem(
+          KEYS.summary,
+          await encryptUtf8(JSON.stringify(summaryTagged))
+        );
       }
-      if (summariesRaw && !summariesRaw.startsWith('enc:v1:')) {
-        await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
+      if (
+        (summariesRaw && !summariesRaw.startsWith('enc:v1:')) ||
+        (defaultWp && summariesIn.some((s) => !s.workplaceId))
+      ) {
+        await AsyncStorage.setItem(
+          KEYS.summaries,
+          await encryptUtf8(JSON.stringify(summaries))
+        );
       }
-    } catch {
-      // Keep workplace; encrypted payloads can retry next session.
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const hasCipher =
+        isEncryptedPayload(entriesRaw) ||
+        isEncryptedPayload(rawTextEnc) ||
+        isEncryptedPayload(summaryRaw) ||
+        isEncryptedPayload(summariesRaw);
+      if (hasCipher) {
+        // Keep ciphertext intact — never treat as empty store.
+        payloadLocked = true;
+        payloadError = msg;
+        appendDiag(`hydrate decrypt fail: ${msg} (ciphertext kept, writes blocked)`);
+      } else {
+        payloadLocked = false;
+        payloadError = null;
+      }
     }
     hydrated = true;
   } catch {
@@ -226,6 +397,9 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
   }
   notify();
   pingHomeWidgets(cache.entries);
+  void import('../sources/webview/loga3/env')
+    .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
+    .catch(() => {});
   return cache;
 }
 
@@ -237,29 +411,42 @@ export async function setEntries(
     summaries?: MonthSummary[];
   } = {}
 ): Promise<void> {
+  if (payloadLocked) {
+    throw new Error(t('storePayloadLocked'));
+  }
+  const wpId = cache.activeWorkplaceId;
+  const tagged = wpId ? tagEntries(entries, wpId) : entries;
   const summaries =
     opts.summaries !== undefined
-      ? opts.summaries
+      ? opts.summaries.map((s) =>
+          wpId && !s.workplaceId ? { ...s, workplaceId: wpId } : s
+        )
       : opts.summary !== undefined && opts.summary
-        ? [opts.summary]
+        ? [
+            wpId && !opts.summary.workplaceId
+              ? { ...opts.summary, workplaceId: wpId }
+              : opts.summary,
+          ]
         : opts.summary === null
           ? []
           : cache.summaries;
   const summary =
     opts.summary !== undefined
-      ? opts.summary
+      ? opts.summary && wpId && !opts.summary.workplaceId
+        ? { ...opts.summary, workplaceId: wpId }
+        : opts.summary
       : summaries.length
         ? summaries[summaries.length - 1]
         : cache.summary;
 
   cache = {
     ...cache,
-    entries,
+    entries: tagged,
     rawText: opts.rawText ?? cache.rawText,
     summary,
     summaries,
   };
-  await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+  await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(tagged)));
   if (opts.rawText != null) {
     await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(opts.rawText));
   }
@@ -268,7 +455,7 @@ export async function setEntries(
     await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
   }
   notify();
-  pingHomeWidgets(entries);
+  pingHomeWidgets(tagged);
   void import('../schedule/shiftAlarms')
     .then((m) => m.rescheduleShiftAlarms())
     .catch(() => {
@@ -302,30 +489,185 @@ export async function setEventFormat(patch: Partial<EventFormatPrefs>): Promise<
 }
 
 export async function setPreset(preset: string): Promise<void> {
-  cache = { ...cache, preset };
-  await AsyncStorage.setItem(KEYS.preset, preset);
-  notify();
+  const active = getActiveWorkplace();
+  if (!active) {
+    cache = { ...cache, preset };
+    await AsyncStorage.setItem(KEYS.preset, preset);
+    notify();
+    return;
+  }
+  await setWorkplace({
+    packId: active.packId,
+    groupId: active.groupId,
+    areaId: active.areaId,
+    preset,
+  });
 }
 
+/** Update pack scope on the active workplace (creates one if none). */
 export async function setWorkplace(scope: {
-  hospitalId: string;
+  packId: string;
   groupId: string;
   areaId: string;
   preset: string;
+  label?: string;
 }): Promise<void> {
+  const pack = scope.packId ? getPackById(scope.packId) : null;
+  const group = pack?.groups.find((g) => g.id === scope.groupId);
+  const area = group?.areas.find((a) => a.id === scope.areaId);
+  const label =
+    scope.label?.trim() ||
+    defaultLabelForPack(scope.packId, pack?.name, area?.label, scope.preset);
+
+  let workplaces = [...cache.workplaces];
+  let activeId = cache.activeWorkplaceId;
+  const idx = workplaces.findIndex((w) => w.id === activeId);
+  if (idx >= 0) {
+    workplaces[idx] = {
+      ...workplaces[idx],
+      packId: scope.packId,
+      groupId: scope.groupId,
+      areaId: scope.areaId,
+      preset: scope.preset,
+      label,
+    };
+  } else {
+    activeId = newWorkplaceId();
+    workplaces = [
+      ...workplaces,
+      {
+        id: activeId,
+        label,
+        packId: scope.packId,
+        groupId: scope.groupId,
+        areaId: scope.areaId,
+        preset: scope.preset,
+      },
+    ];
+  }
+
+  const mirrored = mirrorActive(workplaces, activeId);
+  cache = { ...cache, ...mirrored };
+  await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
+  notify();
+}
+
+/** Switch which employer Import/Fetch/Setup use. Preview stays merged. */
+export async function setActiveWorkplaceId(id: string): Promise<void> {
+  if (!cache.workplaces.some((w) => w.id === id)) return;
+  if (cache.activeWorkplaceId === id) return;
+  const mirrored = mirrorActive(cache.workplaces, id);
+  cache = { ...cache, ...mirrored };
+  await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
+  notify();
+  void import('../sources/webview/loga3/env')
+    .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
+    .catch(() => {});
+}
+
+/** Add a second (or first) employer profile and make it active. */
+export async function addWorkplace(scope?: {
+  packId?: string;
+  groupId?: string;
+  areaId?: string;
+  preset?: string;
+  label?: string;
+}): Promise<WorkplaceProfile> {
+  const packId = scope?.packId || '';
+  const pack = packId ? getPackById(packId) : null;
+  const groupId = scope?.groupId || pack?.groups[0]?.id || '';
+  const group = pack?.groups.find((g) => g.id === groupId);
+  const area =
+    group?.areas.find((a) => a.id === scope?.areaId) ||
+    group?.areas.find((a) => a.supported) ||
+    group?.areas[0];
+  const areaId = scope?.areaId || area?.id || '';
+  const preset = scope?.preset || area?.defaultPreset || '';
+  const label =
+    scope?.label?.trim() ||
+    defaultLabelForPack(packId, pack?.name, area?.label, preset);
+  const profile: WorkplaceProfile = {
+    id: newWorkplaceId(),
+    label,
+    packId,
+    groupId,
+    areaId,
+    preset,
+  };
+  const workplaces = [...cache.workplaces, profile];
+  const mirrored = mirrorActive(workplaces, profile.id);
+  cache = { ...cache, ...mirrored };
+  await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
+  notify();
+  void import('../sources/webview/loga3/env')
+    .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
+    .catch(() => {});
+  return profile;
+}
+
+export async function removeWorkplace(id: string): Promise<void> {
+  if (cache.workplaces.length <= 1) {
+    // Last profile: clear scope but keep structure empty via wipe-style clear of workplace fields.
+    const workplaces: WorkplaceProfile[] = [];
+    cache = {
+      ...cache,
+      ...mirrorActive(workplaces, ''),
+      entries: [],
+      rawText: '',
+      summary: null,
+      summaries: [],
+    };
+    await persistWorkplaces([], '');
+    await AsyncStorage.setItem(KEYS.entries, await encryptUtf8('[]'));
+    await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(''));
+    await AsyncStorage.setItem(KEYS.summary, await encryptUtf8('null'));
+    await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8('[]'));
+    notify();
+    pingHomeWidgets([]);
+    return;
+  }
+  const workplaces = cache.workplaces.filter((w) => w.id !== id);
+  const nextActive =
+    cache.activeWorkplaceId === id ? workplaces[0].id : cache.activeWorkplaceId;
+  const entries = cache.entries.filter((e) => e.workplaceId !== id);
+  const summaries = cache.summaries.filter((s) => s.workplaceId !== id);
+  const mirrored = mirrorActive(workplaces, nextActive);
   cache = {
     ...cache,
-    hospitalId: scope.hospitalId,
-    groupId: scope.groupId,
-    areaId: scope.areaId,
-    preset: scope.preset,
+    ...mirrored,
+    entries,
+    summaries,
+    summary: summaries[summaries.length - 1] || null,
   };
-  await Promise.all([
-    AsyncStorage.setItem(KEYS.hospitalId, scope.hospitalId),
-    AsyncStorage.setItem(KEYS.groupId, scope.groupId),
-    AsyncStorage.setItem(KEYS.areaId, scope.areaId),
-    AsyncStorage.setItem(KEYS.preset, scope.preset),
-  ]);
+  await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
+  await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(entries)));
+  await AsyncStorage.setItem(KEYS.summaries, await encryptUtf8(JSON.stringify(summaries)));
+  await AsyncStorage.setItem(
+    KEYS.summary,
+    await encryptUtf8(JSON.stringify(cache.summary))
+  );
+  const { clearCredentialsForWorkplace } = await import(
+    '../sources/webview/loga3/credentials'
+  );
+  const { clearLoga3BaseUrlForWorkplace } = await import('../sources/webview/loga3/env');
+  await clearCredentialsForWorkplace(id);
+  await clearLoga3BaseUrlForWorkplace(id);
+  notify();
+  pingHomeWidgets(entries);
+  void import('../sources/webview/loga3/env')
+    .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
+    .catch(() => {});
+}
+
+export async function renameWorkplace(id: string, label: string): Promise<void> {
+  const next = label.trim();
+  if (!next) return;
+  const workplaces = cache.workplaces.map((w) =>
+    w.id === id ? { ...w, label: next } : w
+  );
+  const mirrored = mirrorActive(workplaces, cache.activeWorkplaceId);
+  cache = { ...cache, ...mirrored };
+  await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
   notify();
 }
 
@@ -343,16 +685,18 @@ export async function getGoogleCalendarId(): Promise<string | null> {
  * Keeps locale/theme prefs.
  */
 export async function wipeAllLocalData(): Promise<void> {
-  const { clearCredentials } = await import('../sources/webview/loga3/credentials');
-  const { setLoga3BaseUrl } = await import('../sources/webview/loga3/env');
+  const { clearAllCredentials } = await import('../sources/webview/loga3/credentials');
+  const { clearAllLoga3BaseUrls } = await import('../sources/webview/loga3/env');
   const { deleteAllPdfFiles } = await import('../sources/webview/pdfStore');
   const { disconnectGoogle } = await import('../sync/google');
   const { setSmokeFetchIntent, clearMatrixStatus } = await import('../setup/smokeFetchIntent');
   const { clearBiometricSession, setBiometricLockEnabled } = await import('../security/biometric');
 
+  const ids = cache.workplaces.map((w) => w.id);
+
   await Promise.all([
-    clearCredentials(),
-    setLoga3BaseUrl(''),
+    clearAllCredentials(ids),
+    clearAllLoga3BaseUrls(ids),
     deleteAllPdfFiles(),
     disconnectGoogle(),
     setSmokeFetchIntent(null),
@@ -364,9 +708,11 @@ export async function wipeAllLocalData(): Promise<void> {
       KEYS.rawText,
       KEYS.userMappings,
       KEYS.preset,
-      KEYS.hospitalId,
+      KEYS.packId,
       KEYS.groupId,
       KEYS.areaId,
+      KEYS.workplaces,
+      KEYS.activeWorkplaceId,
       KEYS.googleCalendarId,
       KEYS.summary,
       KEYS.summaries,
@@ -382,9 +728,11 @@ export async function wipeAllLocalData(): Promise<void> {
     rawText: '',
     userMappings: {},
     preset: '',
-    hospitalId: '',
+    packId: '',
     groupId: '',
     areaId: '',
+    workplaces: [],
+    activeWorkplaceId: '',
     summary: null,
     summaries: [],
   };

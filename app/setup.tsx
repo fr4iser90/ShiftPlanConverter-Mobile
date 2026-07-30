@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,9 +30,9 @@ import {
   subscribe,
 } from '@/src/state/store';
 import {
+  firstReadyWorkplaceScope,
   getPackById,
   isSourceSupportedByPack,
-  listBuiltinPacks,
 } from '@/src/packs';
 import { saveActiveSourceId } from '@/src/state/activeSource';
 import { WorkplacePicker } from '@/src/ui/WorkplacePicker';
@@ -48,33 +49,35 @@ import {
 } from '@/src/sync/google';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { AppButton } from '@/src/ui/AppButton';
-import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
+import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
 import { ExportTargetSoonSetupBlock } from '@/src/ui/ExportTargetSoonCard';
-import { theme } from '@/src/ui/theme';
+import { useTheme } from '@/src/ui/useTheme';
+import type { AppTheme } from '@/src/ui/theme';
 
 /** 0 = workplace · 1 = portal (optional, pack-dependent) · 2 = calendars (optional) */
 type Step = 0 | 1 | 2;
 
-async function preferNonLoga3Source(hospitalId: string | null | undefined): Promise<void> {
-  const pack = hospitalId ? getPackById(hospitalId) : null;
-  if (isSourceSupportedByPack(pack, 'local-files')) {
+async function preferNonLoga3Source(packId: string | null | undefined): Promise<void> {
+  const pack = packId ? getPackById(packId) : null;
+  if (
+    isSourceSupportedByPack(pack, 'local-files') ||
+    isSourceSupportedByPack(pack, 'camera-ocr')
+  ) {
     await saveActiveSourceId('local-files');
-    return;
-  }
-  if (isSourceSupportedByPack(pack, 'camera-ocr')) {
-    await saveActiveSourceId('camera-ocr');
   }
 }
 
-async function preferLoga3Source(hospitalId: string | null | undefined): Promise<void> {
-  const pack = hospitalId ? getPackById(hospitalId) : null;
+async function preferLoga3Source(packId: string | null | undefined): Promise<void> {
+  const pack = packId ? getPackById(packId) : null;
   if (isSourceSupportedByPack(pack, 'loga3-webview')) {
     await saveActiveSourceId('loga3-webview');
   }
 }
 
 export default function SetupScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => makeSetupStyles(theme), [theme]);
   const [, setTick] = useState(0);
   const [step, setStep] = useState<Step>(0);
   const [url, setUrl] = useState('');
@@ -87,8 +90,8 @@ export default function SetupScreen() {
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
   const snap = getSnapshot();
   const pack = useMemo(
-    () => (snap.hospitalId ? getPackById(snap.hospitalId) : null),
-    [snap.hospitalId]
+    () => (snap.packId ? getPackById(snap.packId) : null),
+    [snap.packId]
   );
   const portalAvailable = isSourceSupportedByPack(pack, 'loga3-webview');
 
@@ -134,12 +137,22 @@ export default function SetupScreen() {
     await hydrateGoogleUi();
     const st = await getSetupStatus();
     const snapNow = getSnapshot();
-    const packNow = snapNow.hospitalId ? getPackById(snapNow.hospitalId) : null;
+    const packNow = snapNow.packId ? getPackById(snapNow.packId) : null;
     const hasPortal = isSourceSupportedByPack(packNow, 'loga3-webview');
     if (!st.workplaceOk) setStep(0);
     else if (hasPortal && !st.loga3Ready) setStep(1);
     else setStep(2);
   }, [hydrateGoogleUi]);
+
+  useEffect(() => {
+    let prev = getSnapshot().activeWorkplaceId;
+    return subscribe(() => {
+      const next = getSnapshot().activeWorkplaceId;
+      if (next === prev) return;
+      prev = next;
+      void hydrateFields();
+    });
+  }, [hydrateFields]);
 
   useFocusEffect(
     useCallback(() => {
@@ -154,6 +167,24 @@ export default function SetupScreen() {
     }
     if (portalAvailable) setStep(1);
     else setStep(2);
+  };
+
+  const goToStep = (target: Step) => {
+    if (target === step) return;
+    if (target === 0) {
+      setStep(0);
+      return;
+    }
+    if (!isWorkplaceConfigured(snap)) {
+      Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
+      return;
+    }
+    if (target === 1) {
+      if (portalAvailable) setStep(1);
+      else setStep(2);
+      return;
+    }
+    setStep(2);
   };
 
   const saveLoga3AndContinue = async () => {
@@ -173,7 +204,7 @@ export default function SetupScreen() {
       return;
     }
     await saveCredentials({ username: username.trim(), password });
-    await preferLoga3Source(snap.hospitalId);
+    await preferLoga3Source(snap.packId);
     setStep(2);
   };
 
@@ -182,29 +213,26 @@ export default function SetupScreen() {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    await preferNonLoga3Source(snap.hospitalId);
+    await preferNonLoga3Source(snap.packId);
     setStep(2);
   };
 
-  /** One tap: default pack + role, file/photo sources, skip portal & calendar. */
+  /** One tap: ready pack + role, file/photo sources, skip portal & calendar. */
   const finishFilesOnly = async () => {
-    if (!isWorkplaceConfigured(snap)) {
-      const p = listBuiltinPacks()[0];
-      if (!p) {
+    if (!isWorkplaceConfigured(getSnapshot())) {
+      const scope = firstReadyWorkplaceScope();
+      if (!scope) {
         Alert.alert(t('setupWorkplace'), t('noPacksYet'));
         return;
       }
-      const g = p.groups[0];
-      const a = g?.areas.find((x) => x.supported) || g?.areas[0];
-      await setWorkplace({
-        hospitalId: p.id,
-        groupId: g?.id || '',
-        areaId: a?.id || '',
-        preset: a?.defaultPreset || '',
-      });
+      await setWorkplace(scope);
     }
-    const hospitalId = getSnapshot().hospitalId;
-    await preferNonLoga3Source(hospitalId);
+    if (!isWorkplaceConfigured(getSnapshot())) {
+      Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
+      return;
+    }
+    const packId = getSnapshot().packId;
+    await preferNonLoga3Source(packId);
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)');
   };
@@ -250,26 +278,39 @@ export default function SetupScreen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
-      <ScreenTitle>{t('setupTitle')}</ScreenTitle>
       <Meta>{t('setupIntro')}</Meta>
 
       <View style={styles.steps}>
-        <StepDot n={1} active={step === 0} done={step > 0} label={t('setupStepWorkplace')} />
+        <StepDot
+          n={1}
+          active={step === 0}
+          done={step > 0}
+          label={t('setupStepWorkplace')}
+          styles={styles}
+          onPress={step !== 0 ? () => goToStep(0) : undefined}
+        />
         <StepDot
           n={2}
           active={step === 1}
           done={step > 1}
           label={portalAvailable ? t('setupStepLoga3') : t('setupStepGoogle')}
+          styles={styles}
+          onPress={step !== 1 ? () => goToStep(1) : undefined}
         />
         {portalAvailable ? (
-          <StepDot n={3} active={step === 2} done={false} label={t('setupStepGoogle')} />
+          <StepDot
+            n={3}
+            active={step === 2}
+            done={false}
+            label={t('setupStepGoogle')}
+            styles={styles}
+            onPress={step !== 2 ? () => goToStep(2) : undefined}
+          />
         ) : null}
       </View>
 
       {step === 0 && (
         <AppCard>
-          <SectionTitle>{t('setupWorkplace')}</SectionTitle>
-          <Meta>{t('workplaceHint')}</Meta>
           <WorkplacePicker />
           <AppButton title={t('setupNext')} onPress={goAfterWorkplace} />
           <AppButton
@@ -417,79 +458,90 @@ function StepDot({
   active,
   done,
   label,
+  styles,
+  onPress,
 }: {
   n: number;
   active: boolean;
   done: boolean;
   label: string;
+  styles: ReturnType<typeof makeSetupStyles>;
+  onPress?: () => void;
 }) {
   return (
-    <View style={styles.stepItem}>
+    <Pressable
+      accessibilityRole="button"
+      disabled={!onPress}
+      onPress={onPress}
+      style={styles.stepItem}
+    >
       <View style={[styles.dot, active && styles.dotActive, done && styles.dotDone]}>
         <Text style={styles.dotText}>{done ? '✓' : n}</Text>
       </View>
       <Text style={[styles.stepLabel, active && styles.stepLabelActive]} numberOfLines={2}>
         {label}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: theme.color.canvas },
-  container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 48 },
-  steps: { flexDirection: 'row', gap: 4, marginVertical: 4 },
-  stepItem: { flex: 1, alignItems: 'center', gap: 4 },
-  dot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: theme.color.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotActive: { backgroundColor: theme.color.primary },
-  dotDone: { backgroundColor: theme.color.primaryPressed },
-  dotText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  stepLabel: { fontSize: 11, color: theme.color.inkFaint, textAlign: 'center' },
-  stepLabelActive: { color: theme.color.ink, fontWeight: '600' },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.color.borderStrong,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.space.md,
-    paddingVertical: 12,
-    backgroundColor: theme.color.surfaceMuted,
-    color: theme.color.ink,
-    fontSize: 15,
-  },
-  row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
-  flexBtn: { flexGrow: 1, minWidth: 100 },
-  optional: {
-    color: theme.color.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  connected: {
-    color: theme.color.inkSecondary,
-    fontSize: 13,
-  },
-  warn: {
-    color: theme.color.warn,
-    fontSize: 12,
-  },
-  calTargets: { gap: 10, marginTop: 8 },
-  calTargetOn: {
-    gap: 8,
-    padding: theme.space.md,
-    borderRadius: theme.radius.sm,
-    borderWidth: 1,
-    borderColor: theme.color.borderStrong,
-    backgroundColor: theme.color.surfaceMuted,
-  },
-  calTargetTitle: {
-    color: theme.color.ink,
-    fontWeight: '700',
-    fontSize: 15,
-  },
-});
+function makeSetupStyles(theme: AppTheme) {
+  return StyleSheet.create({
+    scroll: { flex: 1, backgroundColor: theme.color.canvas },
+    container: { padding: theme.space.lg, gap: theme.space.md, paddingBottom: 48 },
+    steps: { flexDirection: 'row', gap: 4, marginVertical: 4 },
+    stepItem: { flex: 1, alignItems: 'center', gap: 4 },
+    dot: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: theme.color.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dotActive: { backgroundColor: theme.color.primary },
+    dotDone: { backgroundColor: theme.color.primaryPressed },
+    dotText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+    stepLabel: { fontSize: 11, color: theme.color.inkFaint, textAlign: 'center' },
+    stepLabelActive: { color: theme.color.ink, fontWeight: '600' },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.color.borderStrong,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: theme.space.md,
+      paddingVertical: 12,
+      backgroundColor: theme.color.surfaceMuted,
+      color: theme.color.ink,
+      fontSize: 15,
+    },
+    row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+    flexBtn: { flexGrow: 1, minWidth: 100 },
+    optional: {
+      color: theme.color.primary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    connected: {
+      color: theme.color.inkSecondary,
+      fontSize: 13,
+    },
+    warn: {
+      color: theme.color.warn,
+      fontSize: 12,
+    },
+    calTargets: { gap: 10, marginTop: 8 },
+    calTargetOn: {
+      gap: 8,
+      padding: theme.space.md,
+      borderRadius: theme.radius.sm,
+      borderWidth: 1,
+      borderColor: theme.color.borderStrong,
+      backgroundColor: theme.color.surfaceMuted,
+    },
+    calTargetTitle: {
+      color: theme.color.ink,
+      fontWeight: '700',
+      fontSize: 15,
+    },
+  });
+}

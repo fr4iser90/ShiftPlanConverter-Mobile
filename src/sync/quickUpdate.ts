@@ -32,8 +32,6 @@ export type QuickUpdateResult = {
   window: YearMonth[];
   windowLabel: string;
   fetch: QuickUpdateFetchResult;
-  /** @deprecated use targets — kept for older UI strings */
-  google: { skipped: boolean; reason?: string; created?: number; deleted?: number };
   targets: TargetRunSummary[];
   offerIcs: boolean;
 };
@@ -105,8 +103,8 @@ export async function runQuickUpdate(opts: {
   merged.entries = snap.entries;
 
   const mapping =
-    snap.hospitalId && snap.groupId && snap.areaId
-      ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId) || undefined
+    snap.packId && snap.groupId && snap.areaId
+      ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
       : undefined;
   const entries = resolveStoredEntries(snap.entries, {
     preset: snap.preset || undefined,
@@ -120,15 +118,7 @@ export async function runQuickUpdate(opts: {
     onCalendarMissing: opts.onCalendarMissing,
   });
 
-  const googleRow = targets.find((r) => r.id === 'google');
-  const google = {
-    skipped: googleRow?.skipped ?? true,
-    reason: googleRow?.reason ?? '—',
-    created: googleRow?.created,
-    deleted: googleRow?.deleted,
-  };
-
   const offerIcs = prefs.offerIcsAfterFetch && shouldOfferIcs(targets) && entries.length > 0;
 
-  return { window, windowLabel, fetch: merged, google, targets, offerIcs };
+  return { window, windowLabel, fetch: merged, targets, offerIcs };
 }

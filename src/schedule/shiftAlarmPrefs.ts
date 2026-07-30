@@ -4,7 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import type { HospitalMapping, MappingValue } from '../convert/types';
+import type { PackMapping, MappingValue } from '../convert/types';
 import { mappingCode } from '../convert/shiftMapping';
 
 const KEY = 'loga3.shiftAlarmPrefs';
@@ -131,13 +131,6 @@ export function normalizeReminds(raw: unknown): ShiftRemind[] {
   });
 }
 
-/** @deprecated alias — plain HH:MM list (same-day only). */
-export function normalizeTimes(raw: unknown): string[] {
-  return normalizeReminds(raw)
-    .filter((r) => !r.eve)
-    .map((r) => r.time);
-}
-
 export function normalizeCodeTimes(raw: unknown): Record<string, ShiftRemind[]> {
   if (!raw || typeof raw !== 'object') return {};
   const out: Record<string, ShiftRemind[]> = {};
@@ -156,36 +149,15 @@ export function normalizeCodeTimes(raw: unknown): Record<string, ShiftRemind[]> 
   return out;
 }
 
-/** Migrate legacy minutes-before prefs → empty clock prefs (user reconfigures). */
-function fromLegacy(raw: Record<string, unknown>): Partial<ShiftAlarmPrefs> {
-  const hasNew =
-    Array.isArray(raw.times) ||
-    (raw.codeTimes && typeof raw.codeTimes === 'object');
-  if (hasNew) {
-    return {
-      enabled: raw.enabled === true,
-      times: normalizeReminds(raw.times),
-      codeTimes: normalizeCodeTimes(raw.codeTimes),
-      horizonDays: Number(raw.horizonDays),
-    };
-  }
-  return {
-    enabled: raw.enabled === true,
-    times: [],
-    codeTimes: {},
-    horizonDays: Number(raw.horizonDays),
-  };
-}
-
 export function normalizeShiftAlarmPrefs(
   raw: Partial<ShiftAlarmPrefs> | Record<string, unknown> | null | undefined
 ): ShiftAlarmPrefs {
-  const base = fromLegacy((raw || {}) as Record<string, unknown>);
-  const horizon = Math.max(1, Math.min(21, Math.round(Number(base.horizonDays) || 14)));
+  const r = (raw || {}) as Record<string, unknown>;
+  const horizon = Math.max(1, Math.min(21, Math.round(Number(r.horizonDays) || 14)));
   return {
-    enabled: base.enabled === true,
-    times: normalizeReminds(base.times),
-    codeTimes: normalizeCodeTimes(base.codeTimes),
+    enabled: r.enabled === true,
+    times: normalizeReminds(r.times),
+    codeTimes: normalizeCodeTimes(r.codeTimes),
     horizonDays: horizon,
   };
 }
@@ -201,11 +173,6 @@ export function remindsForCode(
     return prefs.codeTimes[c];
   }
   return prefs.times;
-}
-
-/** @deprecated use remindsForCode */
-export function timesForCode(prefs: ShiftAlarmPrefs, code: string | null | undefined): string[] {
-  return remindsForCode(prefs, code).map((r) => (r.eve ? `${r.time}·V` : r.time));
 }
 
 export function formatRemindLabel(r: ShiftRemind, eveLabel: string): string {
@@ -230,7 +197,7 @@ function mappingLabel(value: MappingValue): string {
 
 /** Unique Dienste from the active preset (order = mapping file order). */
 export function listMappingShiftOptions(
-  mapping: HospitalMapping | null | undefined,
+  mapping: PackMapping | null | undefined,
   preset: string | null | undefined
 ): MappingShiftOption[] {
   const table = mapping?.presets?.[preset || ''] || {};

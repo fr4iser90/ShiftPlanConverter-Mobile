@@ -8,6 +8,7 @@ import { waitForCondition, WaitTimeoutError } from '../wait';
 import { clearGateTraces, writeGateTrace } from './gateTrace';
 import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
 import { t } from '../../../i18n';
+import { appendDiag } from '../../../support/diagLog';
 
 export type FetchJobOptions = {
   username: string;
@@ -117,13 +118,21 @@ async function gate(ctx: Ctx, name: string): Promise<void> {
 }
 
 function waitOpts(ctx: Ctx, label: string, timeoutMs: number, intervalMs = 600) {
+  const limitSec = Math.round(timeoutMs / 1000);
   return {
     timeoutMs,
     intervalMs,
     label,
     delay: ctx.sleep,
     onWait: (elapsed: number) =>
-      status(ctx, t('fjWaitTick', { label, seconds: Math.round(elapsed / 1000) })),
+      status(
+        ctx,
+        t('fjWaitTick', {
+          label,
+          seconds: Math.round(elapsed / 1000),
+          limit: String(limitSec),
+        })
+      ),
   };
 }
 
@@ -165,7 +174,7 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
         const st = await softProbe(ctx, { type: 'assertLoggedIn' }, 2500, true);
         if (st.stillLogin) return true;
         return null;
-      }, waitOpts(ctx, t('fjWaitLoginFormLabel'), 30000));
+      }, waitOpts(ctx, t('fjWaitLoginFormLabel'), 45000));
       status(ctx, t('fjStepAction', { step: 'fillLogin' }));
       await run(ctx, { type: 'fillLogin', username: ctx.username.trim(), password: ctx.password }, 20000);
       status(ctx, t('fjStepAction', { step: 'submitLogin' }));
@@ -183,7 +192,7 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
       if (st.splash || st.code === 'SHELL_LOADING') return null;
       if (st.ok) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitShellLabel'), 45000, 500));
+    }, waitOpts(ctx, t('fjWaitShellLabel'), 75000, 500));
 
     status(ctx, t('fjLoginOk'));
     await gate(ctx, '01-shell-ready');
@@ -209,7 +218,7 @@ async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
       if (sh.pickerFound) return true;
       if (sh.ok && sh.oeffnenFound) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitShellOpenLabel'), 30000, 500));
+    }, waitOpts(ctx, t('fjWaitShellOpenLabel'), 45000, 500));
 
     await gate(ctx, '02-before-open');
 
@@ -220,12 +229,13 @@ async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
       return ready;
     }
 
-    status(ctx, t('fjStepAction', { step: 'clickOpen' }));
+    status(ctx, t('fjClickOpen'));
     await run(ctx, { type: 'clickOeffnen' }, 12000);
+    status(ctx, t('fjPageLoadingAfterOpen'));
     const picked = await waitForCondition(async () => {
       const ps = await softProbe(ctx, { type: 'getPickerState' }, 2500, true);
       return ps.pickerFound ? ps : null;
-    }, waitOpts(ctx, t('fjWaitPickerAfterOpen'), 45000, 400));
+    }, waitOpts(ctx, t('fjWaitPickerAfterOpen'), 90000, 400));
     await gate(ctx, '03-after-open');
     return picked;
   });
@@ -247,7 +257,7 @@ async function assertZeitdatenPickerReady(ctx: Ctx): Promise<void> {
         return true;
       }
       return null;
-    }, waitOpts(ctx, t('fjWaitPickerLabel'), 25000, 400));
+    }, waitOpts(ctx, t('fjWaitPickerLabel'), 45000, 400));
     await gate(ctx, '05-picker-ok');
   });
 }
@@ -308,7 +318,7 @@ async function selectMonthVerified(ctx: Ctx, month: number, year: number): Promi
     await waitForCondition(async () => {
       const v = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, 2500, true);
       return v.ok ? v : null;
-    }, waitOpts(ctx, t('fjWaitCalendarHeader', { label }), 20000, 400));
+    }, waitOpts(ctx, t('fjWaitCalendarHeader', { label }), 40000, 400));
 
     try {
       await run(ctx, { type: 'closePopups' }, 5000);
@@ -385,7 +395,7 @@ async function assertZeitprotokollDialog(
       }
       status(ctx, t('fjDialogVisible'));
       return true;
-    }, waitOpts(ctx, t('fjWaitDialog'), 30000, 400));
+    }, waitOpts(ctx, t('fjWaitDialog'), 45000, 400));
   });
 }
 
@@ -625,8 +635,10 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         text = await extractTextFromPdfBuffer(buf);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        // Prefer explicit empty-text / login hints over opaque wrap.
-        if (/FlateDecode|Tj|login|HTML/i.test(msg)) throw e instanceof Error ? e : new Error(msg);
+        appendDiag(`parsePdf ${label}: ${msg}`);
+        if (/login|HTML/i.test(msg) && !/PDF_TEXT_EMPTY|FlateDecode|Tj/i.test(msg)) {
+          throw new Error(t('fjPdfLoginHtml'));
+        }
         throw new Error(t('fjPdfTextEmpty'));
       }
       tick(`parsePdf ${label}`, parseT0);

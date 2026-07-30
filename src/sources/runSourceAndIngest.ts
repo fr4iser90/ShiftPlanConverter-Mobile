@@ -36,7 +36,7 @@ export async function runSourceAndIngest(
   opts: RunSourceIngestOpts
 ): Promise<RunSourceIngestResult> {
   const snap = getSnapshot();
-  const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
+  const pack = snap.packId ? getPackById(snap.packId) : null;
   const sourceId = opts.sourceId || (await resolveActiveSourceId(pack));
   const source = requireSource(sourceId);
 
@@ -99,6 +99,6 @@ export async function runSourceAndIngest(
 
 export async function resolveDefaultSourceId(): Promise<string> {
   const snap = getSnapshot();
-  const pack = snap.hospitalId ? getPackById(snap.hospitalId) : null;
+  const pack = snap.packId ? getPackById(snap.packId) : null;
   return resolveActiveSourceId(pack);
 }

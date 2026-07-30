@@ -4,17 +4,23 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Platform, StatusBar as RNStatusBar } from 'react-native';
+import { Platform, StatusBar as RNStatusBar, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { t } from '@/src/i18n';
-import { hydrateStore } from '@/src/state/store';
+import {
+  hydrateStore,
+  isPayloadLocked,
+  getPayloadError,
+  probeEncryptedStorage,
+} from '@/src/state/store';
 import { hydrateLoga3Env } from '@/src/sources/webview/loga3/env';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
 import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import { restoreGoogleSession } from '@/src/sync/google';
+import { openErrorReportMail } from '@/src/support/mailto';
 import { useTheme } from '@/src/ui/useTheme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -42,6 +48,27 @@ export default function RootLayout() {
     (async () => {
       await hydrateStore();
       await hydrateLoga3Env();
+      if (isPayloadLocked()) {
+        const probe = await probeEncryptedStorage();
+        const detail = [
+          t('storePayloadLocked'),
+          '',
+          `err=${getPayloadError() || '?'}`,
+          `raw=${probe.entriesChars}B enc=${probe.entriesEncrypted} key=${probe.keyPresent}`,
+        ].join('\n');
+        Alert.alert(t('storePayloadLockedTitle'), detail, [
+          { text: 'OK', style: 'cancel' },
+          {
+            text: t('reportError'),
+            onPress: () => {
+              void openErrorReportMail({
+                error: detail,
+                context: 'hydrate / payloadLocked',
+              }).catch(() => {});
+            },
+          },
+        ]);
+      }
       try {
         await restoreGoogleSession();
       } catch (e) {

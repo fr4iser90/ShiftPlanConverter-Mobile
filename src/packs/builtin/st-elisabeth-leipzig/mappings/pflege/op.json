@@ -37,6 +37,8 @@
       "19:50-07:35": { "code": "B38", "type": "night", "isValidated": true },
       "11:35-07:35": { "code": "MO", "type": "oncall", "isValidated": true },
       "07:30-15:45": { "code": "ST", "type": "work", "isValidated": true }
-    }
+    },
+    "OP-Pflege": {},
+    "Schmerzdienst": {}
   }
 }

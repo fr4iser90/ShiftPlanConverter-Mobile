@@ -36,15 +36,9 @@ describe('default-generic pack parsers', () => {
   it('registers PDF engines under convert registry', () => {
     const ids = listParserIds();
     expect(ids).toEqual(
-      expect.arrayContaining([
-        'pdf-auto',
-        'pdf-list',
-        'pdf-timesheet',
-        'pdf-payroll',
-        'default-pdf-auto',
-        'st-elisabeth-zeitprotokoll-pdf',
-      ])
+      expect.arrayContaining(['pdf-auto', 'pdf-list', 'pdf-timesheet', 'pdf-payroll'])
     );
+    expect(ids).not.toEqual(expect.arrayContaining(['st-elisabeth-zeitprotokoll-pdf']));
     expect(typeof getParser('pdf-list')).toBe('function');
   });
 

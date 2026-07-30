@@ -20,11 +20,11 @@ const PREVIEW_ENTRY: ShiftEntry = {
   date: '2026-07-15',
   start: '06:30',
   end: '15:06',
-  pause: '0:30',
-  ist: '8:06',
-  azkDaily: '0:36',
-  bereitPercent: '12.5',
-  bewertet: '1:00',
+  breakMinutes: '0:30',
+  actual: '8:06',
+  timeAccountDaily: '0:36',
+  onCallPercent: '12.5',
+  onCallRated: '1:00',
 };
 
 export default function SettingsEventFormatScreen() {

@@ -49,8 +49,8 @@ export default function SettingsRemindersScreen() {
   const [draftTime, setDraftTime] = useState('');
 
   const mapping =
-    snap.hospitalId && snap.groupId && snap.areaId
-      ? getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId)
+    snap.packId && snap.groupId && snap.areaId
+      ? getMappingForScope(snap.packId, snap.groupId, snap.areaId)
       : null;
   const shifts = useMemo(
     () => listMappingShiftOptions(mapping, snap.preset),

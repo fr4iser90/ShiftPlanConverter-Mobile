@@ -7,34 +7,38 @@ export type ShiftEntry = {
   isSpecial?: boolean;
   isWork?: boolean;
   isValidated?: boolean;
-  pause?: string;
-  pepSoll?: string;
-  vertrSoll?: string;
-  ist?: string;
-  azkDaily?: string;
-  azkKum?: string;
-  bereitPercent?: string;
-  bewertet?: string;
+  breakMinutes?: string;
+  pepTarget?: string;
+  contractTarget?: string;
+  actual?: string;
+  timeAccountDaily?: string;
+  timeAccountCumulative?: string;
+  onCallPercent?: string;
+  onCallRated?: string;
+  /** Employer workplace profile that owns this shift (multi-AG). */
+  workplaceId?: string;
 };
 
 export type MonthSummary = {
   month: string | null;
   year: string | null;
-  uebertragVormonat: string | null;
-  uebertragFolgemonat: string | null;
-  periodePepSoll: string | null;
-  periodeVertrSoll: string | null;
-  periodeIst: string | null;
-  periodeSaldo: string | null;
-  bereitschaftAuszahlung: string | null;
-  bereitschaftAzk: string | null;
+  carryOverPreviousMonth: string | null;
+  carryOverNextMonth: string | null;
+  periodPepTarget: string | null;
+  periodContractTarget: string | null;
+  periodActual: string | null;
+  periodBalance: string | null;
+  onCallPayout: string | null;
+  onCallTimeAccount: string | null;
+  /** Employer workplace profile that owns this summary (multi-AG). */
+  workplaceId?: string;
 };
 
 export type ParseResult = {
   year: string;
   month: string;
   mainEntries: ShiftEntry[];
-  bereitschaftEntries: ShiftEntry[];
+  onCallEntries: ShiftEntry[];
   summary: MonthSummary | null;
   summaries: MonthSummary[];
 };
@@ -56,7 +60,7 @@ export type MappingValue =
       isValidated?: boolean;
     };
 
-export type HospitalMapping = {
+export type PackMapping = {
   colors?: Record<string, string>;
   /** Alternate printed codes → canonical pack code (e.g. synonym labels). */
   codeAliases?: Record<string, string>;

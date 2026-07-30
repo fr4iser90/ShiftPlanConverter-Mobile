@@ -32,6 +32,7 @@ async function readUriText(uri: string): Promise<string> {
 
 /**
  * Local PDF / CSV / ICS import (no login, no WebView).
+ * Photo/OCR shares the same Import chip; see camera-ocr + Import tab actions.
  */
 export const localFilesSource: Source = {
   id: 'local-files',

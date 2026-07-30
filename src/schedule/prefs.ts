@@ -13,8 +13,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PREFS_KEY = 'loga3.schedulePrefs';
 const LAST_FETCH_KEY = 'loga3.lastSuccessfulFetchAt';
-/** Bumped when defaults flipped to opt-in — migrates legacy auto-nag prefs once. */
-const PREFS_SCHEMA = 2;
 
 export type SchedulePrefs = {
   /** Days between expected Fetch. 0 = tracking off. */
@@ -56,38 +54,12 @@ export function normalizeSchedulePrefs(
   };
 }
 
-type StoredPrefs = Partial<SchedulePrefs> & { _schema?: number };
-
-/** Legacy 0.1.4 defaults auto-nagged every open — treat as unset. */
-function isLegacyAutoNag(raw: StoredPrefs): boolean {
-  if (raw._schema === PREFS_SCHEMA) return false;
-  const days = Number(raw.intervalDays);
-  const promptOn = raw.promptOnOpen !== false;
-  const notifyOff = raw.notifyEnabled !== true;
-  return (days === 3 || Number.isNaN(days) || raw.intervalDays == null) && promptOn && notifyOff;
-}
-
 export async function loadSchedulePrefs(): Promise<SchedulePrefs> {
   try {
     const raw = await AsyncStorage.getItem(PREFS_KEY);
     if (!raw) return { ...DEFAULT_SCHEDULE_PREFS };
-    const parsed = JSON.parse(raw) as StoredPrefs;
-    if (isLegacyAutoNag(parsed)) {
-      const migrated = { ...DEFAULT_SCHEDULE_PREFS };
-      await AsyncStorage.setItem(
-        PREFS_KEY,
-        JSON.stringify({ ...migrated, _schema: PREFS_SCHEMA })
-      );
-      return migrated;
-    }
-    const next = normalizeSchedulePrefs(parsed);
-    if (parsed._schema !== PREFS_SCHEMA) {
-      await AsyncStorage.setItem(
-        PREFS_KEY,
-        JSON.stringify({ ...next, _schema: PREFS_SCHEMA })
-      );
-    }
-    return next;
+    const parsed = JSON.parse(raw) as Partial<SchedulePrefs>;
+    return normalizeSchedulePrefs(parsed);
   } catch {
     return { ...DEFAULT_SCHEDULE_PREFS };
   }
@@ -97,7 +69,7 @@ export async function saveSchedulePrefs(
   patch: Partial<SchedulePrefs>
 ): Promise<SchedulePrefs> {
   const next = normalizeSchedulePrefs({ ...(await loadSchedulePrefs()), ...patch });
-  await AsyncStorage.setItem(PREFS_KEY, JSON.stringify({ ...next, _schema: PREFS_SCHEMA }));
+  await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(next));
   try {
     const { rescheduleSyncReminder } = await import('./reminders');
     await rescheduleSyncReminder(next);

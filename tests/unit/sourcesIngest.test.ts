@@ -23,14 +23,11 @@ describe('parser registry', () => {
     expect(getPreferredSourceId(pack)).toBe('local-files');
   });
 
-  it('exposes supportedSourceIds for Import filtering (file → photo → LOGA3)', () => {
+  it('exposes supportedSourceIds for Import filtering (local import → LOGA3)', () => {
     const pack = getBuiltinPackConfig();
-    expect(getSupportedSourceIds(pack)).toEqual([
-      'local-files',
-      'camera-ocr',
-      'loga3-webview',
-    ]);
+    expect(getSupportedSourceIds(pack)).toEqual(['local-files', 'loga3-webview']);
     expect(isSourceSupportedByPack(pack, 'loga3-webview')).toBe(true);
+    expect(isSourceSupportedByPack(pack, 'camera-ocr')).toBe(true);
     expect(isSourceSupportedByPack(pack, 'unknown-portal')).toBe(false);
   });
 

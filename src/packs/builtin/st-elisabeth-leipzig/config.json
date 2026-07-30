@@ -3,7 +3,10 @@
   "name": "St. Elisabeth Leipzig",
   "hintKey": "packHintStElisabethLeipzig",
   "preferredSourceId": "local-files",
-  "supportedSourceIds": ["local-files", "camera-ocr", "loga3-webview"],
+  "supportedSourceIds": [
+    "local-files",
+    "loga3-webview"
+  ],
   "groups": [
     {
       "id": "pflege",
@@ -20,133 +23,133 @@
           "id": "station-1",
           "label": "Station 1",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-2",
           "label": "Station 2",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-3",
           "label": "Station 3",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-4",
           "label": "Station 4",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-5",
           "label": "Station 5",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-6",
           "label": "Station 6",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-7",
           "label": "Station 7",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-8",
           "label": "Station 8",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-9",
           "label": "Station 9",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-10",
           "label": "Station 10",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-11",
           "label": "Station 11",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-12",
           "label": "Station 12",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-13",
           "label": "Station 13",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-14",
           "label": "Station 14",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-15",
           "label": "Station 15",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-16",
           "label": "Station 16",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-17",
           "label": "Station 17",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-18",
           "label": "Station 18",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         },
         {
           "id": "station-19",
           "label": "Station 19",
           "mapping": "mappings/pflege/station-empty.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
         }
       ]
@@ -159,8 +162,21 @@
           "id": "allgemein",
           "label": "Allgemein",
           "mapping": "mappings/service/allgemein.json",
-          "supported": true,
+          "supported": false,
           "defaultPreset": "Standard"
+        }
+      ]
+    },
+    {
+      "id": "arzt",
+      "label": "Ärzte",
+      "areas": [
+        {
+          "id": "op",
+          "label": "OP",
+          "mapping": "mappings/arzt/op.json",
+          "supported": false,
+          "defaultPreset": "Anästhesie"
         }
       ]
     }

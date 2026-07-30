@@ -220,7 +220,7 @@ def launch_seed(
         "url": creds["LOGA3_BASE_URL"],
         "user": creds["LOGA3_USERNAME"],
         "pass": creds["LOGA3_PASSWORD"],
-        "hospital": "st-elisabeth-leipzig",
+        "pack": "st-elisabeth-leipzig",
         "group": "pflege",
         "area": "op-bereich",
         "preset": "Anästhesie",

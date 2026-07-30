@@ -46,12 +46,12 @@ const SUMMARY_OPEN_KEY = 'loga3.calendarSummaryOpen';
 function usefulSummary(s: MonthSummary | null | undefined): boolean {
   if (!s) return false;
   return !!(
-    s.uebertragVormonat ||
-    s.uebertragFolgemonat ||
-    s.periodeIst ||
-    s.periodeSaldo ||
-    s.bereitschaftAuszahlung ||
-    s.bereitschaftAzk
+    s.carryOverPreviousMonth ||
+    s.carryOverNextMonth ||
+    s.periodActual ||
+    s.periodBalance ||
+    s.onCallPayout ||
+    s.onCallTimeAccount
   );
 }
 
@@ -206,12 +206,12 @@ function SummaryCard({
                 ? `${t('monthSummary')} ${s.month}/${s.year}`
                 : t('monthSummary');
             const cells: [string, string | null][] = [
-              [t('sumCarryPrev'), s.uebertragVormonat],
-              [t('sumCarryNext'), s.uebertragFolgemonat],
-              [t('sumPeriodIst'), s.periodeIst],
-              [t('sumPeriodSaldo'), s.periodeSaldo],
-              [t('sumBereitPay'), s.bereitschaftAuszahlung],
-              [t('sumBereitAzk'), s.bereitschaftAzk],
+              [t('sumCarryPrev'), s.carryOverPreviousMonth],
+              [t('sumCarryNext'), s.carryOverNextMonth],
+              [t('sumPeriodIst'), s.periodActual],
+              [t('sumPeriodSaldo'), s.periodBalance],
+              [t('sumBereitPay'), s.onCallPayout],
+              [t('sumBereitAzk'), s.onCallTimeAccount],
             ];
             return (
               <View key={`${s.month}-${s.year}-${i}`} style={styles.summaryBlock}>
@@ -249,7 +249,7 @@ export default function PreviewScreen() {
   useEffect(
     () =>
       subscribeKeys(
-        ['entries', 'locale', 'themePref', 'hospitalId', 'groupId', 'areaId', 'preset', 'userMappings'],
+        ['entries', 'locale', 'themePref', 'packId', 'groupId', 'areaId', 'preset', 'userMappings', 'workplaces', 'activeWorkplaceId'],
         () => setTick((n) => n + 1)
       ),
     []
@@ -282,9 +282,9 @@ export default function PreviewScreen() {
   };
 
   const packMapping = useMemo(() => {
-    if (!snap.hospitalId || !snap.groupId || !snap.areaId) return null;
-    return getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
-  }, [snap.hospitalId, snap.groupId, snap.areaId]);
+    if (!snap.packId || !snap.groupId || !snap.areaId) return null;
+    return getMappingForScope(snap.packId, snap.groupId, snap.areaId);
+  }, [snap.packId, snap.groupId, snap.areaId]);
 
   const entries = useMemo(() => {
     return resolveStoredEntries(snap.entries, {
@@ -361,7 +361,7 @@ export default function PreviewScreen() {
     }
     try {
       const payload = {
-        hospital: snap.hospitalId || undefined,
+        pack: snap.packId || undefined,
         group: snap.groupId || undefined,
         area: snap.areaId || undefined,
         preset: snap.preset || undefined,

@@ -4,14 +4,28 @@
  * pdfjs-dist 4.x trips Hermes ("Invalid expression encountered"), so we
  * inflate FlateDecode streams (fflate) and rebuild text from `(...)Tj` runs.
  * Rebuilt header tokens (Abrechnungsmonat, Übertrag…) must stay literal for parsers.
+ *
+ * Hybrid LOGA3 PDFs (JPEG page image + FlateDecode text) are common — skip
+ * Image/DCTDecode streams; only inflate content streams.
  */
 import { unzlibSync, inflateSync } from 'fflate';
 
+/** Hermes-safe: avoid String.fromCharCode(...largeTypedArray) spreads. */
 function bytesToLatin1(u8: Uint8Array): string {
+  if (typeof TextDecoder !== 'undefined') {
+    try {
+      return new TextDecoder('latin1').decode(u8);
+    } catch {
+      // fall through
+    }
+  }
   let s = '';
-  const chunk = 0x8000;
+  const chunk = 0x1000; // 4096 — well under Hermes apply arg limits
   for (let i = 0; i < u8.length; i += chunk) {
-    s += String.fromCharCode(...u8.subarray(i, i + chunk));
+    const end = Math.min(i + chunk, u8.length);
+    const args: number[] = [];
+    for (let j = i; j < end; j++) args.push(u8[j]!);
+    s += String.fromCharCode.apply(null, args);
   }
   return s;
 }
@@ -56,7 +70,7 @@ function extractTjStrings(content: string): string[] {
   while ((m = tjRe.exec(content))) {
     parts.push(unescapePdfString(m[1]));
   }
-  const tjArrRe = /\[(.*?)\]\s*TJ/gs;
+  const tjArrRe = /\[([\s\S]*?)\]\s*TJ/g;
   while ((m = tjArrRe.exec(content))) {
     const inner = m[1];
     const strRe = /\(((?:\\.|[^\\)])*)\)/g;
@@ -69,12 +83,16 @@ function extractTjStrings(content: string): string[] {
 }
 
 function inflatePdfStream(data: Uint8Array): Uint8Array | null {
-  // PDF FlateDecode is zlib-wrapped (CMF/FLG), not raw DEFLATE.
+  // Copy view → standalone buffer (some RN/fflate paths mishandle byteOffset).
+  const raw =
+    data.byteOffset === 0 && data.byteLength === data.buffer.byteLength
+      ? data
+      : data.slice();
   try {
-    return unzlibSync(data);
+    return unzlibSync(raw);
   } catch {
     try {
-      return inflateSync(data);
+      return inflateSync(raw);
     } catch {
       return null;
     }
@@ -92,6 +110,25 @@ function indexOfAscii(hay: Uint8Array, needle: string, from = 0): number {
   return -1;
 }
 
+function isImageStreamDict(dict: string): boolean {
+  return (
+    /\/Subtype\s*\/Image\b/.test(dict) ||
+    /\/Filter\s*\/(?:DCTDecode|JPXDecode|CCITTFaxDecode|JBIG2Decode)\b/.test(dict)
+  );
+}
+
+/** Dict of the object that owns `stream` — nearest `<<` before it (not a blind 400B window). */
+function dictBeforeStream(pdf: Uint8Array, streamPos: number): string {
+  let start = Math.max(0, streamPos - 512);
+  for (let i = streamPos - 2; i >= Math.max(0, streamPos - 512); i--) {
+    if (pdf[i] === 0x3c /* < */ && pdf[i + 1] === 0x3c) {
+      start = i;
+      break;
+    }
+  }
+  return bytesToLatin1(pdf.subarray(start, streamPos));
+}
+
 /**
  * Byte-scan stream bodies. Do NOT regex [\s\S]*? over a latin1 copy of the whole PDF —
  * that burned ~30–40s per month on Hermes (UI still showed savePdf).
@@ -102,9 +139,21 @@ function findStreams(pdf: Uint8Array): { body: Uint8Array; flate: boolean }[] {
   while (pos < pdf.length) {
     const s = indexOfAscii(pdf, 'stream', pos);
     if (s < 0) break;
-    // dict window before "stream"
-    const dictFrom = Math.max(0, s - 400);
-    const dict = bytesToLatin1(pdf.subarray(dictFrom, s));
+    // "endstream" contains "stream" — skip those hits
+    if (s >= 3 && pdf[s - 3] === 0x65 && pdf[s - 2] === 0x6e && pdf[s - 1] === 0x64) {
+      pos = s + 6;
+      continue;
+    }
+    const dict = dictBeforeStream(pdf, s);
+    if (isImageStreamDict(dict)) {
+      // Advance past this stream body without treating image bytes as content.
+      let dataStart = s + 6;
+      if (pdf[dataStart] === 0x0d) dataStart++;
+      if (pdf[dataStart] === 0x0a) dataStart++;
+      const eImg = indexOfAscii(pdf, 'endstream', dataStart);
+      pos = eImg < 0 ? s + 6 : eImg + 9;
+      continue;
+    }
     const flate = /\/FlateDecode\b/.test(dict);
     let dataStart = s + 6;
     if (pdf[dataStart] === 0x0d) dataStart++;
@@ -231,17 +280,24 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
   }
 
   const parts: string[] = [];
-  // Prefer inflated FlateDecode content (LOGA3 text lives there). Skip raw full-PDF latin1 scan.
+  // Prefer inflated FlateDecode content (LOGA3 text lives there).
   const streams = findStreams(pdf);
   const ordered = [
     ...streams.filter((s) => s.flate),
     ...streams.filter((s) => !s.flate),
   ];
-  for (const { body } of ordered) {
+  for (const { body, flate } of ordered) {
     if (body.length < 8) continue;
-    const inflated = inflatePdfStream(body);
-    if (!inflated) continue;
-    const text = bytesToLatin1(inflated);
+    let text: string;
+    if (flate) {
+      const inflated = inflatePdfStream(body);
+      if (!inflated) continue;
+      text = bytesToLatin1(inflated);
+    } else {
+      // Uncompressed content streams only (images already skipped).
+      if (body.length > 512 * 1024) continue;
+      text = bytesToLatin1(body);
+    }
     if (!/Tj|TJ|BT|ET/.test(text)) continue;
     parts.push(...extractTjStrings(text));
   }
@@ -255,8 +311,11 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
   const flat = parts.join(' ').replace(/\s+Abrechnungsmonat\s+/gi, '\nAbrechnungsmonat ').trim();
   if (!flat) {
     const flate = streams.filter((s) => s.flate).length;
-    throw new Error(
-      `PDF text empty (no FlateDecode/Tj); size=${pdf.length}B streams=${streams.length} flate=${flate}`
+    throw Object.assign(
+      new Error(
+        `PDF_TEXT_EMPTY size=${pdf.length}B streams=${streams.length} flate=${flate}`
+      ),
+      { code: 'PDF_TEXT_EMPTY' as const }
     );
   }
   return flat;

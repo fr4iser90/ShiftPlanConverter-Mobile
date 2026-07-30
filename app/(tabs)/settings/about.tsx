@@ -38,7 +38,7 @@ export default function SettingsAboutScreen() {
 
   useEffect(
     () =>
-      subscribeKeys(['locale', 'themePref', 'rawText', 'hospitalId', 'groupId', 'areaId'], () =>
+      subscribeKeys(['locale', 'themePref', 'rawText', 'packId', 'groupId', 'areaId'], () =>
         setTick((n) => n + 1)
       ),
     []
@@ -84,7 +84,7 @@ export default function SettingsAboutScreen() {
   const onSupportMail = async () => {
     try {
       const body = buildSupportMailBody({
-        hospital: snap.hospitalId,
+        pack: snap.packId,
         group: snap.groupId,
         area: snap.areaId,
         sample: snap.rawText ? supportText : undefined,

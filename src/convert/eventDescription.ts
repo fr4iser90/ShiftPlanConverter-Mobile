@@ -48,25 +48,25 @@ export function buildEventDescription(
     );
   }
 
-  if (format.descPause && entry.pause) {
-    lines.push(t('eventDescPause', { value: entry.pause }));
+  if (format.descPause && entry.breakMinutes) {
+    lines.push(t('eventDescPause', { value: entry.breakMinutes }));
   }
-  if (format.descIst && entry.ist) {
-    lines.push(t('eventDescIst', { value: entry.ist }));
+  if (format.descIst && entry.actual) {
+    lines.push(t('eventDescIst', { value: entry.actual }));
   }
-  if (format.descAzk && entry.azkDaily != null && entry.azkDaily !== '') {
-    lines.push(t('eventDescAzkDay', { value: formatSignedHours(entry.azkDaily) }));
+  if (format.descAzk && entry.timeAccountDaily != null && entry.timeAccountDaily !== '') {
+    lines.push(t('eventDescAzkDay', { value: formatSignedHours(entry.timeAccountDaily) }));
   }
   if (format.descStandby) {
-    if (entry.bereitPercent != null && entry.bewertet != null) {
+    if (entry.onCallPercent != null && entry.onCallRated != null) {
       lines.push(
         t('eventDescStandbyRated', {
-          pct: entry.bereitPercent,
-          rated: entry.bewertet,
+          pct: entry.onCallPercent,
+          rated: entry.onCallRated,
         })
       );
-    } else if (entry.bereitPercent != null) {
-      lines.push(t('eventDescStandby', { pct: entry.bereitPercent }));
+    } else if (entry.onCallPercent != null) {
+      lines.push(t('eventDescStandby', { pct: entry.onCallPercent }));
     }
   }
 

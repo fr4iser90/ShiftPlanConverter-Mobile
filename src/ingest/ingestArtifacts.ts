@@ -31,19 +31,19 @@ function pad(m: number) {
 
 function workplaceOrThrow() {
   const snap = getSnapshot();
-  if (!snap.preset || !snap.hospitalId || !snap.groupId || !snap.areaId) {
+  if (!snap.preset || !snap.packId || !snap.groupId || !snap.areaId) {
     throw new Error(t('fjWorkplaceMissing'));
   }
-  const mapping = getMappingForScope(snap.hospitalId, snap.groupId, snap.areaId);
+  const mapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
   if (!mapping) {
     throw new Error(
-      t('fjMappingMissing', { scope: `${snap.hospitalId}/${snap.groupId}/${snap.areaId}` })
+      t('fjMappingMissing', { scope: `${snap.packId}/${snap.groupId}/${snap.areaId}` })
     );
   }
-  const pack = getPackById(snap.hospitalId);
-  const parserId = getParserIdForPack(pack);
+  const pack = getPackById(snap.packId);
+  const engineId = getParserIdForPack(pack);
   const pdfConfig = getPdfConfigForPack(pack);
-  return { snap, mapping, parserId, pdfConfig };
+  return { snap, mapping, engineId, pdfConfig };
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -59,7 +59,7 @@ export async function ingestArtifacts(
   artifacts: SourceArtifact[],
   opts: IngestOptions = {}
 ): Promise<IngestResult> {
-  const { snap, mapping, parserId, pdfConfig } = workplaceOrThrow();
+  const { snap, mapping, engineId, pdfConfig } = workplaceOrThrow();
   const result: IngestResult = {
     entries: [],
     summaries: [],
@@ -68,18 +68,18 @@ export async function ingestArtifacts(
     skippedNoPlan: [],
   };
 
-  const windowKeys = new Set<string>();
+  // Only months with real replacement data — NO_PLAN / failed months must NOT wipe store.
+  const replaceMonthKeys = new Set<string>();
 
   for (const art of artifacts) {
     if (art.kind === 'skipped') {
       const label = `${pad(art.month)}/${art.year}`;
       result.skippedNoPlan.push(label);
-      windowKeys.add(`${art.year}-${pad(art.month)}`);
       continue;
     }
 
     if (art.kind === 'pdf') {
-      windowKeys.add(`${art.year}-${pad(art.month)}`);
+      replaceMonthKeys.add(`${art.year}-${pad(art.month)}`);
       const label = `${pad(art.month)}/${art.year}`;
       opts.onStatus?.(t('fjStepAction', { step: `ingest ${label}` }));
       let text = art.text?.trim() || '';
@@ -95,7 +95,7 @@ export async function ingestArtifacts(
         preset: snap.preset!,
         mapping,
         userMappings: snap.userMappings,
-        parserId,
+        engineId,
         pdfConfig,
       });
       result.entries.push(...converted.entries);
@@ -105,13 +105,13 @@ export async function ingestArtifacts(
     }
 
     if (art.kind === 'text') {
-      if (art.month && art.year) windowKeys.add(`${art.year}-${pad(art.month)}`);
+      if (art.month && art.year) replaceMonthKeys.add(`${art.year}-${pad(art.month)}`);
       result.texts.push(art.text);
       const converted = convertRawText(art.text, {
         preset: snap.preset!,
         mapping,
         userMappings: snap.userMappings,
-        parserId,
+        engineId,
         pdfConfig,
       });
       result.entries.push(...converted.entries);
@@ -141,34 +141,69 @@ export async function ingestArtifacts(
     return result;
   }
 
-  let base: ShiftEntry[] = [];
-  if (opts.preserveOutsideMonths && windowKeys.size) {
-    base = getSnapshot().entries.filter((e) => !windowKeys.has(String(e.date || '').slice(0, 7)));
+  const wpId = snap.activeWorkplaceId || '';
+  const taggedNew = wpId
+    ? result.entries.map((e) => ({ ...e, workplaceId: wpId }))
+    : result.entries;
+  const taggedSummaries = wpId
+    ? result.summaries.map((s) => ({ ...s, workplaceId: wpId }))
+    : result.summaries;
+
+  const all = getSnapshot().entries;
+  const otherWorkplaces = wpId
+    ? all.filter((e) => e.workplaceId && e.workplaceId !== wpId)
+    : [];
+  const sameWorkplace = wpId
+    ? all.filter((e) => !e.workplaceId || e.workplaceId === wpId)
+    : all;
+
+  let baseSame: ShiftEntry[] = [];
+  if (opts.preserveOutsideMonths && replaceMonthKeys.size) {
+    baseSame = sameWorkplace.filter(
+      (e) => !replaceMonthKeys.has(String(e.date || '').slice(0, 7))
+    );
   } else if (opts.replaceEntries === false) {
-    base = getSnapshot().entries;
+    baseSame = sameWorkplace;
   }
-  const merged = [...base, ...result.entries];
+
+  const merged = [...otherWorkplaces, ...baseSame, ...taggedNew];
   const seen = new Set<string>();
   const unique = merged.filter((e) => {
-    const k = `${e.date}|${e.start || ''}|${e.end || ''}|${e.type}`;
+    const k = `${e.workplaceId || ''}|${e.date}|${e.start || ''}|${e.end || ''}|${e.type}`;
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
-  const prevSummaries = opts.preserveOutsideMonths ? getSnapshot().summaries || [] : [];
-  const summaries = opts.preserveOutsideMonths
-    ? [
-        ...prevSummaries.filter((s) => {
-          const m = Number(s?.month);
-          const y = Number(s?.year);
-          if (!m || !y) return true;
-          return !windowKeys.has(`${y}-${pad(m)}`);
-        }),
-        ...result.summaries,
-      ]
-    : result.summaries;
+  const prevSummaries = getSnapshot().summaries || [];
+  const otherSummaries = wpId
+    ? prevSummaries.filter((s) => s.workplaceId && s.workplaceId !== wpId)
+    : [];
+  const sameSummaries = wpId
+    ? prevSummaries.filter((s) => !s.workplaceId || s.workplaceId === wpId)
+    : prevSummaries;
+  const keptSameSummaries = opts.preserveOutsideMonths
+    ? sameSummaries.filter((s) => {
+        const m = Number(s?.month);
+        const y = Number(s?.year);
+        if (!m || !y) return true;
+        return !replaceMonthKeys.has(`${y}-${pad(m)}`);
+      })
+    : [];
+  const summaries = [
+    ...otherSummaries,
+    ...(opts.preserveOutsideMonths ? keptSameSummaries : []),
+    ...taggedSummaries,
+  ];
+  const newRaw = anonymizeDienstplanText(result.texts.join('\n\n'), { maxChars: 80000 });
+  const prevRaw = (getSnapshot().rawText || '').trim();
+  const rawText =
+    opts.preserveOutsideMonths && prevRaw
+      ? anonymizeDienstplanText([prevRaw, newRaw].filter(Boolean).join('\n\n'), {
+          maxChars: 80000,
+        })
+      : newRaw;
   await setEntries(unique, {
-    rawText: anonymizeDienstplanText(result.texts.join('\n\n'), { maxChars: 80000 }),
+    rawText,
     summaries,
     summary: summaries[summaries.length - 1] || null,
   });

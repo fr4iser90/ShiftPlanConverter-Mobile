@@ -12,25 +12,25 @@ function newSummary(): MonthSummary {
   return {
     month: null,
     year: null,
-    uebertragVormonat: null,
-    uebertragFolgemonat: null,
-    periodePepSoll: null,
-    periodeVertrSoll: null,
-    periodeIst: null,
-    periodeSaldo: null,
-    bereitschaftAuszahlung: null,
-    bereitschaftAzk: null,
+    carryOverPreviousMonth: null,
+    carryOverNextMonth: null,
+    periodPepTarget: null,
+    periodContractTarget: null,
+    periodActual: null,
+    periodBalance: null,
+    onCallPayout: null,
+    onCallTimeAccount: null,
   };
 }
 
 function hasUsefulSummary(s: MonthSummary): boolean {
   return !!(
-    s.uebertragVormonat ||
-    s.uebertragFolgemonat ||
-    s.periodeIst ||
-    s.periodeSaldo ||
-    s.bereitschaftAuszahlung ||
-    s.bereitschaftAzk
+    s.carryOverPreviousMonth ||
+    s.carryOverNextMonth ||
+    s.periodActual ||
+    s.periodBalance ||
+    s.onCallPayout ||
+    s.onCallTimeAccount
   );
 }
 
@@ -41,7 +41,7 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
 
   const lines = text.normalize('NFC').split('\n');
   const mainEntries: ShiftEntry[] = [];
-  const bereitschaftEntries: ShiftEntry[] = [];
+  const onCallEntries: ShiftEntry[] = [];
   let currentYear = '';
   let currentMonth = '';
 
@@ -70,13 +70,13 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
         dateG: config.onCall.dateGroup ?? 1,
         startG: config.onCall.startGroup ?? 2,
         endG: config.onCall.endGroup ?? 3,
-        pctG: config.onCall.bereitPercentGroup,
-        bewG: config.onCall.bewertetGroup,
+        pctG: config.onCall.onCallPercentGroup,
+        bewG: config.onCall.onCallRatedGroup,
       }
     : null;
 
-  const bereitSection = config.bereitschaftSection
-    ? compilePattern(config.bereitschaftSection, config.bereitschaftSectionFlags)
+  const onCallSectionRe = config.onCallSection
+    ? compilePattern(config.onCallSection, config.onCallSectionFlags)
     : null;
   const mainRestart = config.mainSectionRestart
     ? compilePattern(config.mainSectionRestart, config.mainSectionRestartFlags)
@@ -89,7 +89,7 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
 
   const summaries: MonthSummary[] = [];
   let summary = newSummary();
-  let inBereitschaftSection = false;
+  let inOnCallSection = false;
 
   function flushSummary() {
     if (hasUsefulSummary(summary)) {
@@ -110,11 +110,11 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
       currentYear = monthYearMatch[yearG];
       summary.month = currentMonth;
       summary.year = currentYear;
-      inBereitschaftSection = false;
+      inOnCallSection = false;
     }
 
     if (mainRestart?.test(line)) {
-      inBereitschaftSection = false;
+      inOnCallSection = false;
     }
 
     for (const s of summaryRules) {
@@ -132,12 +132,12 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
       }
     }
 
-    if (bereitSection?.test(line)) {
-      inBereitschaftSection = true;
+    if (onCallSectionRe?.test(line)) {
+      inOnCallSection = true;
       continue;
     }
 
-    if (inBereitschaftSection && onCall) {
+    if (inOnCallSection && onCall) {
       const onCallMatch = line.match(onCall.re) || (onCall.fallback ? line.match(onCall.fallback) : null);
       if (onCallMatch) {
         const dateStr = onCallMatch[onCall.dateG];
@@ -152,12 +152,12 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
           end: endTime,
         };
         if (onCall.pctG != null && onCallMatch[onCall.pctG] != null) {
-          entry.bereitPercent = onCallMatch[onCall.pctG];
+          entry.onCallPercent = onCallMatch[onCall.pctG];
         }
         if (onCall.bewG != null && onCallMatch[onCall.bewG] != null) {
-          entry.bewertet = onCallMatch[onCall.bewG];
+          entry.onCallRated = onCallMatch[onCall.bewG];
         }
-        bereitschaftEntries.push(entry);
+        onCallEntries.push(entry);
       }
       continue;
     }
@@ -207,7 +207,7 @@ export function parsePdfPayroll(text: string, config?: PackPdfConfig | null): Pa
     year: currentYear,
     month: currentMonth,
     mainEntries,
-    bereitschaftEntries,
+    onCallEntries,
     summary: summaries[summaries.length - 1] || null,
     summaries,
   };

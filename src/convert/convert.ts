@@ -1,6 +1,6 @@
 import type {
   ConvertResult,
-  HospitalMapping,
+  PackMapping,
   ParseResult,
   ShiftEntry,
 } from './types';
@@ -16,20 +16,20 @@ function addDays(dateStr: string, days: number): string {
 
 function pickDayDetails(entry: ShiftEntry): Partial<ShiftEntry> {
   const details: Partial<ShiftEntry> = {};
-  if (entry.pause != null) details.pause = entry.pause;
-  if (entry.ist != null) details.ist = entry.ist;
-  if (entry.azkDaily != null) details.azkDaily = entry.azkDaily;
-  if (entry.pepSoll != null) details.pepSoll = entry.pepSoll;
-  if (entry.vertrSoll != null) details.vertrSoll = entry.vertrSoll;
+  if (entry.breakMinutes != null) details.breakMinutes = entry.breakMinutes;
+  if (entry.actual != null) details.actual = entry.actual;
+  if (entry.timeAccountDaily != null) details.timeAccountDaily = entry.timeAccountDaily;
+  if (entry.pepTarget != null) details.pepTarget = entry.pepTarget;
+  if (entry.contractTarget != null) details.contractTarget = entry.contractTarget;
   return details;
 }
 
-function pickBereitschaftDetails(chainParts: ShiftEntry[]): Partial<ShiftEntry> {
-  const withMeta = chainParts.find((p) => p.bereitPercent != null || p.bewertet != null);
+function pickOnCallDetails(chainParts: ShiftEntry[]): Partial<ShiftEntry> {
+  const withMeta = chainParts.find((p) => p.onCallPercent != null || p.onCallRated != null);
   if (!withMeta) return {};
   const details: Partial<ShiftEntry> = {};
-  if (withMeta.bereitPercent != null) details.bereitPercent = withMeta.bereitPercent;
-  if (withMeta.bewertet != null) details.bewertet = withMeta.bewertet;
+  if (withMeta.onCallPercent != null) details.onCallPercent = withMeta.onCallPercent;
+  if (withMeta.onCallRated != null) details.onCallRated = withMeta.onCallRated;
   return details;
 }
 
@@ -38,7 +38,7 @@ export function parseTimeSheet(
   _profession: string,
   _bereich: string,
   preset: string,
-  hospitalMapping: HospitalMapping | null | undefined,
+  packMapping: PackMapping | null | undefined,
   parserFn: ParserFn
 ): ConvertResult {
   if (!parserFn) {
@@ -49,7 +49,7 @@ export function parseTimeSheet(
     year,
     month,
     mainEntries: rawMain,
-    bereitschaftEntries: rawBereitschaft,
+    onCallEntries: rawOnCall,
     summary = null,
     summaries = null,
   } = parserFn(pdfText);
@@ -59,7 +59,7 @@ export function parseTimeSheet(
   }
 
   const mapping =
-    (hospitalMapping && hospitalMapping.presets && hospitalMapping.presets[preset]) || {};
+    (packMapping && packMapping.presets && packMapping.presets[preset]) || {};
 
   const specialCodes: Record<string, boolean> = {};
   Object.entries(mapping).forEach(([key, value]) => {
@@ -71,7 +71,7 @@ export function parseTimeSheet(
 
   const finalEntries: ShiftEntry[] = [];
   const handledMainIndices = new Set<number>();
-  const handledBereitschaftIndices = new Set<number>();
+  const handledOnCallIndices = new Set<number>();
 
   for (let m = 0; m < rawMain.length; m++) {
     const mainEntry = rawMain[m];
@@ -83,14 +83,14 @@ export function parseTimeSheet(
 
     for (let loop = 0; loop < 10; loop++) {
       let found = false;
-      for (let b = 0; b < rawBereitschaft.length; b++) {
-        if (handledBereitschaftIndices.has(b)) continue;
-        const bEntry = rawBereitschaft[b];
+      for (let b = 0; b < rawOnCall.length; b++) {
+        if (handledOnCallIndices.has(b)) continue;
+        const bEntry = rawOnCall[b];
 
         if (bEntry.date === currentDate && bEntry.start === currentEnd) {
           chain.push(bEntry);
           currentEnd = bEntry.end!;
-          handledBereitschaftIndices.add(b);
+          handledOnCallIndices.add(b);
           found = true;
           break;
         }
@@ -102,7 +102,7 @@ export function parseTimeSheet(
           chain.push(bEntry);
           currentEnd = bEntry.end!;
           currentDate = bEntry.date;
-          handledBereitschaftIndices.add(b);
+          handledOnCallIndices.add(b);
           found = true;
           break;
         }
@@ -120,7 +120,7 @@ export function parseTimeSheet(
         end,
         isValidated: resolved.code ? resolved.isValidated : true,
         ...pickDayDetails(mainEntry),
-        ...pickBereitschaftDetails(chain.slice(1)),
+        ...pickOnCallDetails(chain.slice(1)),
       });
       handledMainIndices.add(m);
     }
@@ -150,9 +150,9 @@ export function parseTimeSheet(
     });
   }
 
-  for (let i = 0; i < rawBereitschaft.length; i++) {
-    if (handledBereitschaftIndices.has(i)) continue;
-    const item = rawBereitschaft[i];
+  for (let i = 0; i < rawOnCall.length; i++) {
+    if (handledOnCallIndices.has(i)) continue;
+    const item = rawOnCall[i];
     const timeKey = `${item.start}-${item.end}`;
     // Exact only — do not infer work codes onto leftover on-call slices
     const { code, isValidated } = mappingCode(mapping[timeKey]);
@@ -164,8 +164,8 @@ export function parseTimeSheet(
       end: item.end,
       isValidated,
       ...pickDayDetails(item),
-      ...(item.bereitPercent != null ? { bereitPercent: item.bereitPercent } : {}),
-      ...(item.bewertet != null ? { bewertet: item.bewertet } : {}),
+      ...(item.onCallPercent != null ? { onCallPercent: item.onCallPercent } : {}),
+      ...(item.onCallRated != null ? { onCallRated: item.onCallRated } : {}),
     });
   }
 

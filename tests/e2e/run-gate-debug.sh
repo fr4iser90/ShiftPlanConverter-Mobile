@@ -50,7 +50,7 @@ for line in Path(".env").read_text().splitlines():
         k,v=line.split("=",1); vals[k.strip()]=v.strip()
 q=urllib.parse.urlencode({
   "smoke":"1","url":vals["LOGA3_BASE_URL"],"user":vals["LOGA3_USERNAME"],"pass":vals["LOGA3_PASSWORD"],
-  "hospital":"st-elisabeth-leipzig","group":"pflege","area":"op-bereich","preset":"Anästhesie",
+  "pack":"st-elisabeth-leipzig","group":"pflege","area":"op-bereich","preset":"Anästhesie",
   "months":"07","year":"2026","autofetch":"1",
 })
 deep=f"shiftplan:///?{q}"
