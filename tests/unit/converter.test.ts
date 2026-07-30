@@ -46,10 +46,10 @@ describe('St. Elisabeth parser (pdf-payroll + pack pdf.json)', () => {
     expect(f?.type).toBe('F');
   });
 
-  it('infers F when leaving early with same start (not “missing mapping”)', () => {
+  it('infers nearest same-start code when leaving early (FK102 closer than F)', () => {
     const mapping = getBuiltinMapping().presets!.Anästhesie;
     const early = resolveShiftMapping('07:35', '14:00', mapping);
-    expect(early.code).toBe('F');
+    expect(early.code).toBe('FK102');
     expect(early.inferred).toBe(true);
     expect(early.isValidated).toBe(false);
     const exact = resolveShiftMapping('07:35', '15:50', mapping);

@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "ShiftPlan Converter",
-    "slug": "shiftplan-converter-mobile",
+    "slug": "shiftplan-converter",
     "version": "0.1.5",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
@@ -89,6 +89,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "25b67596-d979-448a-bb56-ae871bf4902b"
+      }
     }
   }
 }

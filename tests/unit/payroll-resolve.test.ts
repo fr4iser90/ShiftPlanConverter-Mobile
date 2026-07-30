@@ -37,11 +37,11 @@ describe('Ärzte derive + overrides', () => {
   });
 });
 
-describe('Pflege B38 calibration', () => {
+describe('Pflege B39 calibration (früher oft als B38)', () => {
   const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')!;
 
-  it('sums one B38 like Mai 2026 gold', () => {
-    const entries: ShiftEntry[] = [{ type: 'B38', date: '2026-04-15', start: '19:50', end: '07:35' }];
+  it('sums one B39 like Mai 2026 gold (19:50–07:35)', () => {
+    const entries: ShiftEntry[] = [{ type: 'B39', date: '2026-04-15', start: '19:50', end: '07:35' }];
     const { hours, matched } = sumHoursForEntries(profile, entries);
     expect(matched).toBe(1);
     expect(hours.paidBd).toBe(6.03);

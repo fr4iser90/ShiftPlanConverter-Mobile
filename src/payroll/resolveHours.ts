@@ -220,12 +220,12 @@ export function hoursForEntry(
   }
 
   // Month-crossing night: strip 00–04 from current month (like Ärzte)
-  if (ci && def.id === 'B38_NIGHT') {
+  if (ci && (def.id === 'B38_NIGHT' || def.id === 'B39_NIGHT')) {
     const crosses =
       ci.nextIso && !sameYearMonth(entry.date, ci.nextIso);
     if (crosses) {
       h.bdNight004 = 0;
-      // Night before midnight for B38 19:50–00:00 ≈ 4.17; gold used full-month nights.
+      // Night before midnight for B39 19:50–00:00 ≈ 4.17; gold used full-month nights.
       // Keep bdNight from profile for non-crossing; for crossing use ~4h pre-midnight.
       h.bdNight = Math.min(h.bdNight, 4);
     }
