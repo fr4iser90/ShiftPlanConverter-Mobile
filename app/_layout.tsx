@@ -19,6 +19,10 @@ import {
 import { hydrateLoga3Env } from '@/src/sources/webview/loga3/env';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
 import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
+import {
+  applyPayrollSmokeFromUrl,
+  isPayrollSmokeUrl,
+} from '@/src/setup/payrollSmokeIntent';
 import { restoreGoogleSession } from '@/src/sync/google';
 import { openErrorReportMail } from '@/src/support/mailto';
 import { useTheme } from '@/src/ui/useTheme';
@@ -82,6 +86,9 @@ export default function RootLayout() {
         } else if (initial && isOcrSmokeUrl(initial)) {
           await applyOcrSmokeFromUrl(initial, { fromInitialURL: true });
           router.replace('/(tabs)');
+        } else if (initial && isPayrollSmokeUrl(initial)) {
+          await applyPayrollSmokeFromUrl(initial);
+          router.replace('/(tabs)/pruefung');
         }
       } catch (e) {
         // Release: credential smoke deep-links are rejected by design.
@@ -100,6 +107,12 @@ export default function RootLayout() {
           void applyOcrSmokeFromUrl(e.url)
             .then(() => router.replace('/(tabs)'))
             .catch((err) => console.warn('ocr-smoke url failed', err));
+          return;
+        }
+        if (isPayrollSmokeUrl(e.url)) {
+          void applyPayrollSmokeFromUrl(e.url)
+            .then(() => router.replace('/(tabs)/pruefung'))
+            .catch((err) => console.warn('payroll-smoke url failed', err));
         }
       });
     })();

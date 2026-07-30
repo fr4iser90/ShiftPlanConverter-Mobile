@@ -1,4 +1,8 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import { parsePayslipText } from '../../src/convert/parsers/engines/pdf-payslip';
+import { extractTextFromPdfBuffer, tokensToPayslipText } from '../../src/convert/pdfText';
 import { getPayrollProfileForScope, isPayrollSupportedForScope } from '../../src/packs';
 
 describe('parsePayslipText', () => {
@@ -33,13 +37,56 @@ BRG       Gesamtbrutto                                                          
   });
 });
 
-describe('payroll pack has no personal tarif defaults', () => {
-  it('pflege profile omits personal salary/zulagen', () => {
-    const p = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich');
-    expect(p?.egRows?.length ?? 0).toBe(0);
-    expect(p?.defaults?.zulage2Y1).toBeUndefined();
-    expect(p?.defaults?.bdRate).toBeUndefined();
-    expect(p?.fullWeekHours).toBe(38.5);
+describe('tokensToPayslipText (app PDF extract shape)', () => {
+  it('rebuilds LA rows from split Tj tokens', () => {
+    const text = tokensToPayslipText([
+      'Verdienstabrechnung',
+      'Abrechnungsmonat',
+      'Juli 2026',
+      'Tarif AVR-C RK Ost Pflege Krankenhä Gruppe P8 Stufe 5 [22,00 Stunden',
+      'je Woche]',
+      '100',
+      ' (JLL) Tarifliches Grundgehalt',
+      ' 2.420,30',
+      ' 16.942,10',
+      '304',
+      ' (JLL) Bereitschaftsdienst',
+      '5,76 Std.',
+      '23,23',
+      ' 133,80',
+      ' 489,91',
+      'BRG',
+      'Gesamtbrutto',
+      ' 2.731,90',
+      ' 19.171,69',
+    ]);
+    const doc = parsePayslipText(text);
+    expect(doc.payMonth).toBe('2026-07');
+    expect(doc.eg).toBe('P8');
+    expect(doc.workHoursPerWeek).toBe(22);
+    expect(doc.lines.find((l) => l.la === '304')?.amount).toBe(133.8);
+    expect(doc.gross).toBe(2731.9);
+  });
+});
+
+describe('extractTextFromPdfBuffer real Verdienstnachweis', () => {
+  it('parses Juli PDF when present under tmp/thomas', async () => {
+    const p = path.join(
+      __dirname,
+      '../../tmp/thomas/pflege_Verdienstnachweis_Juli_2026.pdf'
+    );
+    if (!fs.existsSync(p)) return;
+    const buf = fs.readFileSync(p);
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    const text = await extractTextFromPdfBuffer(ab);
+    const doc = parsePayslipText(text);
+    expect(doc.payMonth).toBe('2026-07');
+    expect(doc.eg).toBe('P8');
+    expect(doc.stage).toBe(5);
+    expect(doc.workHoursPerWeek).toBe(22);
+    expect(doc.lines.find((l) => l.la === '100')?.amount).toBe(2420.3);
+    expect(doc.lines.find((l) => l.la === '34U')?.qty).toBe(5);
+    expect(doc.gross).toBe(2731.9);
   });
 });
 
@@ -53,5 +100,15 @@ describe('payroll pack gate', () => {
     expect(getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')?.id).toBe(
       'st-elisabeth-pflege-op-anaesthesie'
     );
+  });
+});
+
+describe('payroll pack has no personal tarif defaults', () => {
+  it('pflege profile omits personal salary/zulagen', () => {
+    const p = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich');
+    expect(p?.egRows?.length ?? 0).toBe(0);
+    expect(p?.defaults?.zulage2Y1).toBeUndefined();
+    expect(p?.defaults?.bdRate).toBeUndefined();
+    expect(p?.fullWeekHours).toBe(38.5);
   });
 });

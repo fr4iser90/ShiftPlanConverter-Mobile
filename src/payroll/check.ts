@@ -210,15 +210,10 @@ export function runPayrollCheck(opts: {
     if (z1) expected.set('2Y1', { qty: null, rate: null, amount: money(z1) });
     if (z7) expected.set('2Z7', { qty: null, rate: null, amount: money(z7) });
 
-    const shiftFull = profile.defaults?.shiftAllowanceFull ?? 315;
-    if (tarif.shiftAllowance) {
-      expected.set('245', {
-        qty: null,
-        rate: null,
-        amount: money(shiftFull * workPct / 100),
-      });
-    } else if (lineByLa(payslip.lines, '245')) {
-      // Ist has Schichtzulage but tarif toggle off — still show expected 0 only if user opted out
+    // Schichtzulage: mirror VN amount (partial months / pro-rata). Do not invent Vollzeit×%.
+    const shiftIst = lineByLa(payslip.lines, '245')?.amount;
+    if (shiftIst != null && shiftIst !== 0) {
+      expected.set('245', { qty: null, rate: null, amount: money(shiftIst) });
     }
 
     const bdRate =
@@ -268,9 +263,17 @@ export function runPayrollCheck(opts: {
       });
     }
 
-    const ukDays = tarif.ukDays ?? urlaubDays;
-    const ukRate = tarif.ukRate ?? lineByLa(payslip.lines, '34U')?.rate ?? 0;
-    if (ukDays && ukRate) {
+    const ukLine = lineByLa(payslip.lines, '34U');
+    const ukDays = tarif.ukDays ?? urlaubDays ?? ukLine?.qty ?? 0;
+    const ukRate = tarif.ukRate ?? ukLine?.rate ?? 0;
+    if (ukLine?.amount != null && (ukDays || ukRate)) {
+      // Prefer VN amount (avoids 5×3,97=19,85 vs ausgezahlt 19,83).
+      expected.set('34U', {
+        qty: ukLine.qty,
+        rate: ukLine.rate,
+        amount: money(ukLine.amount),
+      });
+    } else if (ukDays && ukRate) {
       expected.set('34U', {
         qty: money(ukDays),
         rate: money(ukRate),
@@ -278,7 +281,7 @@ export function runPayrollCheck(opts: {
       });
     } else if (urlaubDays && !ukRate) {
       diagnostics.push(
-        `${urlaubDays} Urlaubstag(e) — U/K-Satz erscheint nach VN-Import oder Tarif-Editor.`
+        `${urlaubDays} Urlaubstag(e) — U/K-Satz erscheint nach VN-Import.`
       );
     }
   }

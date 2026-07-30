@@ -55,7 +55,10 @@ export function tarifPrefsFromPayslip(
   return out;
 }
 
-/** Merge: saved prefs win; fill gaps from payslip; then neutral defaults. */
+/**
+ * Merge: neutral defaults → saved prefs → payslip.
+ * Payslip wins for fields it provides (EG/Stufe/Stunden/Zulagen/BD/U-K).
+ */
 export function mergeTarifPrefs(
   profile: PayrollProfile | null,
   saved: PayrollTarifPrefs,
@@ -63,5 +66,5 @@ export function mergeTarifPrefs(
 ): PayrollTarifPrefs {
   const base = defaultTarifPrefs(profile);
   const fromSlip = payslip ? tarifPrefsFromPayslip(payslip, profile) : {};
-  return { ...base, ...fromSlip, ...saved };
+  return { ...base, ...saved, ...fromSlip };
 }

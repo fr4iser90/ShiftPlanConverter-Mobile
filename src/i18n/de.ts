@@ -711,6 +711,9 @@ export const de = {
   payrollLoga3PdfOk: 'PDF {label} empfangen ({size} B)',
   payrollLoga3Imported: 'Verdienstnachweis {month} gespeichert.',
   payrollTarifTitle: 'Tarif / Beschäftigung',
+  payrollTarifFromPayslip: 'Aus Verdienstnachweis',
+  payrollTarifNeedPayslip:
+    'Gruppe, Stufe und Stunden kommen aus dem Verdienstnachweis — bitte zuerst PDF importieren (oder LOGA3).',
   payrollTarifEg: 'Entgeltgruppe',
   payrollTarifStage: 'Stufe',
   payrollTarifWorkPct: 'Umfang %',

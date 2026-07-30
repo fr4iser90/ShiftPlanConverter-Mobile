@@ -272,106 +272,112 @@ export default function PayrollScreen() {
 
         <AppCard>
           <SectionTitle>{t('payrollTarifTitle')}</SectionTitle>
-          {egOptions.length ? (
-            <>
-              <View style={styles.chipRow}>
-                {egOptions.map((r) => (
-                  <Pressable
-                    key={r.eg}
-                    onPress={() => setTarif((p) => ({ ...p, eg: r.eg }))}
-                    style={[styles.chip, tarif.eg === r.eg && styles.chipOn]}
-                  >
-                    <Text style={styles.chipText}>{r.eg}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={styles.chipRow}>
-                {Array.from({ length: stageCount }, (_, i) => i + 1).map((s) => (
-                  <Pressable
-                    key={s}
-                    onPress={() => setTarif((p) => ({ ...p, stage: s }))}
-                    style={[styles.chip, tarif.stage === s && styles.chipOn]}
-                  >
-                    <Text style={styles.chipText}>{`${t('payrollTarifStage')} ${s}`}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          ) : (
-            <View style={styles.rowFields}>
-              <Field
-                label={t('payrollTarifEg')}
-                value={String(tarif.eg ?? '')}
-                onChange={(v) => setTarif((p) => ({ ...p, eg: v.trim() || undefined }))}
-                styles={styles}
-                flex
-              />
-              <Field
-                label={t('payrollTarifStage')}
-                value={String(tarif.stage ?? '')}
-                onChange={(v) => setTarif((p) => ({ ...p, stage: parseNum(v) }))}
-                styles={styles}
-                flex
-              />
-            </View>
-          )}
-          {payslip?.tarifLabel ? <Meta>{payslip.tarifLabel}</Meta> : null}
           {profile.tarifFamily === 'avr-c-pflege' ? (
-            <Field
-              label={t('payrollTarifHoursWeek')}
-              value={String(tarif.workHoursPerWeek ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, workHoursPerWeek: parseNum(v) }))}
-              styles={styles}
-            />
+            payslip ? (
+              <>
+                <Meta>{t('payrollTarifFromPayslip')}</Meta>
+                {payslip.tarifLabel ? <Text style={styles.body}>{payslip.tarifLabel}</Text> : null}
+                <Meta>
+                  {[
+                    payslip.eg ? `${t('payrollTarifEg')}: ${payslip.eg}` : null,
+                    payslip.stage != null ? `${t('payrollTarifStage')}: ${payslip.stage}` : null,
+                    payslip.workHoursPerWeek != null
+                      ? `${t('payrollTarifHoursWeek')}: ${num(payslip.workHoursPerWeek)}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Meta>
+              </>
+            ) : (
+              <Meta>{t('payrollTarifNeedPayslip')}</Meta>
+            )
           ) : (
-            <Field
-              label={t('payrollTarifWorkPct')}
-              value={String(tarif.workPct ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, workPct: parseNum(v) }))}
-              styles={styles}
-            />
+            <>
+              {egOptions.length ? (
+                <>
+                  <View style={styles.chipRow}>
+                    {egOptions.map((r) => (
+                      <Pressable
+                        key={r.eg}
+                        onPress={() => setTarif((p) => ({ ...p, eg: r.eg }))}
+                        style={[styles.chip, tarif.eg === r.eg && styles.chipOn]}
+                      >
+                        <Text style={styles.chipText}>{r.eg}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={styles.chipRow}>
+                    {Array.from({ length: stageCount }, (_, i) => i + 1).map((s) => (
+                      <Pressable
+                        key={s}
+                        onPress={() => setTarif((p) => ({ ...p, stage: s }))}
+                        style={[styles.chip, tarif.stage === s && styles.chipOn]}
+                      >
+                        <Text style={styles.chipText}>{`${t('payrollTarifStage')} ${s}`}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <View style={styles.rowFields}>
+                  <Field
+                    label={t('payrollTarifEg')}
+                    value={String(tarif.eg ?? '')}
+                    onChange={(v) => setTarif((p) => ({ ...p, eg: v.trim() || undefined }))}
+                    styles={styles}
+                    flex
+                  />
+                  <Field
+                    label={t('payrollTarifStage')}
+                    value={String(tarif.stage ?? '')}
+                    onChange={(v) => setTarif((p) => ({ ...p, stage: parseNum(v) }))}
+                    styles={styles}
+                    flex
+                  />
+                </View>
+              )}
+              {payslip?.tarifLabel ? <Meta>{payslip.tarifLabel}</Meta> : null}
+              <Field
+                label={t('payrollTarifWorkPct')}
+                value={String(tarif.workPct ?? '')}
+                onChange={(v) => setTarif((p) => ({ ...p, workPct: parseNum(v) }))}
+                styles={styles}
+              />
+              <Pressable
+                onPress={() => setTarif((p) => ({ ...p, shiftAllowance: !p.shiftAllowance }))}
+                style={styles.toggleRow}
+              >
+                <Text style={styles.body}>{t('payrollTarifShift')}</Text>
+                <Text style={styles.body}>
+                  {tarif.shiftAllowance ? t('payrollYes') : t('payrollNo')}
+                </Text>
+              </Pressable>
+              <Field
+                label={t('payrollTarifVl')}
+                value={String(tarif.vlAg ?? '')}
+                onChange={(v) => setTarif((p) => ({ ...p, vlAg: parseNum(v) }))}
+                styles={styles}
+              />
+              <View style={styles.rowFields}>
+                <Field
+                  label={t('payrollTarifUkDays')}
+                  value={String(tarif.ukDays ?? '')}
+                  onChange={(v) => setTarif((p) => ({ ...p, ukDays: parseNum(v) }))}
+                  styles={styles}
+                  flex
+                />
+                <Field
+                  label={t('payrollTarifUkRate')}
+                  value={String(tarif.ukRate ?? '')}
+                  onChange={(v) => setTarif((p) => ({ ...p, ukRate: parseNum(v) }))}
+                  styles={styles}
+                  flex
+                />
+              </View>
+              <AppButton title={t('payrollTarifSave')} onPress={() => void onSaveTarif()} />
+            </>
           )}
-          <Pressable
-            onPress={() => setTarif((p) => ({ ...p, shiftAllowance: !p.shiftAllowance }))}
-            style={styles.toggleRow}
-          >
-            <Text style={styles.body}>{t('payrollTarifShift')}</Text>
-            <Text style={styles.body}>
-              {tarif.shiftAllowance ? t('payrollYes') : t('payrollNo')}
-            </Text>
-          </Pressable>
-          {profile.tarifFamily === 'avr-aerzte' ? (
-            <Field
-              label={t('payrollTarifVl')}
-              value={String(tarif.vlAg ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, vlAg: parseNum(v) }))}
-              styles={styles}
-            />
-          ) : (
-            <Field
-              label={t('payrollTarifBdRate')}
-              value={String(tarif.bdRate ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, bdRate: parseNum(v) }))}
-              styles={styles}
-            />
-          )}
-          <View style={styles.rowFields}>
-            <Field
-              label={t('payrollTarifUkDays')}
-              value={String(tarif.ukDays ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, ukDays: parseNum(v) }))}
-              styles={styles}
-              flex
-            />
-            <Field
-              label={t('payrollTarifUkRate')}
-              value={String(tarif.ukRate ?? '')}
-              onChange={(v) => setTarif((p) => ({ ...p, ukRate: parseNum(v) }))}
-              styles={styles}
-              flex
-            />
-          </View>
-          <AppButton title={t('payrollTarifSave')} onPress={() => void onSaveTarif()} />
         </AppCard>
 
         <AppCard>

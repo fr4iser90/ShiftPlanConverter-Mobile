@@ -258,6 +258,65 @@ export function tokensToLoga3Text(parts: string[]): string {
   return lines.join('\n').trim();
 }
 
+const PAYSLIP_LA = /^(?:[0-9]{2,3}|[0-9][A-Z0-9]{1,2}|[A-Z]{2,3})$/;
+const PAYSLIP_ROW_NEXT =
+  /^\((?:JLL)\)|Grundgehalt|Gesamtbrutto|Zulage|Bereitschaft|Nacht|Samstag|U\/K|Steuer|Kranken|Rente|Auszahl|Steuertage|Sozialversicherung|Gesetzliches|Zusatzversorgung|Überweisung|Steuerbrutto|Steuerfreie|PV-|Freiw|Arbeitslosen|Renten|Pflegeversicherung/i;
+
+/**
+ * Rebuild Verdienstabrechnung lines from Tj tokens (LA + text + amounts are separate Tj runs).
+ */
+export function tokensToPayslipText(parts: string[]): string {
+  const lines: string[] = [];
+  const trimmed = parts.map((p) => String(p || '').trim()).filter((p) => p.length > 0);
+
+  for (let i = 0; i < trimmed.length; i++) {
+    if (/^Abrechnungsmonat$/i.test(trimmed[i]) && trimmed[i + 1]) {
+      lines.push(`Abrechnungsmonat ${trimmed[i + 1]}`);
+    }
+    if (/^Verdienstabrechnung$/i.test(trimmed[i])) {
+      lines.push('Verdienstabrechnung');
+    }
+    if (/^Tarif\b/i.test(trimmed[i])) {
+      let s = trimmed[i];
+      if (trimmed[i + 1] && /Woche/i.test(trimmed[i + 1])) {
+        s += ` ${trimmed[i + 1]}`;
+      }
+      lines.push(s);
+    }
+  }
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const la = trimmed[i];
+    if (!PAYSLIP_LA.test(la) || la === 'LA') continue;
+    const next = trimmed[i + 1] || '';
+    const looksLikeRow =
+      PAYSLIP_ROW_NEXT.test(next) ||
+      ['BRG', 'STT', 'SVT', 'SZF', 'BSL', 'ZVH', 'LST', 'BRK', 'ZVS', 'KAN', 'KZA', 'PAN', 'PA9', 'BRR', 'RAN', 'AAN', 'GSN', 'BZV', 'ZVA', 'AZB', 'ZVU'].includes(la);
+    if (!looksLikeRow) continue;
+
+    const row = [la];
+    let j = i + 1;
+    while (j < trimmed.length && row.length < 10) {
+      const p = trimmed[j];
+      if (PAYSLIP_LA.test(p) && p !== 'LA') {
+        const n2 = trimmed[j + 1] || '';
+        if (
+          PAYSLIP_ROW_NEXT.test(n2) ||
+          ['BRG', 'STT', 'SVT', 'SZF', 'GSN', 'AZB', 'BSL', 'LST'].includes(p)
+        ) {
+          break;
+        }
+      }
+      row.push(p);
+      j++;
+    }
+    lines.push(row.join(' ').replace(/\s+/g, ' ').trim());
+    i = j - 1;
+  }
+
+  return lines.join('\n').trim();
+}
+
 export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promise<string> {
   let pdf = new Uint8Array(arrayBuffer);
   // Some captures prefix junk — seek %PDF magic
@@ -300,6 +359,14 @@ export async function extractTextFromPdfBuffer(arrayBuffer: ArrayBuffer): Promis
     }
     if (!/Tj|TJ|BT|ET/.test(text)) continue;
     parts.push(...extractTjStrings(text));
+  }
+
+  // Verdienstabrechnung: dedicated line rebuild (tokens are split per cell).
+  if (parts.some((p) => /Verdienstabrechnung/i.test(p))) {
+    const payslip = tokensToPayslipText(parts);
+    if (payslip && /Abrechnungsmonat/i.test(payslip) && /\b(?:100|BRG)\b/.test(payslip)) {
+      return payslip;
+    }
   }
 
   const rebuilt = tokensToLoga3Text(parts);

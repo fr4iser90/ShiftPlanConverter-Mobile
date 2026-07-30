@@ -709,6 +709,9 @@ export const en: { [K in keyof typeof de]: string } = {
   payrollLoga3PdfOk: 'PDF {label} received ({size} B)',
   payrollLoga3Imported: 'Payslip {month} saved.',
   payrollTarifTitle: 'Tariff / employment',
+  payrollTarifFromPayslip: 'From payslip',
+  payrollTarifNeedPayslip:
+    'Pay grade, step and hours come from the payslip — import a PDF (or LOGA3) first.',
   payrollTarifEg: 'Pay grade',
   payrollTarifStage: 'Step',
   payrollTarifWorkPct: 'FTE %',

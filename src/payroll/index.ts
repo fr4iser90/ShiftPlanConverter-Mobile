@@ -5,7 +5,11 @@ export {
   isLikelyPayslipText,
   parseDeAmount,
 } from '../convert/parsers/engines/pdf-payslip';
-export { importPayslipPdfs } from './importPayslip';
+export {
+  importPayslipPdfs,
+  importPayslipFromUris,
+  importPayslipSmokeDir,
+} from './importPayslip';
 export { loadTarifPrefs, saveTarifPrefs } from './tarifPrefs';
 export { sumHoursForEntries, hoursForEntry, deriveArztDienstId } from './resolveHours';
 export { defaultTarifPrefs, tarifPrefsFromPayslip, mergeTarifPrefs } from './tarifDefaults';
