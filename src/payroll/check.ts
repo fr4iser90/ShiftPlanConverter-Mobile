@@ -78,9 +78,7 @@ export function runPayrollCheck(opts: {
   const monthEntries = entriesInMonth(opts.entries, serviceMonth, opts.workplaceId);
 
   if (!monthEntries.length) {
-    diagnostics.push(
-      `Keine importierten Dienste für Dienstmonat ${serviceMonth}. Bitte zuerst Zeitprotokoll im Import-Tab laden.`
-    );
+    diagnostics.push(`missing-shifts:${serviceMonth}`);
   }
 
   const { hours: hourSums, matched, unmatched, urlaubDays } = sumHoursForEntries(

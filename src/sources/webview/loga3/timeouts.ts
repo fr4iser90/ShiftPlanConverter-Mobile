@@ -1,0 +1,61 @@
+/**
+ * Central LOGA3 WebView wait budgets (ms).
+ * Waits = one deadline per step (not retries). Slow phones need headroom —
+ * prefer raising these over adding second attempts.
+ *
+ * Used by: fetchJob, fetchPayslipJob, AutomationBridge defaults, androidDownloadPoll.
+ */
+export const LoGa3Timeout = {
+  /** Bridge defaults when caller omits timeoutMs */
+  bridgeWaitMessage: 30_000,
+  bridgeCmd: 45_000,
+
+  /** Explicit command budgets (fetch jobs usually pass these) */
+  run: 25_000,
+  probe: 20_000,
+  softProbeShort: 2_500,
+  softProbe: 8_000,
+  softProbeQuick: 5_000,
+
+  /** Login / shell */
+  waitLoginForm: 45_000,
+  fillLogin: 20_000,
+  submitLogin: 15_000,
+  waitShell: 90_000,
+  waitShellOpen: 60_000,
+  clickOeffnen: 12_000,
+
+  /** Month picker / SmartEdin / export */
+  waitPickerAfterOpen: 90_000,
+  waitPicker: 60_000,
+  clickSmartEdin: 15_000,
+  waitSmartEdinExport: 40_000,
+  clickExport: 15_000,
+  waitZeitprotokollButton: 45_000,
+
+  /**
+   * After selectMonth: calendar header must show target month.
+   * Was 40s — too tight on mid-range phones / busy LOGA3.
+   */
+  waitCalendarHeader: 120_000,
+  selectMonth: 25_000,
+  verifyCalendarAfter: 20_000,
+
+  /** Dialog / download / PDF */
+  waitDialog: 60_000,
+  clickDownload: 15_000,
+  waitPdf: 120_000,
+  armPdfCaptureMs: 60_000,
+  openZeitprotokoll: 25_000,
+  openVerdienstDocument: 15_000,
+
+  /** Small UI clicks */
+  closePopups: 5_000,
+  clickBerechnen: 8_000,
+  leavePdfViewer: 3_000,
+  closeDialog: 5_000,
+  assertHasPlan: 12_000,
+  armCalendarReload: 8_000,
+} as const;
+
+export type LoGa3TimeoutKey = keyof typeof LoGa3Timeout;

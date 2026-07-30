@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { LoGa3Timeout } from './loga3/timeouts';
+
 const DOWNLOAD_DIRS = [
   'file:///storage/emulated/0/Download',
   'file:///sdcard/Download',
@@ -30,7 +32,7 @@ export async function pollAndroidDownloadsForPdf(opts: {
   intervalMs?: number;
 }): Promise<DownloadPollResult> {
   if (Platform.OS !== 'android') return { kind: 'timeout' };
-  const timeoutMs = opts.timeoutMs ?? 90000;
+  const timeoutMs = opts.timeoutMs ?? LoGa3Timeout.waitPdf;
   const intervalMs = opts.intervalMs ?? 1500;
   const deadline = Date.now() + timeoutMs;
   const seen = new Set<string>();

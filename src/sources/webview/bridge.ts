@@ -1,4 +1,5 @@
 import type { AutomationCommand, AutomationMessage } from './loga3/automation';
+import { LoGa3Timeout as T } from './loga3/timeouts';
 
 type MsgHandler = (msg: AutomationMessage) => void;
 
@@ -46,7 +47,7 @@ export class AutomationBridge {
 
   waitFor(
     predicate: (msg: AutomationMessage) => boolean,
-    timeoutMs = 30000,
+    timeoutMs: number = T.bridgeWaitMessage,
     label = 'message'
   ): Promise<AutomationMessage> {
     return new Promise((resolve, reject) => {
@@ -66,7 +67,7 @@ export class AutomationBridge {
   async run(
     inject: (cmd: AutomationCommand) => void,
     cmd: AutomationCommand,
-    timeoutMs = 45000
+    timeoutMs: number = T.bridgeCmd
   ): Promise<AutomationMessage> {
     const msg = await this.probe(inject, cmd, timeoutMs);
     if (msg.ok === false) {
@@ -81,14 +82,14 @@ export class AutomationBridge {
   async probe(
     inject: (cmd: AutomationCommand) => void,
     cmd: AutomationCommand,
-    timeoutMs = 45000
+    timeoutMs: number = T.bridgeCmd
   ): Promise<AutomationMessage> {
     const pending = this.waitFor((m) => m.type === cmd.type, timeoutMs, cmd.type);
     inject(cmd);
     return pending;
   }
 
-  waitForPdf(timeoutMs = 120000): Promise<{
+  waitForPdf(timeoutMs: number = T.waitPdf): Promise<{
     base64: string;
     mime?: string;
     size?: number;

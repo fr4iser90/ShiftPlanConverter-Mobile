@@ -265,9 +265,10 @@ export const de = {
   setupCredsCleared: 'Zugangsdaten gelöscht — LOGA3 nur wieder eintragen, wenn du Portal-Abruf brauchst.',
   setupPickMonth: 'Mindestens einen Monat anhaken.',
   fetchHint:
-    'Monate anhaken (Start = Fenster aus Einstellungen). Ein Knopf lädt die Zeitprotokolle — optional danach Kalender-Sync.',
+    'Monate anhaken (Start = Fenster aus Einstellungen). Markiert = schon importiert — Auswahl lädt trotzdem neu. Ein Knopf lädt die Zeitprotokolle — optional danach Kalender-Sync.',
   fetchHintLocal:
     'PDF, CSV oder ICS wählen — oder Foto/Galerie für OCR. Parser bzw. OCR je nach Dateityp.',
+  fetchMonthHasData: 'schon geladen',
   hideWebView: 'WebView ausblenden',
   webViewToggleOpen: '▾ LOGA3-Portal',
   webViewToggleClosed: '▸ LOGA3-Portal — antippen',
@@ -415,6 +416,13 @@ export const de = {
   quickUpdateRunning: 'Lädt…',
   quickUpdateDone: 'Abrufen fertig',
   quickUpdateDoneWithErrors: 'Abrufen mit Fehlern',
+  quickUpdateFetchedNoSyncTitle: 'Daten geladen',
+  quickUpdateFetchedNoSyncBody:
+    'Zeitprotokoll ist da, Kalender-Sync ist fehlgeschlagen. Nochmal syncen oder überspringen?',
+  quickUpdateSyncAgain: 'Nochmal syncen',
+  quickUpdateSkipSync: 'Überspringen',
+  quickUpdateSyncRetryOk: 'Kalender-Sync ok ({created}+ / {deleted}−)',
+  quickUpdateSyncRetryFail: 'Sync weiterhin fehlgeschlagen: {reason}',
   quickUpdateHint:
     'Monate anhaken, dann Zeitprotokolle (Monatsabrechnungen) aus LOGA3 laden. Startauswahl = Fenster aus den Einstellungen.',
   quickUpdateWindow: 'Auswahl',
@@ -739,7 +747,12 @@ export const de = {
   payrollDelta: 'Δ',
   payrollGross: 'Gesamtbrutto',
   payrollDiagnostics: 'Hinweise',
+  payrollMissingShifts:
+    'Keine importierten Dienste für {month}. Bitte zuerst Zeitprotokoll laden.',
+  payrollOpenImport: '{month} im Import laden',
+  payrollImportMonthSelected: 'Monat vorausgewählt: {month} — Zeitprotokoll laden.',
   payrollProfileLabel: 'Prüfprofil',
   payrollPickMonth: 'Monat',
+  payrollImportedPayslips: 'Importierte Nachweise',
   payrollNoRows: 'Keine vergleichbaren Lohnarten.',
 } as const;

@@ -265,9 +265,10 @@ export const en: { [K in keyof typeof de]: string } = {
   setupCredsCleared: 'Credentials cleared — add LOGA3 again only if you need portal fetch.',
   setupPickMonth: 'Select at least one month.',
   fetchHint:
-    'Tick months (starts from the Settings window). One button fetches the schedules — optional calendar sync afterward.',
+    'Tick months (starts from the Settings window). Marked = already imported — selecting still re-fetches. One button fetches the schedules — optional calendar sync afterward.',
   fetchHintLocal:
     'Choose PDF, CSV, or ICS — or camera/gallery for OCR. Parser or OCR depending on file type.',
+  fetchMonthHasData: 'already loaded',
   hideWebView: 'Hide WebView',
   webViewToggleOpen: '▾ LOGA3 portal',
   webViewToggleClosed: '▸ LOGA3 portal — tap to expand',
@@ -414,6 +415,13 @@ export const en: { [K in keyof typeof de]: string } = {
   quickUpdateRunning: 'Fetching…',
   quickUpdateDone: 'Fetch finished',
   quickUpdateDoneWithErrors: 'Fetch finished with errors',
+  quickUpdateFetchedNoSyncTitle: 'Data loaded',
+  quickUpdateFetchedNoSyncBody:
+    'Timesheet is saved, but calendar sync failed. Sync again or skip?',
+  quickUpdateSyncAgain: 'Sync again',
+  quickUpdateSkipSync: 'Skip',
+  quickUpdateSyncRetryOk: 'Calendar sync ok (+{created} / −{deleted})',
+  quickUpdateSyncRetryFail: 'Sync still failed: {reason}',
   quickUpdateHint:
     'One button: tick months and fetch. Initial selection = month window from Settings.',
   quickUpdateWindow: 'Selection',
@@ -737,7 +745,11 @@ export const en: { [K in keyof typeof de]: string } = {
   payrollDelta: 'Δ',
   payrollGross: 'Gross total',
   payrollDiagnostics: 'Notes',
+  payrollMissingShifts: 'No imported shifts for {month}. Load the timesheet first.',
+  payrollOpenImport: 'Load {month} in Import',
+  payrollImportMonthSelected: 'Month preselected: {month} — load timesheet.',
   payrollProfileLabel: 'Check profile',
   payrollPickMonth: 'Month',
+  payrollImportedPayslips: 'Imported payslips',
   payrollNoRows: 'No comparable pay lines.',
 };

@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { t } from '@/src/i18n';
 import { importPayslipPdfs } from '@/src/payroll/importPayslip';
@@ -17,6 +17,7 @@ import { runPayrollCheck } from '@/src/payroll/check';
 import { loadTarifPrefs, saveTarifPrefs } from '@/src/payroll/tarifPrefs';
 import { mergeTarifPrefs } from '@/src/payroll/tarifDefaults';
 import type { PayrollTarifPrefs, PayslipDocument } from '@/src/payroll/types';
+import { setImportMonthIntent } from '@/src/setup/importMonthIntent';
 import {
   getPayrollProfileForScope,
   isPayrollSupportedForScope,
@@ -42,13 +43,6 @@ function pad2(n: number): string {
 
 function currentYm(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
-}
-
-function shiftYm(ym: string, delta: number): string {
-  const m = /^(\d{4})-(\d{2})$/.exec(ym);
-  if (!m) return ym;
-  const d = new Date(Number(m[1]), Number(m[2]) - 1 + delta, 1);
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 
@@ -118,12 +112,26 @@ export default function PayrollScreen() {
     }, [])
   );
 
-  const payslip: PayslipDocument | undefined = useMemo(() => {
+  const workplacePayslips = useMemo(() => {
     const wp = snap.activeWorkplaceId;
-    return snap.payslips.find(
-      (p) => p.payMonth === payMonth && (!p.workplaceId || p.workplaceId === wp)
-    );
-  }, [snap.payslips, snap.activeWorkplaceId, payMonth]);
+    return [...snap.payslips]
+      .filter((p) => !p.workplaceId || p.workplaceId === wp)
+      .sort((a, b) => a.payMonth.localeCompare(b.payMonth));
+  }, [snap.payslips, snap.activeWorkplaceId]);
+
+  const payslip: PayslipDocument | undefined = useMemo(() => {
+    return workplacePayslips.find((p) => p.payMonth === payMonth) || workplacePayslips.at(-1);
+  }, [workplacePayslips, payMonth]);
+
+  // Always bind selection to an imported VN month (from PDF), never a free scrubber.
+  useFocusEffect(
+    useCallback(() => {
+      if (!workplacePayslips.length) return;
+      if (!workplacePayslips.some((p) => p.payMonth === payMonth)) {
+        setPayMonth(workplacePayslips[workplacePayslips.length - 1].payMonth);
+      }
+    }, [workplacePayslips, payMonth])
+  );
 
   // When the selected payslip changes, fill empty tarif fields from it (saved prefs still win).
   useFocusEffect(
@@ -205,7 +213,7 @@ export default function PayrollScreen() {
       Alert.alert(t('payrollTitle'), t('payrollLoga3OpenVerdienst'));
       return;
     }
-    const m = /^(\d{4})-(\d{2})$/.exec(payMonth);
+    const m = /^(\d{4})-(\d{2})$/.exec(payslip?.payMonth || payMonth || currentYm());
     if (!m) return;
     setBusy(true);
     setShowWeb(true);
@@ -238,6 +246,17 @@ export default function PayrollScreen() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const onOpenImportForServiceMonth = async () => {
+    const ym = check?.serviceMonth;
+    const m = ym ? /^(\d{4})-(\d{2})$/.exec(ym) : null;
+    if (!m) return;
+    await setImportMonthIntent({
+      year: Number(m[1]),
+      months: [Number(m[2])],
+    });
+    router.push('/(tabs)');
   };
 
   const onBridgeMessage = (msg: AutomationMessage) => {
@@ -380,28 +399,22 @@ export default function PayrollScreen() {
           )}
         </AppCard>
 
-        <AppCard>
-          <SectionTitle>{t('payrollPickMonth')}</SectionTitle>
-          <View style={styles.row}>
-            <Pressable
-              onPress={() => setPayMonth((m) => shiftYm(m, -1))}
-              style={styles.monthBtn}
-            >
-              <Text style={styles.monthBtnText}>‹</Text>
-            </Pressable>
-            <Text style={styles.monthLabel}>{formatYmDe(payMonth)}</Text>
-            <Pressable
-              onPress={() => setPayMonth((m) => shiftYm(m, 1))}
-              style={styles.monthBtn}
-            >
-              <Text style={styles.monthBtnText}>›</Text>
-            </Pressable>
-          </View>
-          <Meta>
-            {t('payrollPayMonth')}: {payMonth}
-            {check ? ` · ${t('payrollServiceMonth')}: ${check.serviceMonth}` : ''}
-          </Meta>
-        </AppCard>
+        {workplacePayslips.length > 1 ? (
+          <AppCard>
+            <SectionTitle>{t('payrollImportedPayslips')}</SectionTitle>
+            <View style={styles.chipRow}>
+              {workplacePayslips.map((p) => (
+                <Pressable
+                  key={p.payMonth}
+                  onPress={() => setPayMonth(p.payMonth)}
+                  style={[styles.chip, payslip?.payMonth === p.payMonth && styles.chipOn]}
+                >
+                  <Text style={styles.chipText}>{formatYmDe(p.payMonth)}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </AppCard>
+        ) : null}
 
         <View style={styles.actions}>
           <AppButton title={t('payrollImportPdf')} onPress={() => void onImport()} disabled={busy} />
@@ -433,6 +446,14 @@ export default function PayrollScreen() {
           <>
             <AppCard>
               <SectionTitle>{t('payrollGross')}</SectionTitle>
+              <Meta>
+                {t('payrollPayMonth')}: {formatYmDe(payslip.payMonth)}
+                {check
+                  ? ` · ${t('payrollServiceMonth')}: ${formatYmDe(check.serviceMonth)}`
+                  : payslip.serviceMonth
+                    ? ` · ${t('payrollServiceMonth')}: ${formatYmDe(payslip.serviceMonth)}`
+                    : ''}
+              </Meta>
               <Text style={styles.body}>
                 {t('payrollActual')}: {eur(check?.actualGross ?? payslip.gross)}
                 {check && check.expectedGross
@@ -445,9 +466,25 @@ export default function PayrollScreen() {
             {check?.diagnostics?.length ? (
               <AppCard>
                 <SectionTitle>{t('payrollDiagnostics')}</SectionTitle>
-                {check.diagnostics.map((d) => (
-                  <Meta key={d}>{d}</Meta>
-                ))}
+                {check.diagnostics.map((d) => {
+                  const missing = /^missing-shifts:(\d{4}-\d{2})$/.exec(d);
+                  if (missing) {
+                    const ym = missing[1];
+                    return (
+                      <View key={d} style={styles.diagBlock}>
+                        <Meta>
+                          {t('payrollMissingShifts', { month: formatYmDe(ym) })}
+                        </Meta>
+                        <AppButton
+                          title={t('payrollOpenImport', { month: formatYmDe(ym) })}
+                          onPress={() => void onOpenImportForServiceMonth()}
+                          variant="secondary"
+                        />
+                      </View>
+                    );
+                  }
+                  return <Meta key={d}>{d}</Meta>;
+                })}
               </AppCard>
             ) : null}
 
@@ -536,28 +573,12 @@ function makeStyles(theme: AppTheme) {
       flexDirection: 'row',
       gap: theme.space.sm,
     },
-    monthBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.color.primaryTint,
-    },
-    monthBtnText: {
-      fontSize: 22,
-      color: theme.color.primary,
-      fontWeight: '700',
-    },
-    monthLabel: {
-      ...theme.type.h2,
-      color: theme.color.ink,
-      textTransform: 'capitalize',
-      flex: 1,
-      textAlign: 'center',
-    },
     actions: {
       gap: theme.space.sm,
+    },
+    diagBlock: {
+      gap: theme.space.sm,
+      marginBottom: theme.space.sm,
     },
     lineRow: {
       flexDirection: 'row',

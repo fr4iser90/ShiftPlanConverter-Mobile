@@ -9,6 +9,7 @@ import { clearGateTraces, writeGateTrace } from './gateTrace';
 import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
 import { t } from '../../../i18n';
 import { appendDiag } from '../../../support/diagLog';
+import { LoGa3Timeout as T } from './timeouts';
 
 export type FetchJobOptions = {
   username: string;
@@ -66,11 +67,11 @@ function ago(t0: number): string {
   return `${((Date.now() - t0) / 1000).toFixed(1)}s`;
 }
 
-function run(ctx: Ctx, cmd: AutomationCommand, timeoutMs = 25000) {
+function run(ctx: Ctx, cmd: AutomationCommand, timeoutMs: number = T.run) {
   return ctx.bridge.run(ctx.inject, cmd, timeoutMs);
 }
 
-function probe(ctx: Ctx, cmd: AutomationCommand, timeoutMs = 20000) {
+function probe(ctx: Ctx, cmd: AutomationCommand, timeoutMs: number = T.probe) {
   return ctx.bridge.probe(ctx.inject, cmd, timeoutMs);
 }
 
@@ -81,7 +82,7 @@ function probe(ctx: Ctx, cmd: AutomationCommand, timeoutMs = 20000) {
 async function softProbe(
   ctx: Ctx,
   cmd: AutomationCommand,
-  timeoutMs = 20000,
+  timeoutMs: number = T.probe,
   quiet = false
 ): Promise<AutomationMessage> {
   try {
@@ -102,7 +103,7 @@ async function softProbe(
 /** Debug dumps only — never user-facing status (GATE spam felt like a hang). */
 async function gate(ctx: Ctx, name: string): Promise<void> {
   if (!ctx.gateTrace) return;
-  const msg = await softProbe(ctx, { type: 'dumpLiveSelectors' }, 8000, true);
+  const msg = await softProbe(ctx, { type: 'dumpLiveSelectors' }, T.softProbe, true);
   const path = await writeGateTrace(ctx.gateIndex++, {
     gate: name,
     at: new Date().toISOString(),
@@ -157,33 +158,33 @@ async function timed<T>(ctx: Ctx, step: string, fn: () => Promise<T>): Promise<T
 async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   await timed(ctx, 'login', async () => {
     status(ctx, t('fjLogin'));
-    const shellNow = await softProbe(ctx, { type: 'assertShellReady' }, 5000, true);
+    const shellNow = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeQuick, true);
     if (shellNow.ok && !shellNow.stillLogin && !shellNow.splash) {
       status(ctx, shellNow.pickerFound ? t('fjAlreadyZeitdaten') : t('fjAlreadyLoggedInShell'));
       await gate(ctx, '01-shell-ready');
       return;
     }
 
-    const pre = await softProbe(ctx, { type: 'assertLoggedIn' }, 8000, true);
+    const pre = await softProbe(ctx, { type: 'assertLoggedIn' }, T.softProbe, true);
     if (pre.ok && !pre.stillLogin) {
       status(ctx, t('fjAlreadyLoggedInWaitShell'));
     } else if (pre.stillLogin || !pre.ok) {
       status(ctx, t('fjWaitLoginForm'));
       // Wait for form (probe only) — fill/submit once each, never re-fill.
       await waitForCondition(async () => {
-        const st = await softProbe(ctx, { type: 'assertLoggedIn' }, 2500, true);
+        const st = await softProbe(ctx, { type: 'assertLoggedIn' }, T.softProbeShort, true);
         if (st.stillLogin) return true;
         return null;
-      }, waitOpts(ctx, t('fjWaitLoginFormLabel'), 45000));
+      }, waitOpts(ctx, t('fjWaitLoginFormLabel'), T.waitLoginForm));
       status(ctx, t('fjStepAction', { step: 'fillLogin' }));
-      await run(ctx, { type: 'fillLogin', username: ctx.username.trim(), password: ctx.password }, 20000);
+      await run(ctx, { type: 'fillLogin', username: ctx.username.trim(), password: ctx.password }, T.fillLogin);
       status(ctx, t('fjStepAction', { step: 'submitLogin' }));
-      await run(ctx, { type: 'submitLogin' }, 15000);
+      await run(ctx, { type: 'submitLogin' }, T.submitLogin);
       status(ctx, t('fjWaitShell'));
     }
 
     await waitForCondition(async () => {
-      const st = await softProbe(ctx, { type: 'assertShellReady' }, 2500, true);
+      const st = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeShort, true);
       if (st.code === 'BAD_CREDENTIALS' || /bad_credentials|Kennung\/Kennwort/i.test(st.error || '')) {
         throw Object.assign(new Error(t('fjBadCredentials')), { code: 'BAD_CREDENTIALS' });
       }
@@ -192,7 +193,7 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
       if (st.splash || st.code === 'SHELL_LOADING') return null;
       if (st.ok) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitShellLabel'), 75000, 500));
+    }, waitOpts(ctx, t('fjWaitShellLabel'), T.waitShell, 500));
 
     status(ctx, t('fjLoginOk'));
     await gate(ctx, '01-shell-ready');
@@ -204,7 +205,7 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
  */
 async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
   return timed(ctx, 'open-zeitdaten', async () => {
-    const existing = await softProbe(ctx, { type: 'getPickerState' }, 5000, true);
+    const existing = await softProbe(ctx, { type: 'getPickerState' }, T.softProbeQuick, true);
     if (existing.pickerFound) {
       status(ctx, t('fjPickerReady', { month: String(existing.month), year: String(existing.year) }));
       await gate(ctx, '02-picker-already');
@@ -213,16 +214,16 @@ async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
 
     status(ctx, t('fjWaitOpenButton'));
     await waitForCondition(async () => {
-      const sh = await softProbe(ctx, { type: 'assertShellReady' }, 2500, true);
+      const sh = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeShort, true);
       if (sh.code === 'PROBE_TIMEOUT') return null;
       if (sh.pickerFound) return true;
       if (sh.ok && sh.oeffnenFound) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitShellOpenLabel'), 45000, 500));
+    }, waitOpts(ctx, t('fjWaitShellOpenLabel'), T.waitShellOpen, 500));
 
     await gate(ctx, '02-before-open');
 
-    const ready = await softProbe(ctx, { type: 'getPickerState' }, 5000, true);
+    const ready = await softProbe(ctx, { type: 'getPickerState' }, T.softProbeQuick, true);
     if (ready.pickerFound) {
       status(ctx, t('fjPickerReady', { month: String(ready.month), year: String(ready.year) }));
       await gate(ctx, '02-picker-after-shell');
@@ -230,12 +231,12 @@ async function ensureZeitdatenPicker(ctx: Ctx): Promise<AutomationMessage> {
     }
 
     status(ctx, t('fjClickOpen'));
-    await run(ctx, { type: 'clickOeffnen' }, 12000);
+    await run(ctx, { type: 'clickOeffnen' }, T.clickOeffnen);
     status(ctx, t('fjPageLoadingAfterOpen'));
     const picked = await waitForCondition(async () => {
       const ps = await softProbe(ctx, { type: 'getPickerState' }, 2500, true);
       return ps.pickerFound ? ps : null;
-    }, waitOpts(ctx, t('fjWaitPickerAfterOpen'), 90000, 400));
+    }, waitOpts(ctx, t('fjWaitPickerAfterOpen'), T.waitPickerAfterOpen, 400));
     await gate(ctx, '03-after-open');
     return picked;
   });
@@ -257,7 +258,7 @@ async function assertZeitdatenPickerReady(ctx: Ctx): Promise<void> {
         return true;
       }
       return null;
-    }, waitOpts(ctx, t('fjWaitPickerLabel'), 45000, 400));
+    }, waitOpts(ctx, t('fjWaitPickerLabel'), T.waitPicker, 400));
     await gate(ctx, '05-picker-ok');
   });
 }
@@ -266,19 +267,19 @@ async function assertZeitdatenPickerReady(ctx: Ctx): Promise<void> {
 async function ensureSmartEdinExportPanel(ctx: Ctx): Promise<void> {
   await timed(ctx, 'smartedin', async () => {
     status(ctx, t('fjSmartEdin'));
-    const already = await softProbe(ctx, { type: 'assertExportContext' }, 5000, true);
+    const already = await softProbe(ctx, { type: 'assertExportContext' }, T.softProbeQuick, true);
     if (already.exportPanel) {
       await gate(ctx, '07-smartedin-export');
       return;
     }
     status(ctx, t('fjStepAction', { step: 'clickSmartEdin' }));
-    await run(ctx, { type: 'clickSmartEdin' }, 15000);
+    await run(ctx, { type: 'clickSmartEdin' }, T.clickSmartEdin);
     await waitForCondition(async () => {
       const st = await softProbe(ctx, { type: 'assertExportContext' }, 2500, true);
       if (st.code === 'PROBE_TIMEOUT') return null;
       if (st.exportPanel) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitSmartEdinExport'), 25000, 500));
+    }, waitOpts(ctx, t('fjWaitSmartEdinExport'), T.waitSmartEdinExport, 500));
     await gate(ctx, '07-smartedin-export');
   });
 }
@@ -287,19 +288,19 @@ async function ensureSmartEdinExportPanel(ctx: Ctx): Promise<void> {
 async function ensureExportZeitprotokollButton(ctx: Ctx): Promise<void> {
   await timed(ctx, 'export-menu', async () => {
     status(ctx, t('fjExportMenu'));
-    const already = await softProbe(ctx, { type: 'assertExportContext' }, 5000, true);
+    const already = await softProbe(ctx, { type: 'assertExportContext' }, T.softProbeQuick, true);
     if (already.lagsdzpg) {
       await gate(ctx, '08-lagsdzpg');
       return;
     }
     status(ctx, t('fjStepAction', { step: 'clickExport' }));
-    await run(ctx, { type: 'clickExport' }, 15000);
+    await run(ctx, { type: 'clickExport' }, T.clickExport);
     await waitForCondition(async () => {
       const st = await softProbe(ctx, { type: 'assertExportContext' }, 2500, true);
       if (st.code === 'PROBE_TIMEOUT') return null;
       if (st.lagsdzpg) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitZeitprotokollButton'), 35000, 600));
+    }, waitOpts(ctx, t('fjWaitZeitprotokollButton'), T.waitZeitprotokollButton, 600));
     await gate(ctx, '08-lagsdzpg');
   });
 }
@@ -310,18 +311,18 @@ async function selectMonthVerified(ctx: Ctx, month: number, year: number): Promi
   await timed(ctx, `select-month-${label}`, async () => {
     status(ctx, t('fjSelectMonth', { label }));
     status(ctx, t('fjStepAction', { step: `selectMonth ${label}` }));
-    const sel = await run(ctx, { type: 'selectMonth', month, year }, 25000);
+    const sel = await run(ctx, { type: 'selectMonth', month, year }, T.selectMonth);
     if (!sel.ok && !sel.selected) {
       throw new Error(sel.error || t('fjSelectMonthFailed', { label }));
     }
 
     await waitForCondition(async () => {
-      const v = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, 2500, true);
+      const v = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbeShort, true);
       return v.ok ? v : null;
-    }, waitOpts(ctx, t('fjWaitCalendarHeader', { label }), 40000, 400));
+    }, waitOpts(ctx, t('fjWaitCalendarHeader', { label }), T.waitCalendarHeader, 400));
 
     try {
-      await run(ctx, { type: 'closePopups' }, 5000);
+      await run(ctx, { type: 'closePopups' }, T.closePopups);
     } catch {
       // ignore
     }
@@ -336,17 +337,17 @@ async function assertContentReady(ctx: Ctx, month: number, year: number): Promis
   const label = `${String(month).padStart(2, '0')}/${year}`;
   await timed(ctx, `content-${label}`, async () => {
     status(ctx, t('fjContentGate', { label }));
-    const v1 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, 8000, true);
+    const v1 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbe, true);
     if (!v1.ok) {
       throw new Error(t('fjContentGateFail', { label }));
     }
     try {
       status(ctx, t('fjStepAction', { step: 'clickBerechnen' }));
-      await run(ctx, { type: 'clickBerechnen' }, 8000);
+      await run(ctx, { type: 'clickBerechnen' }, T.clickBerechnen);
     } catch {
       // optional
     }
-    const v2 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, 8000, true);
+    const v2 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbe, true);
     if (!v2.ok) {
       throw new Error(t('fjContentGateFail', { label }));
     }
@@ -395,7 +396,7 @@ async function assertZeitprotokollDialog(
       }
       status(ctx, t('fjDialogVisible'));
       return true;
-    }, waitOpts(ctx, t('fjWaitDialog'), 45000, 400));
+    }, waitOpts(ctx, t('fjWaitDialog'), T.waitDialog, 400));
   });
 }
 
@@ -415,7 +416,7 @@ async function capturePdf(
 
     status(ctx, t('fjStepAction', { step: 'clickDownload' }));
     try {
-      await run(ctx, { type: 'clickDownload' }, 15000);
+      await run(ctx, { type: 'clickDownload' }, T.clickDownload);
     } catch {
       throw new Error(t('fjDownloadNotClickable'));
     }
@@ -438,14 +439,14 @@ async function capturePdf(
   })();
 
   try {
-    const pdfPromise = ctx.bridge.waitForPdf(90000).then((pdf) => {
+    const pdfPromise = ctx.bridge.waitForPdf(T.waitPdf).then((pdf) => {
       status(ctx, t('fjPdfWebView', { label, size: String(pdf.size || '?'), elapsed: ago(t0) }));
       return pdf;
     });
     const pollPromise = (async () => {
       const polled = await pollAndroidDownloadsForPdf({
         sinceMs: downloadSince,
-        timeoutMs: 90000,
+        timeoutMs: T.waitPdf,
         intervalMs: 500,
       });
       if (polled.kind === 'login_html') {
@@ -529,7 +530,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
   }
 
   try {
-    await run(ctx, { type: 'armCalendarReload' }, 8000);
+    await run(ctx, { type: 'armCalendarReload' }, T.armCalendarReload);
   } catch {
     status(ctx, t('fjArmCalendarMissing'));
   }
@@ -547,7 +548,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
 
       status(ctx, t('fjCheckPlan', { label, elapsed: ago(monthT0) }));
       try {
-        await run(ctx, { type: 'assertHasPlan' }, 12000);
+        await run(ctx, { type: 'assertHasPlan' }, T.assertHasPlan);
       } catch (e) {
         const err = e as Error & { code?: string };
         if (err.code === 'NO_PLAN' || /NO_PLAN/i.test(err.message)) {
@@ -563,12 +564,12 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
 
       status(ctx, t('fjSmartEdinExport', { label, elapsed: ago(monthT0) }));
       try {
-        await run(ctx, { type: 'closePopups' }, 5000);
+        await run(ctx, { type: 'closePopups' }, T.closePopups);
       } catch {
         // ignore
       }
       try {
-        await run(ctx, { type: 'clickBerechnen' }, 8000);
+        await run(ctx, { type: 'clickBerechnen' }, T.clickBerechnen);
       } catch {
         // optional
       }
@@ -576,7 +577,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       await assertZeitdatenPickerReady(ctx);
       await ensureSmartEdinExportPanel(ctx);
 
-      const after = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, 20000);
+      const after = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.verifyCalendarAfter);
       if (!after.ok) {
         throw new Error(
           after.code === 'PROBE_TIMEOUT'
@@ -589,14 +590,14 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
 
       status(ctx, t('fjZeitprotokoll', { label, elapsed: ago(monthT0) }));
       try {
-        await run(ctx, { type: 'armPdfCapture', ms: 45000 }, 5000);
+        await run(ctx, { type: 'armPdfCapture', ms: T.armPdfCaptureMs }, T.closePopups);
       } catch {
         // capture inject may be missing on cold frame
       }
 
       status(ctx, t('fjStepAction', { step: 'openZeitprotokoll' }));
       try {
-        await run(ctx, { type: 'openZeitprotokoll' }, 20000);
+        await run(ctx, { type: 'openZeitprotokoll' }, T.openZeitprotokoll);
       } catch {
         throw new Error(t('fjZpNotClickable'));
       }
@@ -608,17 +609,17 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       // Stay on LOGA3 — do not linger in Chromium PDF viewer between months.
       status(ctx, t('fjStepAction', { step: 'leavePdfViewer/closeDialog' }));
       try {
-        await run(ctx, { type: 'leavePdfViewer' }, 3000);
+        await run(ctx, { type: 'leavePdfViewer' }, T.leavePdfViewer);
       } catch {
         // ignore
       }
       try {
-        await run(ctx, { type: 'closeDialog' }, 4000);
+        await run(ctx, { type: 'closeDialog' }, T.closeDialog);
       } catch {
         // ignore
       }
       try {
-        await run(ctx, { type: 'closePopups' }, 3000);
+        await run(ctx, { type: 'closePopups' }, T.closePopups);
       } catch {
         // ignore
       }
@@ -692,7 +693,7 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
       status(ctx, t('fjError', { msg, elapsed: ago(monthT0) }));
       await gate(ctx, `99-fail-${label.replace('/', '-')}`);
       try {
-        await run(ctx, { type: 'closeDialog' }, 5000);
+        await run(ctx, { type: 'closeDialog' }, T.closeDialog);
       } catch {
         // ignore
       }

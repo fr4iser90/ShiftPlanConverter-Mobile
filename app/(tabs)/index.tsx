@@ -29,6 +29,7 @@ import {
   peekSmokeFetchIntent,
   setMatrixStatus,
 } from '@/src/setup/smokeFetchIntent';
+import { takeImportMonthIntent } from '@/src/setup/importMonthIntent';
 import { takeOcrSmokeIntent, peekOcrSmokeIntent } from '@/src/setup/ocrSmokeIntent';
 import { resolveActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
 import { loadOcrLayoutId, saveOcrLayoutId } from '@/src/state/ocrLayout';
@@ -66,6 +67,8 @@ import { resolveConfirmedRosterLabel } from '@/src/sources/ocr/names';
 import { OcrCompareReview } from '@/src/ui/OcrCompareReview';
 import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
+import { runEnabledOauthTargets } from '@/src/sync/targets';
+import { disconnectGoogle } from '@/src/sync/google';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { appendDiag } from '@/src/support/diagLog';
 import { openErrorReportMail } from '@/src/support/mailto';
@@ -154,6 +157,13 @@ function makeFetchStyles(theme: AppTheme) {
       borderColor: theme.color.border,
       alignItems: 'center',
       justifyContent: 'center',
+      position: 'relative',
+      overflow: 'visible',
+    },
+    monthChipHasData: {
+      backgroundColor: theme.color.primaryTint,
+      borderColor: theme.color.primary,
+      borderWidth: 1.5,
     },
     monthChipOn: {
       backgroundColor: theme.color.primary,
@@ -164,7 +174,22 @@ function makeFetchStyles(theme: AppTheme) {
       fontWeight: '600',
       color: theme.color.inkSecondary,
     },
+    monthChipTextHasData: {
+      color: theme.color.primary,
+    },
     monthChipTextOn: { color: theme.color.primaryText },
+    monthDot: {
+      position: 'absolute',
+      right: 5,
+      top: 5,
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: theme.color.primary,
+    },
+    monthDotOn: {
+      backgroundColor: theme.color.primaryText,
+    },
     sourceChip: {
       paddingHorizontal: 14,
       height: 40,
@@ -503,6 +528,20 @@ export default function FetchScreen() {
   const quickWillSync = !!quickPrefs?.syncGoogle;
 
   const selectionLabel = useMemo(() => formatMonthWindow(selected), [selected]);
+
+  /** Months in `year` that already have shifts in the store (still selectable to refresh). */
+  const monthsWithData = useMemo(() => {
+    const wp = snap.activeWorkplaceId;
+    const set = new Set<number>();
+    for (const e of snap.entries) {
+      if (wp && e.workplaceId && e.workplaceId !== wp) continue;
+      const m = /^(\d{4})-(\d{2})/.exec(String(e.date || ''));
+      if (!m) continue;
+      if (Number(m[1]) !== year) continue;
+      set.add(Number(m[2]));
+    }
+    return set;
+  }, [snap.entries, snap.activeWorkplaceId, year]);
 
   const shareIcsNow = () => {
     void (async () => {
@@ -872,6 +911,73 @@ export default function FetchScreen() {
       await setMatrixStatus(
         `${hasErrors ? 'MATRIX_FETCH_FAIL' : 'MATRIX_FETCH_PASS'} ${parts.join(' · ')}`
       );
+
+      // Fetch ok, only calendar sync failed → friendly prompt (no API dump).
+      const onlySyncFailed =
+        syncFailures.length > 0 &&
+        result.fetch.errors.length === 0 &&
+        result.fetch.entries.length > 0;
+
+      if (result.fetch.entries.length > 0) {
+        router.replace(CALENDAR_HREF);
+      }
+
+      if (onlySyncFailed) {
+        const retrySync = async () => {
+          try {
+            const authFail = syncFailures.some((r) =>
+              /401|invalid authentication|UNAUTHENTICATED|login cookie/i.test(r.reason || '')
+            );
+            if (authFail) {
+              await disconnectGoogle();
+            }
+            setStatus(t('quickUpdateSyncAgain') + '…');
+            const snap = getSnapshot();
+            const mapping =
+              snap.packId && snap.groupId && snap.areaId
+                ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
+                : undefined;
+            const entries = resolveStoredEntries(snap.entries, {
+              preset: snap.preset || undefined,
+              mapping,
+              userMappings: snap.userMappings,
+            });
+            const again = await runEnabledOauthTargets(entries, {
+              eventFormat: snap.eventFormat,
+              onStatus: setStatus,
+              onCalendarMissing: askRecreateGoogleCalendar,
+            });
+            const fail = again.filter((r) => r.failed);
+            if (fail.length) {
+              Alert.alert(
+                t('quickUpdateFetchedNoSyncTitle'),
+                t('quickUpdateSyncRetryFail', {
+                  reason: fail.map((r) => r.reason || r.id).join(' · '),
+                })
+              );
+              setStatus(t('quickUpdateSyncRetryFail', { reason: fail[0]?.reason || '—' }));
+              return;
+            }
+            const created = again.reduce((n, r) => n + (r.created || 0), 0);
+            const deleted = again.reduce((n, r) => n + (r.deleted || 0), 0);
+            Alert.alert(
+              t('alertDone'),
+              t('quickUpdateSyncRetryOk', { created, deleted })
+            );
+            setStatus(t('quickUpdateSyncRetryOk', { created, deleted }));
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            Alert.alert(t('quickUpdateFetchedNoSyncTitle'), t('quickUpdateSyncRetryFail', { reason: msg }));
+          }
+        };
+
+        Alert.alert(t('quickUpdateFetchedNoSyncTitle'), t('quickUpdateFetchedNoSyncBody'), [
+          { text: t('quickUpdateSkipSync'), style: 'cancel' },
+          { text: t('quickUpdateSyncAgain'), onPress: () => void retrySync() },
+        ]);
+        return;
+      }
+
       const buttons: {
         text: string;
         style?: 'cancel' | 'default';
@@ -905,9 +1011,6 @@ export default function FetchScreen() {
           onPress: () => shareIcsNow(),
         });
       }
-      if (result.fetch.entries.length > 0) {
-        router.replace(CALENDAR_HREF);
-      }
       Alert.alert(
         hasErrors ? t('quickUpdateDoneWithErrors') : t('quickUpdateDone'),
         parts.join('\n'),
@@ -926,6 +1029,20 @@ export default function FetchScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshSetup();
+      void (async () => {
+        const intent = await takeImportMonthIntent();
+        if (intent?.months?.length) {
+          setYear(intent.year);
+          setSelected(intent.months.map((m) => ({ month: m, year: intent.year })));
+          setStatus(
+            t('payrollImportMonthSelected', {
+              month: formatMonthWindow(
+                intent.months.map((m) => ({ month: m, year: intent.year }))
+              ),
+            })
+          );
+        }
+      })();
       void (async () => {
         if (busyRef.current || schedulePromptedRef.current) return;
         const active = await resolveActiveSourceId(pack);
@@ -1257,15 +1374,34 @@ export default function FetchScreen() {
                   <View style={styles.monthGrid}>
                     {MONTHS.map((m) => {
                       const on = monthSelected(m);
+                      const hasData = monthsWithData.has(m);
                       return (
                         <Pressable
                           key={m}
                           disabled={busy}
                           onPress={() => toggleMonth(m)}
-                          style={[styles.monthChip, on && styles.monthChipOn]}>
-                          <Text style={[styles.monthChipText, on && styles.monthChipTextOn]}>
+                          accessibilityState={{ selected: on }}
+                          accessibilityLabel={
+                            hasData
+                              ? `${String(m).padStart(2, '0')} · ${t('fetchMonthHasData')}`
+                              : String(m).padStart(2, '0')
+                          }
+                          style={[
+                            styles.monthChip,
+                            hasData && !on && styles.monthChipHasData,
+                            on && styles.monthChipOn,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.monthChipText,
+                              hasData && !on && styles.monthChipTextHasData,
+                              on && styles.monthChipTextOn,
+                            ]}
+                          >
                             {String(m).padStart(2, '0')}
                           </Text>
+                          {hasData ? <View style={[styles.monthDot, on && styles.monthDotOn]} /> : null}
                         </Pressable>
                       );
                     })}

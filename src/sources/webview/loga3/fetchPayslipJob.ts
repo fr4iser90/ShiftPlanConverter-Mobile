@@ -10,6 +10,7 @@ import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
 import { t } from '../../../i18n';
 import { appendDiag } from '../../../support/diagLog';
 import { MONTH_LABELS_DE } from './contentGate';
+import { LoGa3Timeout as T } from './timeouts';
 
 export type PayslipFetchOptions = {
   username: string;
@@ -41,14 +42,14 @@ function ago(t0: number): string {
   return `${((Date.now() - t0) / 1000).toFixed(1)}s`;
 }
 
-function run(ctx: Ctx, cmd: AutomationCommand, timeoutMs = 25000) {
+function run(ctx: Ctx, cmd: AutomationCommand, timeoutMs: number = T.run) {
   return ctx.bridge.run(ctx.inject, cmd, timeoutMs);
 }
 
 async function softProbe(
   ctx: Ctx,
   cmd: AutomationCommand,
-  timeoutMs = 20000
+  timeoutMs: number = T.probe
 ): Promise<AutomationMessage> {
   try {
     return await ctx.bridge.probe(ctx.inject, cmd, timeoutMs);
@@ -84,78 +85,78 @@ function waitOpts(ctx: Ctx, label: string, timeoutMs: number, intervalMs = 600) 
 
 async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   status(ctx, t('fjLogin'));
-  const shellNow = await softProbe(ctx, { type: 'assertShellReady' }, 5000);
+  const shellNow = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeQuick);
   if (shellNow.ok && !shellNow.stillLogin && !shellNow.splash) {
     status(ctx, t('fjAlreadyLoggedInShell'));
     return;
   }
-  const pre = await softProbe(ctx, { type: 'assertLoggedIn' }, 8000);
+  const pre = await softProbe(ctx, { type: 'assertLoggedIn' }, T.softProbe);
   if (pre.stillLogin || !pre.ok) {
     await waitForCondition(async () => {
-      const st = await softProbe(ctx, { type: 'assertLoggedIn' }, 2500);
+      const st = await softProbe(ctx, { type: 'assertLoggedIn' }, T.softProbeShort);
       if (st.stillLogin) return true;
       return null;
-    }, waitOpts(ctx, t('fjWaitLoginFormLabel'), 45000));
-    await run(ctx, { type: 'fillLogin', username: ctx.username.trim(), password: ctx.password }, 20000);
-    await run(ctx, { type: 'submitLogin' }, 15000);
+    }, waitOpts(ctx, t('fjWaitLoginFormLabel'), T.waitLoginForm));
+    await run(ctx, { type: 'fillLogin', username: ctx.username.trim(), password: ctx.password }, T.fillLogin);
+    await run(ctx, { type: 'submitLogin' }, T.submitLogin);
   }
   await waitForCondition(async () => {
-    const st = await softProbe(ctx, { type: 'assertShellReady' }, 2500);
+    const st = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeShort);
     if (st.code === 'BAD_CREDENTIALS') {
       throw Object.assign(new Error(t('fjBadCredentials')), { code: 'BAD_CREDENTIALS' });
     }
     if (st.code === 'PROBE_TIMEOUT' || st.stillLogin || st.splash) return null;
     if (st.ok) return true;
     return null;
-  }, waitOpts(ctx, t('fjWaitShellLabel'), 75000, 500));
+  }, waitOpts(ctx, t('fjWaitShellLabel'), T.waitShell, 500));
   status(ctx, t('fjLoginOk'));
 }
 
 async function ensureVerdienstOpen(ctx: Ctx): Promise<void> {
   status(ctx, t('payrollLoga3OpenVerdienst'));
-  const already = await softProbe(ctx, { type: 'assertVerdienstContext' }, 5000);
+  const already = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeQuick);
   if (already.verdienstOpen) return;
 
   await waitForCondition(async () => {
-    const sh = await softProbe(ctx, { type: 'assertShellReady' }, 2500);
+    const sh = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeShort);
     if (sh.code === 'PROBE_TIMEOUT') return null;
-    const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, 2500);
+    const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeShort);
     if (v.verdienstOpen) return true;
     if (v.verdienstFound) return true;
     if (sh.ok) return true;
     return null;
-  }, waitOpts(ctx, t('payrollLoga3WaitVerdienst'), 45000, 500));
+  }, waitOpts(ctx, t('payrollLoga3WaitVerdienst'), T.waitShellOpen, 500));
 
-  const ctx2 = await softProbe(ctx, { type: 'assertVerdienstContext' }, 5000);
+  const ctx2 = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeQuick);
   if (ctx2.verdienstOpen) return;
 
-  await run(ctx, { type: 'clickVerdienstOeffnen' }, 12000);
+  await run(ctx, { type: 'clickVerdienstOeffnen' }, T.clickOeffnen);
   await waitForCondition(async () => {
-    const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, 2500);
+    const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeShort);
     if (v.code === 'PROBE_TIMEOUT') return null;
     if (v.verdienstOpen) return true;
     return null;
-  }, waitOpts(ctx, t('payrollLoga3WaitVerdienstOpen'), 60000, 500));
+  }, waitOpts(ctx, t('payrollLoga3WaitVerdienstOpen'), T.waitPickerAfterOpen, 500));
 }
 
 async function capturePdf(ctx: Ctx, label: string): Promise<{ base64: string; size?: number }> {
   const downloadSince = Date.now();
   try {
-    await run(ctx, { type: 'armPdfCapture', ms: 45000 }, 5000);
+    await run(ctx, { type: 'armPdfCapture', ms: T.armPdfCaptureMs }, T.closePopups);
   } catch {
     // optional
   }
   try {
-    await run(ctx, { type: 'clickDownload' }, 15000);
+    await run(ctx, { type: 'clickDownload' }, T.clickDownload);
   } catch {
     throw new Error(t('fjDownloadNotClickable'));
   }
 
-  const pdfPromise = ctx.bridge.waitForPdf(90000);
+  const pdfPromise = ctx.bridge.waitForPdf(T.waitPdf);
   const pollPromise = (async () => {
     const polled = await pollAndroidDownloadsForPdf({
       sinceMs: downloadSince,
-      timeoutMs: 90000,
+      timeoutMs: T.waitPdf,
       intervalMs: 500,
     });
     if (polled.kind === 'login_html') throw new Error(t('fjPdfLoginHtml'));
@@ -199,7 +200,7 @@ export async function runPayslipFetchJob(
     const label = `${MONTH_LABELS_DE[month - 1] || month}/${opts.year}`;
     try {
       status(ctx, t('payrollLoga3OpenDoc', { label, elapsed: ago(ctx.jobT0) }));
-      await run(ctx, { type: 'openVerdienstDocument', month, year: opts.year }, 15000);
+      await run(ctx, { type: 'openVerdienstDocument', month, year: opts.year }, T.openVerdienstDocument);
 
       // Dialog may already show Herunterladen; else wait briefly
       await sleep(800);
@@ -218,17 +219,17 @@ export async function runPayslipFetchJob(
       status(ctx, t('payrollLoga3Imported', { month: doc.payMonth }));
 
       try {
-        await run(ctx, { type: 'leavePdfViewer' }, 3000);
+        await run(ctx, { type: 'leavePdfViewer' }, T.leavePdfViewer);
       } catch {
         // ignore
       }
       try {
-        await run(ctx, { type: 'closeDialog' }, 4000);
+        await run(ctx, { type: 'closeDialog' }, T.closeDialog);
       } catch {
         // ignore
       }
       try {
-        await run(ctx, { type: 'closePopups' }, 3000);
+        await run(ctx, { type: 'closePopups' }, T.closePopups);
       } catch {
         // ignore
       }
