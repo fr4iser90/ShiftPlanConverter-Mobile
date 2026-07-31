@@ -1,0 +1,34 @@
+---
+description: EAS / Play Store release hygiene — no wasted rebuild waits
+alwaysApply: true
+---
+
+# EAS / Play Store — no wasted builds
+
+User pays queue/build time. Treating another full EAS production wait as “oops” is a **regression**.
+
+## Before telling the user to rebuild / upload
+
+1. **Check existing builds first** (`eas build:list` / expo.dev): finished AAB URL, **versionCode**, commit, whether the fix is already in that artifact.
+2. **If Play already has that versionCode** (“bereits verwendet”) → do **not** re-upload the same code. Either use the draft that already contains it, or **bump versionCode before** starting a new build.
+3. **Bump before build**, never after a failed upload:
+   - Remote source: confirm `eas build:version:get -p android`, then ensure next build increments (`autoIncrement`) **or** set a higher code **before** `eas build`.
+   - Never say “upload the AAB again” when versionCode equals what Play already accepted/rejected-as-used.
+4. **Permission / manifest / signing changes** need a new binary — say that **up front**, bump versionCode in the same breath, start **one** build, don’t discover the bump after a 1h+ wait.
+
+## Do not
+
+- Start a second production build while a usable finished AAB for the same fix already exists.
+- Assume queue is short; prefer `--no-wait` + status check; tell user ETA honestly from current status (queued vs in progress).
+- Claim “just re-upload” when versionCode must change.
+- Leave `USE_EXACT_ALARM` (or similar Play-restricted perms) in store builds without checking Play policy **before** the first store AAB.
+
+## Checklist (store AAB)
+
+- [ ] `eas build:list` — latest finished production Android versionCode + artifact
+- [ ] Play: highest versionCode already used on any track
+- [ ] Next build versionCode **>** Play max
+- [ ] Manifest/permissions OK for Play **before** upload
+- [ ] One build; one upload path
+
+See also: `docs/dev/play-store-launch.md`.
