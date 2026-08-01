@@ -1,16 +1,16 @@
-import type { AutomationCommand, AutomationMessage } from './automation';
-import { AutomationBridge } from '../bridge';
-import { extractTextFromPdfBuffer } from '../../../convert/pdfText';
-import { isLikelyPayslipText, parsePayslipText } from '../../../convert/parsers/engines/pdf-payslip';
-import type { PayslipDocument } from '../../../payroll/types';
-import { upsertPayslip } from '../../../state/store';
-import { base64ToArrayBuffer } from '../pdfStore';
-import { waitForCondition, WaitTimeoutError } from '../wait';
-import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
-import { t } from '../../../i18n';
-import { appendDiag } from '../../../support/diagLog';
-import { MONTH_LABELS_DE } from './contentGate';
-import { LoGa3Timeout as T } from './timeouts';
+import type { AutomationCommand, AutomationMessage } from '../shared/automation';
+import { AutomationBridge } from '../../bridge';
+import { extractTextFromPdfBuffer } from '@/src/convert/pdfText';
+import { isLikelyPayslipText, parsePayslipText } from '@/src/convert/parsers/engines/pdf-payslip';
+import type { PayslipDocument } from '@/src/payroll/types';
+import { upsertPayslip } from '@/src/state/store';
+import { base64ToArrayBuffer } from '../../pdfStore';
+import { waitForCondition, WaitTimeoutError } from '../../wait';
+import { pollAndroidDownloadsForPdf } from '../../androidDownloadPoll';
+import { t } from '@/src/i18n';
+import { appendDiag } from '@/src/support/diagLog';
+import { MONTH_LABELS_DE } from '../shared/contentGate';
+import { LoGa3Timeout as T } from '../shared/timeouts';
 
 export type PayslipFetchOptions = {
   username: string;

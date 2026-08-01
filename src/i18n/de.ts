@@ -58,6 +58,18 @@ export const de = {
   sourceLocalCancelled: 'Kein Import.',
   sourceLocalDone: 'Import fertig',
   sourceLoga3Go: 'Aus LOGA3 abrufen',
+  sourceLoga3JobShift: 'Dienstplan',
+  sourceLoga3JobPayslip: 'Verdienst',
+  sourceLoga3GoPayslip: 'Verdienstnachweis laden',
+  sourceLocalUnsupported: 'Nicht unterstützter Typ ({name})',
+  sourceClassifyTitle: 'Dokumentart',
+  sourceClassifyBody: '„{name}“ nicht eindeutig. Dienstplan oder Verdienstnachweis?',
+  sourceClassifyShift: 'Dienstplan',
+  sourceClassifyPayslip: 'Verdienstnachweis',
+  sourceImportMixedOk:
+    '{shifts} Schichten · {payslips} Verdienstnachweis(e) importiert.',
+  payrollReloadPayslip: 'Verdienst im Import laden',
+  payrollNoPayslipHint: 'Noch kein Nachweis — im Import als Verdienst laden (LOGA3 oder PDF).',
   sourceLocalGo: 'PDF / CSV / ICS wählen',
   sourceCameraOcr: 'Foto (OCR)',
   sourceCameraOcrGo: 'Kamera',
@@ -706,7 +718,7 @@ export const de = {
   mailMappingSubject: 'ShiftPlan Converter — Mapping-Beitrag',
   payrollTitle: 'Abrechnungsprüfung',
   payrollSubtitle:
-    'Verdienstnachweis laden und mit importierten Diensten vergleichen. Pack-abhängig.',
+    'Vergleich Verdienstnachweis ↔ importierte Dienste. Nachweise im Import laden (LOGA3 Verdienst oder PDF).',
   payrollUnsupported:
     'Für dieses Profil ist die Abrechnungsprüfung noch nicht freigeschaltet.',
   payrollImportPdf: 'Verdienstnachweis-PDF',

@@ -11,11 +11,11 @@ export const DESKTOP_GITHUB = 'https://github.com/fr4iser90/LOGA3-Automation';
 /** GitHub Releases — sideload APKs / manual updates. */
 export const PROJECT_RELEASES = `${PROJECT_GITHUB}/releases`;
 /**
- * Play Store listing — set when the listing is live, e.g.
- * `https://play.google.com/store/apps/details?id=com.fr4iser.shiftplan`
- * Empty = in-app update check uses GitHub Releases only.
+ * Play Store listing — closed/open testing + production.
+ * When set, Settings → Update opens Play instead of GitHub Releases.
  */
-export const PROJECT_PLAY_STORE = '';
+export const PROJECT_PLAY_STORE =
+  'https://play.google.com/store/apps/details?id=com.fr4iser.shiftplan';
 /** German changelog (default for local testers). */
 export const PROJECT_CHANGELOG_DE = `${PROJECT_GITHUB}/blob/main/CHANGELOG.md`;
 /** English changelog. */

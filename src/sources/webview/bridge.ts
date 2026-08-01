@@ -1,5 +1,5 @@
-import type { AutomationCommand, AutomationMessage } from './loga3/automation';
-import { LoGa3Timeout as T } from './loga3/timeouts';
+import type { AutomationCommand, AutomationMessage } from './loga3/shared/automation';
+import { LoGa3Timeout as T } from './loga3/shared/timeouts';
 
 type MsgHandler = (msg: AutomationMessage) => void;
 

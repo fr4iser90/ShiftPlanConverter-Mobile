@@ -17,7 +17,7 @@ import {
   type AutomationMessage,
 } from './automation';
 import { getLoga3BaseUrl } from './env';
-import { buildLayoutFixInject } from './layoutFixInject';
+import { buildLayoutFixInject } from '../shift/layoutFixInject';
 
 /** LOGA3/GWT desktop layout width — keep in sync with automation expectations */
 export const LOGA3_DESKTOP_WIDTH = 1280;
@@ -41,6 +41,8 @@ export function buildViewportInject(layoutWidth: number): string {
   );
 }
 
+export type Loga3WebViewJob = 'shift' | 'payslip';
+
 type Props = {
   visible?: boolean;
   initialUrl?: string;
@@ -48,6 +50,11 @@ type Props = {
   onReady?: () => void;
   /** Measured WebView host width (dp) — drives dynamic initial-scale */
   layoutWidth?: number;
+  /**
+   * Which LOGA3 flow this WebView hosts.
+   * `shift` injects Zeitdaten layout CSS; `payslip` skips it.
+   */
+  job?: Loga3WebViewJob;
 };
 
 async function urlToPdfMessage(url: string, filename?: string): Promise<AutomationMessage> {
@@ -106,7 +113,7 @@ async function urlToPdfMessage(url: string, filename?: string): Promise<Automati
 export const Loga3WebView = React.forwardRef<
   { run: (cmd: AutomationCommand) => void; reload: () => void },
   Props
->(function Loga3WebView({ initialUrl, onMessage, onReady, layoutWidth }, ref) {
+>(function Loga3WebView({ initialUrl, onMessage, onReady, layoutWidth, job = 'shift' }, ref) {
   const resolvedUrl = (initialUrl || getLoga3BaseUrl()).trim();
   const webRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +122,10 @@ export const Loga3WebView = React.forwardRef<
   const { width: windowWidth } = useWindowDimensions();
   const effectiveWidth = layoutWidth && layoutWidth > 0 ? layoutWidth : windowWidth;
   const viewportInject = useMemo(() => buildViewportInject(effectiveWidth), [effectiveWidth]);
-  const layoutFixInject = useMemo(() => buildLayoutFixInject(), []);
+  const layoutFixInject = useMemo(
+    () => (job === 'shift' ? buildLayoutFixInject() : ''),
+    [job]
+  );
   const bootInject = useMemo(
     () => `${viewportInject}${layoutFixInject}${PDF_CAPTURE_INJECT}`,
     [viewportInject, layoutFixInject]

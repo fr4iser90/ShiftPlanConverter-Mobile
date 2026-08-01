@@ -6,8 +6,8 @@
  */
 import * as Linking from 'expo-linking';
 
-import { saveCredentials } from '../sources/webview/loga3/credentials';
-import { isValidLoga3BaseUrl, setLoga3BaseUrl } from '../sources/webview/loga3/env';
+import { saveCredentials } from '../sources/webview/loga3/shared/credentials';
+import { isValidLoga3BaseUrl, setLoga3BaseUrl } from '../sources/webview/loga3/shared/env';
 import { setWorkplace } from '../state/store';
 import {
   BUILTIN_AREA_ID,

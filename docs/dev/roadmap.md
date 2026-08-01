@@ -37,7 +37,8 @@ Preview/Export bleiben source-agnostisch. LOGA3 ist nur *eine* Source-Implementi
 
 ## Architektur-Phasen
 
-Detaillierter Refactor-Plan: [`refactor-sources.md`](refactor-sources.md).
+Detaillierter Refactor-Plan: [`refactor-sources.md`](refactor-sources.md).  
+Import + Verdienst (ein Trichter, Classifier, Prüfung = Check): [`import-and-payroll-ux.md`](import-and-payroll-ux.md).
 
 | Phase | Status | Was |
 |-------|--------|-----|

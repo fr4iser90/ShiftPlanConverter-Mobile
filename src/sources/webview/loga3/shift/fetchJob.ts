@@ -1,15 +1,15 @@
-import type { AutomationCommand, AutomationMessage } from './automation';
-import { AutomationBridge } from '../bridge';
-import { extractTextFromPdfBuffer } from '../../../convert/pdfText';
-import type { SourceArtifact } from '../../types';
-import { MONTH_LABELS_DE, validatePdfPeriod } from './contentGate';
-import { base64ToArrayBuffer, savePdfBytes } from '../pdfStore';
-import { waitForCondition, WaitTimeoutError } from '../wait';
+import type { AutomationCommand, AutomationMessage } from '../shared/automation';
+import { AutomationBridge } from '../../bridge';
+import { extractTextFromPdfBuffer } from '@/src/convert/pdfText';
+import type { SourceArtifact } from '@/src/sources/types';
+import { MONTH_LABELS_DE, validatePdfPeriod } from '../shared/contentGate';
+import { base64ToArrayBuffer, savePdfBytes } from '../../pdfStore';
+import { waitForCondition, WaitTimeoutError } from '../../wait';
 import { clearGateTraces, writeGateTrace } from './gateTrace';
-import { pollAndroidDownloadsForPdf } from '../androidDownloadPoll';
-import { t } from '../../../i18n';
-import { appendDiag } from '../../../support/diagLog';
-import { LoGa3Timeout as T } from './timeouts';
+import { pollAndroidDownloadsForPdf } from '../../androidDownloadPoll';
+import { t } from '@/src/i18n';
+import { appendDiag } from '@/src/support/diagLog';
+import { LoGa3Timeout as T } from '../shared/timeouts';
 
 export type FetchJobOptions = {
   username: string;

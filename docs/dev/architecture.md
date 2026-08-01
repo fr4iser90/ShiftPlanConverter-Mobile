@@ -28,7 +28,8 @@ src/
   convert/parsers/ocr/    # Shared OCR mapping engine (applyPackMapping, rosterEngine)
 ```
 
-Security checklist: [security-audit.md](./security-audit.md). Roadmap: [roadmap.md](./roadmap.md).
+Security checklist: [security-audit.md](./security-audit.md). Roadmap: [roadmap.md](./roadmap.md).  
+Import / Verdienst UX-Zielbild (UI-Skizzen, LOGA3 Shift vs VN): [import-and-payroll-ux.md](./import-and-payroll-ux.md).
 
 ## Fetch data flow
 

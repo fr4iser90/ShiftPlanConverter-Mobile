@@ -53,6 +53,8 @@ describe('st-elisabeth pack honesty', () => {
     const arzt = pack!.groups.find((g) => g.id === 'arzt');
     expect(arzt?.label).toBe('Ärzte');
     expect(arzt?.areas.some((a) => a.id === 'op-anaesthesie' && !a.supported)).toBe(true);
+    expect(arzt?.areas.some((a) => a.id === 'op-chirurgie' && !a.supported)).toBe(true);
     expect(getMappingForScope('st-elisabeth-leipzig', 'arzt', 'op-anaesthesie')).toBeTruthy();
+    expect(getMappingForScope('st-elisabeth-leipzig', 'service', 'op')).toBeTruthy();
   });
 });

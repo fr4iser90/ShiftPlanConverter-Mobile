@@ -6,7 +6,7 @@ import {
   validatePdfPeriod,
   verifyCalendarFromSignature,
   type ContentSignature,
-} from '../../src/sources/webview/loga3/contentGate';
+} from '../../src/sources/webview/loga3/shared/contentGate';
 
 const emptySig = (over: Partial<ContentSignature> = {}): ContentSignature => ({
   key: '',

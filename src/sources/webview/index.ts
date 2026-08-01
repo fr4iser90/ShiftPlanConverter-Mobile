@@ -1,6 +1,6 @@
 /**
  * Shared WebView source primitives (site plugins import from here).
- * LOGA3-specific automation stays under `src/sources/webview/loga3/`.
+ * LOGA3: `loga3/shared` · `loga3/shift` · `loga3/payslip`.
  */
 export { AutomationBridge } from './bridge';
 export { waitForCondition, WaitTimeoutError } from './wait';

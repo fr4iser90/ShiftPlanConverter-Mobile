@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -12,7 +11,6 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { importPayslipPdfs } from '@/src/payroll/importPayslip';
 import { runPayrollCheck } from '@/src/payroll/check';
 import { loadTarifPrefs, saveTarifPrefs } from '@/src/payroll/tarifPrefs';
 import { mergeTarifPrefs } from '@/src/payroll/tarifDefaults';
@@ -22,16 +20,8 @@ import {
   getPayrollProfileForScope,
   getMappingForScope,
   isPayrollSupportedForScope,
-  isSourceSupportedByPack,
-  getPackById,
 } from '@/src/packs';
 import { getSnapshot, subscribeKeys } from '@/src/state/store';
-import { loadCredentials } from '@/src/sources/webview/loga3/credentials';
-import { Loga3WebView } from '@/src/sources/webview/loga3/Loga3WebView';
-import type { AutomationCommand, AutomationMessage } from '@/src/sources/webview/loga3/automation';
-import { AutomationBridge } from '@/src/sources/webview/bridge';
-import { runPayslipFetchJob } from '@/src/sources/webview/loga3/fetchPayslipJob';
-import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, ScreenTitle, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -78,21 +68,10 @@ export default function PayrollScreen() {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [, setTick] = useState(0);
   const [payMonth, setPayMonth] = useState(currentYm);
-  const [busy, setBusy] = useState(false);
-  const [statusLine, setStatusLine] = useState('');
   const [tarif, setTarif] = useState<PayrollTarifPrefs>({});
-  const [showWeb, setShowWeb] = useState(false);
-  const bridgeRef = useRef(new AutomationBridge());
-  const webRef = useRef<{ run: (cmd: AutomationCommand) => void; reload: () => void } | null>(
-    null
-  );
-
   const snap = getSnapshot();
   const supported = isPayrollSupportedForScope(snap.packId, snap.groupId, snap.areaId);
   const profile = getPayrollProfileForScope(snap.packId, snap.groupId, snap.areaId);
-  const pack = getPackById(snap.packId);
-  const loga3Ok = isSourceSupportedByPack(pack, 'loga3-webview');
-
   useFocusEffect(
     useCallback(() => {
       const unsub = subscribeKeys(
@@ -173,94 +152,10 @@ export default function PayrollScreen() {
     tarif,
   ]);
 
-  const onImport = async () => {
-    setBusy(true);
-    try {
-      const { imported, errors } = await importPayslipPdfs();
-      if (imported.length && !errors.length) {
-        setPayMonth(imported[imported.length - 1].payMonth);
-        const last = imported[imported.length - 1];
-        const saved = await loadTarifPrefs(snap.activeWorkplaceId);
-        setTarif(mergeTarifPrefs(profile, saved, last));
-        Alert.alert(t('payrollTitle'), t('payrollImportOk', { count: String(imported.length) }));
-      } else if (imported.length || errors.length) {
-        if (imported.length) {
-          setPayMonth(imported[imported.length - 1].payMonth);
-          const last = imported[imported.length - 1];
-          const saved = await loadTarifPrefs(snap.activeWorkplaceId);
-          setTarif(mergeTarifPrefs(profile, saved, last));
-        }
-        Alert.alert(
-          t('payrollTitle'),
-          t('payrollImportPartial', {
-            ok: String(imported.length),
-            fail: String(errors.length),
-          }) + (errors.length ? `\n\n${errors.slice(0, 3).join('\n')}` : '')
-        );
-      }
-    } catch (e) {
-      Alert.alert(t('payrollTitle'), e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const onSaveTarif = async () => {
     await saveTarifPrefs(snap.activeWorkplaceId || 'default', tarif);
     Alert.alert(t('payrollTarifTitle'), t('payrollTarifSaved'));
     setTick((n) => n + 1);
-  };
-
-  const onLoga3Fetch = async () => {
-    if (!loga3Ok) {
-      Alert.alert(t('payrollTitle'), t('payrollLoga3Soon'));
-      return;
-    }
-    const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptFetch'));
-    if (!unlocked) return;
-    const creds = await loadCredentials(snap.activeWorkplaceId);
-    if (!creds?.username || !creds?.password) {
-      Alert.alert(t('payrollTitle'), t('payrollLoga3NeedLogin'));
-      return;
-    }
-    if (!webRef.current?.run) {
-      setShowWeb(true);
-      Alert.alert(t('payrollTitle'), t('payrollLoga3OpenVerdienst'));
-      return;
-    }
-    const m = /^(\d{4})-(\d{2})$/.exec(payslip?.payMonth || payMonth || currentYm());
-    if (!m) return;
-    setBusy(true);
-    setShowWeb(true);
-    setStatusLine('');
-    try {
-      const { imported, errors } = await runPayslipFetchJob({
-        username: creds.username,
-        password: creds.password,
-        months: [Number(m[2])],
-        year: Number(m[1]),
-        workplaceId: snap.activeWorkplaceId || undefined,
-        bridge: bridgeRef.current,
-        inject: (cmd) => webRef.current?.run(cmd),
-        onStatus: setStatusLine,
-      });
-      if (imported.length) setPayMonth(imported[imported.length - 1].payMonth);
-      if (imported.length && !errors.length) {
-        Alert.alert(t('payrollTitle'), t('payrollImportOk', { count: String(imported.length) }));
-      } else {
-        Alert.alert(
-          t('payrollTitle'),
-          t('payrollImportPartial', {
-            ok: String(imported.length),
-            fail: String(errors.length),
-          }) + (errors.length ? `\n\n${errors.slice(0, 3).join('\n')}` : '')
-        );
-      }
-    } catch (e) {
-      Alert.alert(t('payrollTitle'), e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
   };
 
   const onOpenImportForServiceMonth = async () => {
@@ -270,12 +165,21 @@ export default function PayrollScreen() {
     await setImportMonthIntent({
       year: Number(m[1]),
       months: [Number(m[2])],
+      job: 'shift',
     });
     router.push('/(tabs)');
   };
 
-  const onBridgeMessage = (msg: AutomationMessage) => {
-    bridgeRef.current.handleMessage(msg);
+  const onOpenImportForPayslip = async () => {
+    const ym = payslip?.payMonth || payMonth || currentYm();
+    const m = /^(\d{4})-(\d{2})$/.exec(ym);
+    if (!m) return;
+    await setImportMonthIntent({
+      year: Number(m[1]),
+      months: [Number(m[2])],
+      job: 'payslip',
+    });
+    router.push('/(tabs)');
   };
 
   if (!supported || !profile) {
@@ -414,9 +318,9 @@ export default function PayrollScreen() {
           )}
         </AppCard>
 
-        {workplacePayslips.length > 1 ? (
-          <AppCard>
-            <SectionTitle>{t('payrollImportedPayslips')}</SectionTitle>
+        <AppCard>
+          <SectionTitle>{t('payrollImportedPayslips')}</SectionTitle>
+          {workplacePayslips.length ? (
             <View style={styles.chipRow}>
               {workplacePayslips.map((p) => (
                 <Pressable
@@ -428,30 +332,17 @@ export default function PayrollScreen() {
                 </Pressable>
               ))}
             </View>
-          </AppCard>
-        ) : null}
-
-        <View style={styles.actions}>
-          <AppButton title={t('payrollImportPdf')} onPress={() => void onImport()} disabled={busy} />
-          <AppButton
-            title={t('payrollLoga3Fetch')}
-            onPress={() => void onLoga3Fetch()}
-            disabled={busy || !loga3Ok}
-            variant="secondary"
-          />
-        </View>
-        {busy ? <ActivityIndicator color={theme.color.primary} /> : null}
-        {statusLine ? <Meta>{`${t('payrollStatus')}: ${statusLine}`}</Meta> : null}
-
-        {showWeb && loga3Ok ? (
-          <AppCard>
-            <Loga3WebView
-              ref={webRef}
-              onMessage={onBridgeMessage}
-              onReady={() => setStatusLine(t('payrollLoga3OpenVerdienst'))}
+          ) : (
+            <Meta>{t('payrollNoPayslipHint')}</Meta>
+          )}
+          <View style={styles.actions}>
+            <AppButton
+              title={t('payrollReloadPayslip')}
+              onPress={() => void onOpenImportForPayslip()}
+              variant="secondary"
             />
-          </AppCard>
-        ) : null}
+          </View>
+        </AppCard>
 
         {!payslip ? (
           <AppCard>

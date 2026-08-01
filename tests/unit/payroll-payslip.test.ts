@@ -104,9 +104,19 @@ describe('payroll pack gate', () => {
     expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'arzt', 'op-anaesthesie')).toBe(
       true
     );
+    expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'arzt', 'op-chirurgie')).toBe(
+      true
+    );
+    expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'service', 'op')).toBe(true);
     expect(isPayrollSupportedForScope('default-generic', 'generic', 'import')).toBe(false);
     expect(getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')?.id).toBe(
       'st-elisabeth-pflege-krankenhaus'
+    );
+    expect(getPayrollProfileForScope('st-elisabeth-leipzig', 'arzt', 'op-chirurgie')?.id).toBe(
+      'st-elisabeth-arzt-krankenhaus'
+    );
+    expect(getPayrollProfileForScope('st-elisabeth-leipzig', 'service', 'op')?.id).toBe(
+      'st-elisabeth-service-krankenhaus'
     );
   });
 });

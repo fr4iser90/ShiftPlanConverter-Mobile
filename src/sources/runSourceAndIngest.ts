@@ -1,5 +1,5 @@
 import { ingestArtifacts } from '../ingest/ingestArtifacts';
-import type { AutomationCommand } from './webview/loga3/automation';
+import type { AutomationCommand } from './webview/loga3/shared/automation';
 import type { AutomationBridge } from './webview/bridge';
 import { getPackById } from '../packs';
 import { resolveActiveSourceId } from '../state/activeSource';

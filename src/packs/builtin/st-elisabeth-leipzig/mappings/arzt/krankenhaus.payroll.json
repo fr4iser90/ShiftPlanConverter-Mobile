@@ -1,6 +1,6 @@
 {
-  "id": "st-elisabeth-arzt-op",
-  "label": "Ärzte · OP (Dienst-/Abrechnungsprüfer)",
+  "id": "st-elisabeth-arzt-krankenhaus",
+  "label": "Ärzte · Krankenhaus (Anlage 30 · RK Ost)",
   "tarifFamily": "avr-aerzte",
   "holidayRegion": "SN",
   "hourDivisor": 173.92,
@@ -365,8 +365,8 @@
     }
   ],
   "notes": [
-    "egRows: AVR Caritas Anlage 30 — Tabellenentgelt (Anhang A) + Bereitschaftsdienstentgelt (§ 8 Abs. 2), gültig ab 1. März 2026; Werte als Fakten in eigenem JSON (kein PDF-/Layout-Import). Pack = RK Ost (St. Elisabeth Leipzig / holidayRegion SN).",
-    "Quelle: AVR Online-PDF 2026 (Stand 19.03.2026) / autorisierte AVR-Fassung — nicht 1:1 Dokument kopieren.",
+    "egRows: AVR Caritas Anlage 30 — Tabellenentgelt (Anhang A) + Bereitschaftsdienstentgelt (§ 8 Abs. 2), gültig ab 1. März 2026; gilt für Ärztinnen/Ärzte im Krankenhaus (Anästhesie, Chirurgie, …), nicht rollenspezifisch.",
+    "Quelle: AVR Online-PDF 2026 (Stand 19.03.2026). Pack = RK Ost (St. Elisabeth Leipzig / holidayRegion SN).",
     "Kalender-Overrides (Feiertags-BD 25 %, Monatswechsel) folgen in der Engine."
   ]
 }

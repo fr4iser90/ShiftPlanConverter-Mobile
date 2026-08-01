@@ -14,13 +14,13 @@ import { t } from '@/src/i18n';
 import {
   loadCredentials,
   saveCredentials,
-} from '@/src/sources/webview/loga3/credentials';
+} from '@/src/sources/webview/loga3/shared/credentials';
 import {
   getLoga3BaseUrl,
   hydrateLoga3Env,
   isValidLoga3BaseUrl,
   setLoga3BaseUrl,
-} from '@/src/sources/webview/loga3/env';
+} from '@/src/sources/webview/loga3/shared/env';
 import {
   getGoogleCalendarId,
   getSnapshot,

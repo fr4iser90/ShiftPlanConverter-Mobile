@@ -15,12 +15,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, type Href } from 'expo-router';
 
 import { t } from '@/src/i18n';
-import { loadCredentials } from '@/src/sources/webview/loga3/credentials';
-import { Loga3WebView } from '@/src/sources/webview/loga3/Loga3WebView';
-import type { AutomationCommand, AutomationMessage } from '@/src/sources/webview/loga3/automation';
+import { loadCredentials } from '@/src/sources/webview/loga3/shared/credentials';
+import { Loga3WebView } from '@/src/sources/webview/loga3/shared/Loga3WebView';
+import type { AutomationCommand, AutomationMessage } from '@/src/sources/webview/loga3/shared/automation';
 import { AutomationBridge } from '@/src/sources/webview/bridge';
 import { resolveStoredEntries } from '@/src/convert/pipeline';
-import { getMappingForScope, getPackById, getOcrConfigForPack, getOcrEngineIdForPack, getPreferredSourceId, isSourceSupportedByPack } from '@/src/packs';
+import {
+  getMappingForScope,
+  getPackById,
+  getOcrConfigForPack,
+  getOcrEngineIdForPack,
+  getPreferredSourceId,
+  isPayrollSupportedForScope,
+  isSourceSupportedByPack,
+} from '@/src/packs';
+import { importLocalWithClassify } from '@/src/ingest/importLocalWithClassify';
+import { runPayslipFetchJob } from '@/src/sources/webview/loga3/payslip/fetchPayslipJob';
+import type { Loga3WebViewJob } from '@/src/sources/webview/loga3/shared/Loga3WebView';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
 import { getSnapshot, subscribeKeys, probeEncryptedStorage, isPayloadLocked } from '@/src/state/store';
 import { getSetupStatus, type SetupStatus } from '@/src/setup/status';
@@ -325,6 +336,7 @@ export default function FetchScreen() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
   const [activeSourceId, setActiveSourceId] = useState('local-files');
+  const [loga3Job, setLoga3Job] = useState<Loga3WebViewJob>('shift');
   const isLoga3Source = activeSourceId === 'loga3-webview';
   const isLocalImport = isLocalImportSourceId(activeSourceId);
   const [ocrText, setOcrText] = useState('');
@@ -369,6 +381,14 @@ export default function FetchScreen() {
     [ocrConfig, ocrLayoutId]
   );
   const sources = useMemo(() => listSourcesForPack(pack), [pack]);
+  const payrollSupported = useMemo(
+    () => isPayrollSupportedForScope(snap.packId, snap.groupId, snap.areaId),
+    [snap.packId, snap.groupId, snap.areaId]
+  );
+
+  useEffect(() => {
+    if (!payrollSupported && loga3Job === 'payslip') setLoga3Job('shift');
+  }, [payrollSupported, loga3Job]);
 
   useEffect(() => {
     setWebLayoutW(windowWidth);
@@ -568,6 +588,15 @@ export default function FetchScreen() {
     })();
   };
 
+  const askDocumentKind = useCallback((name: string) => {
+    return new Promise<'shift' | 'payslip'>((resolve) => {
+      Alert.alert(t('sourceClassifyTitle'), t('sourceClassifyBody', { name }), [
+        { text: t('sourceClassifyShift'), onPress: () => resolve('shift') },
+        { text: t('sourceClassifyPayslip'), onPress: () => resolve('payslip') },
+      ], { cancelable: false });
+    });
+  }, []);
+
   const onImportFiles = async () => {
     if (!setup?.workplaceReady) {
       Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
@@ -577,23 +606,26 @@ export default function FetchScreen() {
     setBusy(true);
     setStatus(t('sourceLocalRunning'));
     try {
-      const result = await runSourceAndIngest({
-        sourceId: 'local-files',
+      const result = await importLocalWithClassify({
         period: selected.length
           ? { months: selected.map((s) => s.month), year }
           : undefined,
-        replaceEntries: false,
-        preserveOutsideMonths: true,
         onStatus: setStatus,
+        allowPayslip: payrollSupported,
+        askKind: ({ name }) => askDocumentKind(name),
       });
-      if (!result.artifacts.length && !result.errors.length) {
+      if (result.cancelled) {
         setStatus(t('sourceLocalCancelled'));
         return;
       }
+      const shiftCount = result.shift?.fetchedCount || 0;
+      const payCount = result.payslips.length;
       const parts = [
-        t('fjResultShifts', { count: result.fetchedCount }),
-        result.storeCount !== result.fetchedCount
-          ? t('fjResultStoreTotal', { count: result.storeCount })
+        shiftCount || payCount
+          ? t('sourceImportMixedOk', { shifts: shiftCount, payslips: payCount })
+          : null,
+        result.shift && result.shift.storeCount !== result.shift.fetchedCount
+          ? t('fjResultStoreTotal', { count: result.shift.storeCount })
           : null,
         result.errors.length
           ? t('fjResultErrors', {
@@ -601,11 +633,13 @@ export default function FetchScreen() {
             })
           : null,
       ].filter(Boolean);
-      setStatus(parts.join(' · '));
-      if (result.fetchedCount > 0 || result.entries.length > 0) {
+      setStatus(parts.join(' · ') || t('sourceLocalDone'));
+      if (payCount > 0 && payrollSupported) {
+        router.replace('/(tabs)/pruefung' as Href);
+      } else if (shiftCount > 0) {
         router.replace(CALENDAR_HREF);
       }
-      Alert.alert(t('sourceLocalDone'), parts.join('\n'));
+      Alert.alert(t('sourceLocalDone'), parts.join('\n') || t('sourceLocalDone'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus(t('fjResultErrorLine', { msg }));
@@ -851,7 +885,70 @@ export default function FetchScreen() {
   const monthSelected = (m: number) =>
     selected.some((x) => x.month === m && x.year === year);
 
+  const onPayslipFetch = async () => {
+    if (!setup?.complete || !creds) {
+      Alert.alert(t('setupTitle'), t('setupIncomplete'));
+      router.push(SETUP_HREF);
+      return;
+    }
+    if (!selected.length) {
+      Alert.alert(t('selectMonths'), t('setupPickMonth'));
+      return;
+    }
+    const unlocked = await ensureBiometricUnlocked(t('securityBiometricPromptFetch'));
+    if (!unlocked) {
+      Alert.alert(t('securityBiometric'), t('securityBiometricDenied'));
+      return;
+    }
+    setBusy(true);
+    setShowWeb(true);
+    setStatus(t('payrollLoga3OpenVerdienst'));
+    try {
+      await waitUntilReady();
+      await warmBridge();
+      const { imported, errors } = await runPayslipFetchJob({
+        username: creds.username,
+        password: creds.password,
+        months: selected.map((s) => s.month),
+        year,
+        workplaceId: snap.activeWorkplaceId || undefined,
+        bridge: bridgeRef.current,
+        inject: (cmd) => webRef.current?.run(cmd),
+        onStatus: setStatus,
+      });
+      const parts = [
+        imported.length
+          ? t('payrollImportOk', { count: String(imported.length) })
+          : null,
+        errors.length
+          ? t('payrollImportPartial', {
+              ok: String(imported.length),
+              fail: String(errors.length),
+            }) + `\n${errors.slice(0, 3).join('\n')}`
+          : null,
+      ].filter(Boolean) as string[];
+      setStatus(parts.join(' · ') || t('payrollLoga3Imported', { month: '—' }));
+      if (imported.length) {
+        router.replace('/(tabs)/pruefung' as Href);
+      }
+      Alert.alert(
+        t('payrollTitle'),
+        parts.join('\n') || t('payrollImportOk', { count: '0' })
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus(t('fjResultErrorLine', { msg }));
+      alertErrorWithReport(t('payrollLoga3Fetch'), msg, 'Payslip LOGA3 fetch');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onFetch = async () => {
+    if (loga3Job === 'payslip') {
+      await onPayslipFetch();
+      return;
+    }
     if (!setup?.complete || !creds) {
       Alert.alert(t('setupTitle'), t('setupIncomplete'));
       router.push(SETUP_HREF);
@@ -1040,6 +1137,11 @@ export default function FetchScreen() {
         if (intent?.months?.length) {
           setYear(intent.year);
           setSelected(intent.months.map((m) => ({ month: m, year: intent.year })));
+          if (intent.job === 'payslip' || intent.job === 'shift') {
+            setActiveSourceId('loga3-webview');
+            setLoga3Job(intent.job);
+            void saveActiveSourceId('loga3-webview');
+          }
           setStatus(
             t('payrollImportMonthSelected', {
               month: formatMonthWindow(
@@ -1373,12 +1475,41 @@ export default function FetchScreen() {
 
               {isLoga3Source ? (
                 <>
+                  {payrollSupported ? (
+                    <View style={styles.monthGrid}>
+                      {(
+                        [
+                          { id: 'shift' as const, label: t('sourceLoga3JobShift') },
+                          { id: 'payslip' as const, label: t('sourceLoga3JobPayslip') },
+                        ] as const
+                      ).map((j) => {
+                        const on = loga3Job === j.id;
+                        return (
+                          <Pressable
+                            key={j.id}
+                            disabled={busy}
+                            onPress={() => setLoga3Job(j.id)}
+                            style={[styles.sourceChip, on && styles.sourceChipOn]}
+                          >
+                            <Text
+                              style={[styles.sourceChipText, on && styles.sourceChipTextOn]}
+                            >
+                              {j.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
                   <SectionTitle>{t('selectMonths')}</SectionTitle>
-                  <Meta>{t('fetchHint')}</Meta>
+                  <Meta>
+                    {loga3Job === 'payslip' ? t('payrollSubtitle') : t('fetchHint')}
+                  </Meta>
                   <Text style={styles.windowLine}>
                     {selectionLabel || '—'}
-                    {' · '}
-                    {quickWillSync ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}
+                    {loga3Job === 'shift'
+                      ? ` · ${quickWillSync ? t('quickUpdateGoogleOn') : t('quickUpdateGoogleOff')}`
+                      : ''}
                   </Text>
                   <View style={styles.monthGrid}>
                     {MONTHS.map((m) => {
@@ -1424,7 +1555,11 @@ export default function FetchScreen() {
                   />
                   <AppButton
                     title={
-                      quickWillSync ? t('quickUpdateGoSync') : t('sourceLoga3Go')
+                      loga3Job === 'payslip'
+                        ? t('sourceLoga3GoPayslip')
+                        : quickWillSync
+                          ? t('quickUpdateGoSync')
+                          : t('sourceLoga3Go')
                     }
                     onPress={() => void onFetch()}
                     disabled={busy || !setup.loga3Ready}
@@ -1657,6 +1792,7 @@ export default function FetchScreen() {
           >
             <Loga3WebView
               ref={webRef}
+              job={loga3Job}
               layoutWidth={webHostWidth}
               onMessage={onAutomationMessage}
               onReady={() => {

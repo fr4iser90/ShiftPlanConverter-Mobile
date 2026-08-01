@@ -16,7 +16,7 @@ import {
   getPayloadError,
   probeEncryptedStorage,
 } from '@/src/state/store';
-import { hydrateLoga3Env } from '@/src/sources/webview/loga3/env';
+import { hydrateLoga3Env } from '@/src/sources/webview/loga3/shared/env';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
 import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import {

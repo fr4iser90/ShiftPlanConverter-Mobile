@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-import { getSnapshot } from '../../../state/store';
+import { getSnapshot } from '@/src/state/store';
 
 export type Loga3Credentials = {
   username: string;

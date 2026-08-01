@@ -94,7 +94,11 @@
           "label": "OP",
           "mapping": "mappings/service/op.json",
           "supported": false,
-          "defaultPreset": "Standard"
+          "defaultPreset": "Standard",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/service/krankenhaus.payroll.json"
+          }
         },
         {
           "expand": {
@@ -105,6 +109,10 @@
             "mapping": "mappings/service/station-standard.json",
             "supported": false,
             "defaultPreset": "Standard",
+            "payroll": {
+              "supported": true,
+              "profile": "mappings/service/krankenhaus.payroll.json"
+            },
             "overrides": {
               "16": {
                 "label": "Station 16 (ITS)",
@@ -127,7 +135,18 @@
           "defaultPreset": "Anästhesie",
           "payroll": {
             "supported": true,
-            "profile": "mappings/arzt/op-anaesthesie.payroll.json"
+            "profile": "mappings/arzt/krankenhaus.payroll.json"
+          }
+        },
+        {
+          "id": "op-chirurgie",
+          "label": "OP · Chirurgie",
+          "mapping": "mappings/arzt/op-anaesthesie.json",
+          "supported": false,
+          "defaultPreset": "Anästhesie",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/arzt/krankenhaus.payroll.json"
           }
         }
       ]

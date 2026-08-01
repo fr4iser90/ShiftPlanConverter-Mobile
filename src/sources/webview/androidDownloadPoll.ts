@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { LoGa3Timeout } from './loga3/timeouts';
+import { LoGa3Timeout } from './loga3/shared/timeouts';
 
 const DOWNLOAD_DIRS = [
   'file:///storage/emulated/0/Download',

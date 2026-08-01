@@ -1,4 +1,4 @@
-import type { AutomationCommand } from '../sources/webview/loga3/automation';
+import type { AutomationCommand } from '../sources/webview/loga3/shared/automation';
 import { AutomationBridge } from '../sources/webview/bridge';
 import { resolveStoredEntries } from '../convert/pipeline';
 import { getMappingForScope } from '../packs';

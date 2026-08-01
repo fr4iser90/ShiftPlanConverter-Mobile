@@ -17,10 +17,11 @@ import map_st_elisabeth_leipzig_mappings_pflege_op_ota_json from './builtin/st-e
 import map_st_elisabeth_leipzig_mappings_pflege_station_standard_json from './builtin/st-elisabeth-leipzig/mappings/pflege/station-standard.json';
 import map_st_elisabeth_leipzig_mappings_pflege_station_16_json from './builtin/st-elisabeth-leipzig/mappings/pflege/station-16.json';
 import map_st_elisabeth_leipzig_mappings_service_op_json from './builtin/st-elisabeth-leipzig/mappings/service/op.json';
+import pay_st_elisabeth_leipzig_mappings_service_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/service/krankenhaus.payroll.json';
 import map_st_elisabeth_leipzig_mappings_service_station_standard_json from './builtin/st-elisabeth-leipzig/mappings/service/station-standard.json';
 import map_st_elisabeth_leipzig_mappings_service_station_16_json from './builtin/st-elisabeth-leipzig/mappings/service/station-16.json';
 import map_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.json';
-import pay_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_payroll_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.payroll.json';
+import pay_st_elisabeth_leipzig_mappings_arzt_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/arzt/krankenhaus.payroll.json';
 
 export type PackRegistryEntry = {
   id: string;
@@ -61,7 +62,8 @@ export const PACK_REGISTRY: PackRegistryEntry[] = [
     },
     payrollByPath: {
     "mappings/pflege/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_pflege_krankenhaus_payroll_json as PayrollProfile,
-    "mappings/arzt/op-anaesthesie.payroll.json": pay_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_payroll_json as PayrollProfile,
+    "mappings/service/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_service_krankenhaus_payroll_json as PayrollProfile,
+    "mappings/arzt/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_arzt_krankenhaus_payroll_json as PayrollProfile,
     },
   }
 ];

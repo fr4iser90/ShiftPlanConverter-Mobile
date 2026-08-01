@@ -1,11 +1,13 @@
 /**
- * Prüfung → Import: preselect Zeitprotokoll month(s), no autofetch.
+ * Prüfung → Import: preselect month(s) + optional LOGA3 job, no autofetch.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ImportMonthIntent = {
   months: number[];
   year: number;
+  /** LOGA3 segment on Import (`shift` = Zeiten, `payslip` = Verdienst). */
+  job?: 'shift' | 'payslip';
 };
 
 const KEY = 'loga3.importMonthIntent.v1';

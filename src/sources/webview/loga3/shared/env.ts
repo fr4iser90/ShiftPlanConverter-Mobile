@@ -4,7 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getSnapshot } from '../../../state/store';
+import { getSnapshot } from '@/src/state/store';
 
 function urlKey(workplaceId: string) {
   return `loga3.baseUrl.${workplaceId}`;

@@ -42,7 +42,13 @@ Do **not** paste Station 1…19 by hand. Use `expand`:
 
 Or omit placeholders until a ward is real — only list supported areas.
 
-Shared payroll: St. Elisabeth Pflege areas can point at one `krankenhaus.payroll.json` (AVR Anlage 31 RK Ost P+EG tables). Station numbers ≠ Entgeltgruppe — user picks P8/EG… (or VN).
+Shared payroll per Berufsgruppe (not per Station):
+
+- `pflege/krankenhaus.payroll.json` — AVR Anlage 31  
+- `arzt/krankenhaus.payroll.json` — AVR Anlage 30 (Anästhesie = Chirurgie = …)  
+- `service/krankenhaus.payroll.json` — AVR Anlage 3 Regelvergütung (Anlage 2 allgemein)
+
+Station numbers ≠ Entgeltgruppe — User wählt P8 / EG I / VG 8 … (oder VN).
 
 ## Smoke default
 

@@ -419,7 +419,7 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
   }
   notify();
   pingHomeWidgets(cache.entries);
-  void import('../sources/webview/loga3/env')
+  void import('../sources/webview/loga3/shared/env')
     .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
     .catch(() => {});
   return cache;
@@ -602,7 +602,7 @@ export async function setActiveWorkplaceId(id: string): Promise<void> {
   cache = { ...cache, ...mirrored };
   await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
   notify();
-  void import('../sources/webview/loga3/env')
+  void import('../sources/webview/loga3/shared/env')
     .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
     .catch(() => {});
 }
@@ -641,7 +641,7 @@ export async function addWorkplace(scope?: {
   cache = { ...cache, ...mirrored };
   await persistWorkplaces(mirrored.workplaces, mirrored.activeWorkplaceId);
   notify();
-  void import('../sources/webview/loga3/env')
+  void import('../sources/webview/loga3/shared/env')
     .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
     .catch(() => {});
   return profile;
@@ -694,14 +694,14 @@ export async function removeWorkplace(id: string): Promise<void> {
     await encryptUtf8(JSON.stringify(cache.summary))
   );
   const { clearCredentialsForWorkplace } = await import(
-    '../sources/webview/loga3/credentials'
+    '../sources/webview/loga3/shared/credentials'
   );
-  const { clearLoga3BaseUrlForWorkplace } = await import('../sources/webview/loga3/env');
+  const { clearLoga3BaseUrlForWorkplace } = await import('../sources/webview/loga3/shared/env');
   await clearCredentialsForWorkplace(id);
   await clearLoga3BaseUrlForWorkplace(id);
   notify();
   pingHomeWidgets(entries);
-  void import('../sources/webview/loga3/env')
+  void import('../sources/webview/loga3/shared/env')
     .then((m) => m.hydrateLoga3EnvForActiveWorkplace())
     .catch(() => {});
 }
@@ -732,8 +732,8 @@ export async function getGoogleCalendarId(): Promise<string | null> {
  * Keeps locale/theme prefs.
  */
 export async function wipeAllLocalData(): Promise<void> {
-  const { clearAllCredentials } = await import('../sources/webview/loga3/credentials');
-  const { clearAllLoga3BaseUrls } = await import('../sources/webview/loga3/env');
+  const { clearAllCredentials } = await import('../sources/webview/loga3/shared/credentials');
+  const { clearAllLoga3BaseUrls } = await import('../sources/webview/loga3/shared/env');
   const { deleteAllPdfFiles } = await import('../sources/webview/pdfStore');
   const { disconnectGoogle } = await import('../sync/google');
   const { setSmokeFetchIntent, clearMatrixStatus } = await import('../setup/smokeFetchIntent');
