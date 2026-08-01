@@ -9,7 +9,7 @@ export type CodeTimeRange = {
 };
 
 /**
- * Reverse-lookup HH:MM–HH:MM for a printed LOGA code from the pack preset
+ * Reverse-lookup HH:MM–HH:MM for a printed duty code from the pack preset
  * (matches primary `code` or any `also` entry).
  */
 export function timeRangeForCode(
@@ -85,8 +85,8 @@ export function composeRulesForMapping(mapping: PackMapping | null | undefined):
 }
 
 /**
- * Same-day overflow cells in LOGA person×day PDFs (codes printed under the
- * primary cell). Derived from pack `composeRules`: for `codes: [A, B, C]`,
+ * Same-day overflow cells in multi-person code-grid PDFs (codes printed under
+ * the primary cell). Derived from pack `composeRules`: for `codes: [A, B, C]`,
  * B/C may attach to a day that already has A. `nextDayCodes` are not overflow.
  */
 export function overflowAttachFromComposeRules(

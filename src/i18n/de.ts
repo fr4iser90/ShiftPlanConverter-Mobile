@@ -627,6 +627,8 @@ export const de = {
   fjPdfSaved: '{label}: PDF gespeichert ({size} B) — Validieren… (+{elapsed})',
   fjPdfPeriodOk: '{label}: PDF Abrechnungsmonat ok ({found}) (+{elapsed})',
   fjPdfTextEmpty: 'PDF ohne lesbaren Schichttext (Format nicht erkannt)',
+  fjCodeGridNeedsName:
+    'Abteilungs-Codeplan (mehrere Personen) erkannt — unter Einstellungen → Mein Name setzen. (LOGA-Zeitabrechnung ist ein anderes PDF: eine Person, KO*/GE*.)',
   fjPdfPeriodMismatch: 'Post-download: Abrechnungsmonat {found} != {expected}',
   fjShiftsDone: '{label}: {count} Schichten (+{elapsed} Monat, +{total} Gesamt)',
   fjError: 'Fehler {msg} (+{elapsed})',

@@ -65,17 +65,28 @@ export function defaultLabelForPack(
   packId: string,
   packName?: string,
   areaLabel?: string,
-  preset?: string
+  preset?: string,
+  groupLabel?: string
 ): string {
   if (!packId || packId === DEFAULT_GENERIC_PACK_ID) {
     return noEmployerLabel();
   }
   const name = packDisplayName(packId, packName);
+  const group = String(groupLabel || '').trim();
   const area = String(areaLabel || '').trim();
   const role = String(preset || '').trim();
   const parts = [name];
+  if (group) parts.push(group);
   if (area) parts.push(area);
-  if (role) parts.push(role);
+  // Avoid "… · OP · Anästhesie · Anästhesie" when preset repeats the area.
+  const areaNorm = area.toLowerCase();
+  const roleNorm = role.toLowerCase();
+  const roleAlreadyInArea =
+    !!roleNorm &&
+    (areaNorm === roleNorm ||
+      areaNorm.endsWith(` · ${roleNorm}`) ||
+      areaNorm.endsWith(` ${roleNorm}`));
+  if (role && !roleAlreadyInArea) parts.push(role);
   return parts.join(' · ');
 }
 
@@ -86,7 +97,7 @@ export function relabelWorkplace(p: WorkplaceProfile): WorkplaceProfile {
   const area = group?.areas.find((a) => a.id === p.areaId);
   return {
     ...p,
-    label: defaultLabelForPack(p.packId, pack?.name, area?.label, p.preset),
+    label: defaultLabelForPack(p.packId, pack?.name, area?.label, p.preset, group?.label),
   };
 }
 

@@ -625,6 +625,8 @@ export const en: { [K in keyof typeof de]: string } = {
   fjPdfSaved: '{label}: PDF saved ({size} B) — validating… (+{elapsed})',
   fjPdfPeriodOk: '{label}: PDF period OK ({found}) (+{elapsed})',
   fjPdfTextEmpty: 'PDF has no readable shift text (format not recognized)',
+  fjCodeGridNeedsName:
+    'Department code-grid PDF (multiple people) detected — set Settings → My name. (LOGA Zeitabrechnung is a different single-person KO*/GE* PDF.)',
   fjPdfPeriodMismatch: 'Post-download: period {found} != {expected}',
   fjShiftsDone: '{label}: {count} shifts (+{elapsed} month, +{total} total)',
   fjError: 'Error {msg} (+{elapsed})',

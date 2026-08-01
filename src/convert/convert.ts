@@ -137,7 +137,7 @@ export function parseTimeSheet(
       continue;
     }
 
-    // LOGA code-grid / compose labels: keep printed type (FD vs SD share times).
+    // Code-grid / compose labels: keep printed type (FD vs SD share times).
     if (
       entry.type &&
       !String(entry.type).startsWith('⚠️') &&

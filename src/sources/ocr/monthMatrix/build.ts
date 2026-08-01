@@ -395,10 +395,10 @@ export function buildMonthMatrixGrid(
     }
   }
 
-  const rowSlope =
-    stubs.length > 0
-      ? median(stubs.map((s) => s.slope)) || pageSlope
-      : pageSlope;
+  // Use ?? not || — legitimate slope 0 (straight photo) must not fall back
+  // to a noisy pageSlope from the multi-row cell heuristic.
+  const stubSlopeMed = stubs.length > 0 ? median(stubs.map((s) => s.slope)) : null;
+  const rowSlope = stubSlopeMed != null ? stubSlopeMed : pageSlope;
   const xAnchorRef = nameMaxXFinal * 0.55;
 
   // Lattice-first: person yLo/yHi from printed H-lines before scooping.
@@ -508,7 +508,7 @@ export function buildMonthMatrixGrid(
       if (xc < xRightAtY + 6 || l.boundingBox.x < xRightAtY * 0.92) return false;
       const t = cleanCell(l.text);
       if (/^\(?\s*kw/i.test(t)) return false;
-      return belongsToStub(l, ownerIdx, s.slope || rowSlope);
+      return belongsToStub(l, ownerIdx, s.slope ?? rowSlope);
     });
     for (const l of ownedBody) {
       const top = l.boundingBox.y;

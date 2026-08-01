@@ -286,7 +286,13 @@ export async function hydrateStore(): Promise<AppStateSnapshot> {
       workplaces = [
         {
           id,
-          label: defaultLabelForPack(packId || '', pack?.name, area?.label, preset || ''),
+          label: defaultLabelForPack(
+            packId || '',
+            pack?.name,
+            area?.label,
+            preset || '',
+            group?.label
+          ),
           packId: packId || '',
           groupId: groupId || '',
           areaId: areaId || '',
@@ -573,7 +579,7 @@ export async function setWorkplace(scope: {
   const area = group?.areas.find((a) => a.id === scope.areaId);
   const label =
     scope.label?.trim() ||
-    defaultLabelForPack(scope.packId, pack?.name, area?.label, scope.preset);
+    defaultLabelForPack(scope.packId, pack?.name, area?.label, scope.preset, group?.label);
 
   let workplaces = [...cache.workplaces];
   let activeId = cache.activeWorkplaceId;
@@ -641,7 +647,7 @@ export async function addWorkplace(scope?: {
   const preset = scope?.preset || area?.defaultPreset || '';
   const label =
     scope?.label?.trim() ||
-    defaultLabelForPack(packId, pack?.name, area?.label, preset);
+    defaultLabelForPack(packId, pack?.name, area?.label, preset, group?.label);
   const profile: WorkplaceProfile = {
     id: newWorkplaceId(),
     label,

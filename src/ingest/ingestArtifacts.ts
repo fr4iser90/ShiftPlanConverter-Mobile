@@ -1,10 +1,12 @@
 import { anonymizeDienstplanText } from '../convert/anonymize';
 import { convertPdfText, convertRawText } from '../convert/pipeline';
 import { extractTextFromPdfBuffer } from '../convert/pdfText';
+import { looksLikeCodeGrid } from '../convert/parsers/engines/pdf-code-grid';
 import type { MonthSummary, ShiftEntry } from '../convert/types';
 import { getMappingForScope, getPackById, getParserIdForPack, getPdfConfigForPack } from '../packs';
 import { markSuccessfulFetch } from '../schedule/prefs';
 import type { SourceArtifact } from '../sources/types';
+import { loadOcrPreferredName } from '../state/ocrPreferredName';
 import { getSnapshot, setEntries } from '../state/store';
 import { refreshHomeWidgets } from '../widget/refresh';
 import { parseCsvShifts } from './parseCsv';
@@ -15,6 +17,8 @@ export type IngestOptions = {
   replaceEntries?: boolean;
   preserveOutsideMonths?: boolean;
   onStatus?: (line: string) => void;
+  /** Override preferred roster name for multi-person code grids. */
+  personFilter?: string | null;
 };
 
 export type IngestResult = {
@@ -65,6 +69,10 @@ export async function ingestArtifacts(
   opts: IngestOptions = {}
 ): Promise<IngestResult> {
   const { snap, mapping, engineId, pdfConfig } = workplaceOrThrow();
+  const preferredName =
+    (opts.personFilter && String(opts.personFilter).trim()) ||
+    (await loadOcrPreferredName()) ||
+    '';
   const result: IngestResult = {
     entries: [],
     fetchedCount: 0,
@@ -98,12 +106,19 @@ export async function ingestArtifacts(
       }
       if (art.savedPath) result.savedPdfs.push(art.savedPath);
       result.texts.push(`### ${label}\n${text}`);
+      // Multi-person department code-grid (not LOGA Zeitabrechnung): require
+      // "Mein Name" — otherwise every coworker lands in the calendar.
+      const isCodeGrid = looksLikeCodeGrid(text, pdfConfig, mapping, snap.preset || undefined);
+      if (isCodeGrid && !preferredName) {
+        throw new Error(t('fjCodeGridNeedsName'));
+      }
       const converted = convertPdfText(text, {
         preset: snap.preset!,
         mapping,
         userMappings: snap.userMappings,
         engineId,
         pdfConfig,
+        personFilter: isCodeGrid ? preferredName : null,
       });
       result.entries.push(...converted.entries);
       if (converted.summaries?.length) result.summaries.push(...converted.summaries);
@@ -114,12 +129,17 @@ export async function ingestArtifacts(
     if (art.kind === 'text') {
       if (art.month && art.year) replaceMonthKeys.add(`${art.year}-${pad(art.month)}`);
       result.texts.push(art.text);
+      const isCodeGrid = looksLikeCodeGrid(art.text, pdfConfig, mapping, snap.preset || undefined);
+      if (isCodeGrid && !preferredName) {
+        throw new Error(t('fjCodeGridNeedsName'));
+      }
       const converted = convertRawText(art.text, {
         preset: snap.preset!,
         mapping,
         userMappings: snap.userMappings,
         engineId,
         pdfConfig,
+        personFilter: isCodeGrid ? preferredName : null,
       });
       result.entries.push(...converted.entries);
       if (converted.summaries?.length) result.summaries.push(...converted.summaries);

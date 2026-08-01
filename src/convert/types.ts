@@ -70,7 +70,7 @@ export type MappingValue =
       isValidated?: boolean;
     };
 
-/** Multi-code LOGA compose (e.g. Ärzte Anästhesie Hausdienst). Engine may apply later. */
+/** Multi-code compose (e.g. Ärzte Anästhesie Hausdienst). Engine may apply later. */
 export type PackComposeWhen =
   | 'any'
   | 'weekday'

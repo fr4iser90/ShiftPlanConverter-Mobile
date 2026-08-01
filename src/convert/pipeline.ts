@@ -12,7 +12,7 @@ export type ConvertOptions = {
   engineId?: string;
   /** Pack `parsers/pdf.json` (match params). */
   pdfConfig?: PackPdfConfig | null;
-  /** LOGA code-grid: only this person (optional). */
+  /** Multi-person code-grid PDFs: only this person (optional). Not LOGA Zeitabrechnung. */
   personFilter?: string | null;
 };
 

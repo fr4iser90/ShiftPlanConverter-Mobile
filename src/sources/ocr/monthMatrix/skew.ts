@@ -3,7 +3,14 @@
  * slope = Δy / Δx in page pixels (positive → row drops to the right).
  */
 import type { OcrLine } from '../recognize';
-import { looksLikeDayHeader, looksLikeShiftCell, median, xCenter, yCenter } from './geometry';
+import {
+  looksLikeDayHeader,
+  looksLikeDayNumber,
+  looksLikeShiftCell,
+  median,
+  xCenter,
+  yCenter,
+} from './geometry';
 
 /**
  * Geometry clamp for row Y expectations (skewed wall-plan photos).
@@ -65,6 +72,51 @@ export function fitSlope(xs: number[], ys: number[]): number {
  * Prefer day-header lattice (Mo14… across the top) — usually one physical line.
  * Drop Y-outliers (stray title "MO") before fitting so a flat strip stays flat.
  */
+function slopeFromHeaderLikeStrip(headers: OcrLine[], pageWidth: number): number {
+  if (headers.length < 4) return 0;
+  const xs = headers.map((l) => xCenter(l));
+  const ys = headers.map((l) => yCenter(l));
+  const ySpan = Math.max(...ys) - Math.min(...ys);
+  const xSpan = Math.max(...xs) - Math.min(...xs);
+  // Flat strip: drop Y-outliers (stray title "MO"). Mild diagonal (few dozen
+  // px across the page) must NOT be collapsed to median-Y — that zeros slope
+  // and leaves overlays as flat AABBs on skewed photos.
+  let use = headers;
+  const flatBand = Math.max(48, pageWidth * 0.02);
+  if (xSpan > 40 && ySpan <= 8) {
+    const medY = median(ys);
+    const yTol = Math.max(36, pageWidth * 0.015);
+    const inliers = headers.filter((l) => Math.abs(yCenter(l) - medY) <= yTol);
+    if (inliers.length >= 4) use = inliers;
+  } else if (xSpan > 80 || (xSpan > 40 && ySpan > 8 && ySpan <= flatBand)) {
+    const rough = fitSlope(xs, ys);
+    if (rough) {
+      const x0 = median(xs);
+      const y0 = median(ys);
+      const res = headers.map((l) =>
+        Math.abs(yCenter(l) - expectedYAtX(y0, x0, xCenter(l), rough))
+      );
+      const medR = median(res);
+      const tol = Math.max(28, medR * 2.8, pageWidth * 0.012);
+      const inliers = headers.filter((_, i) => res[i]! <= tol);
+      if (inliers.length >= 4) use = inliers;
+    }
+  }
+  const slope = fitSlope(
+    use.map((l) => xCenter(l)),
+    use.map((l) => yCenter(l))
+  );
+  // Noise floor — keep mild wall-plan skew for overlays / scoop.
+  if (Math.abs(slope) < OCR_SKEW_MIN_ABS_SLOPE) return 0;
+  // Tiny absolute drop across the strip ≈ OCR jitter, not camera skew.
+  const useXs = use.map((l) => xCenter(l));
+  const useYs = use.map((l) => yCenter(l));
+  const useXSpan = Math.max(...useXs) - Math.min(...useXs);
+  const useYSpan = Math.max(...useYs) - Math.min(...useYs);
+  if (useXSpan > 80 && useYSpan <= Math.max(10, pageWidth * 0.006)) return 0;
+  return slope;
+}
+
 export function estimateRowSlopeFromHeaders(
   lines: OcrLine[],
   pageWidth: number,
@@ -76,61 +128,42 @@ export function estimateRowSlopeFromHeaders(
     return looksLikeDayHeader(l.text);
   });
   if (headers.length >= 4) {
-    const xs = headers.map((l) => xCenter(l));
-    const ys = headers.map((l) => yCenter(l));
-    const ySpan = Math.max(...ys) - Math.min(...ys);
-    const xSpan = Math.max(...xs) - Math.min(...xs);
-    // Flat strip: drop Y-outliers (stray title "MO"). Mild diagonal (few dozen
-    // px across the page) must NOT be collapsed to median-Y — that zeros slope
-    // and leaves overlays as flat AABBs on skewed photos.
-    let use = headers;
-    const flatBand = Math.max(48, pageWidth * 0.02);
-    if (xSpan > 40 && ySpan <= 8) {
-      const medY = median(ys);
-      const yTol = Math.max(36, pageWidth * 0.015);
-      const inliers = headers.filter((l) => Math.abs(yCenter(l) - medY) <= yTol);
-      if (inliers.length >= 4) use = inliers;
-    } else if (xSpan > 80 || (xSpan > 40 && ySpan > 8 && ySpan <= flatBand)) {
-      const rough = fitSlope(xs, ys);
-      if (rough) {
-        const x0 = median(xs);
-        const y0 = median(ys);
-        const res = headers.map((l) =>
-          Math.abs(yCenter(l) - expectedYAtX(y0, x0, xCenter(l), rough))
-        );
-        const medR = median(res);
-        const tol = Math.max(28, medR * 2.8, pageWidth * 0.012);
-        const inliers = headers.filter((_, i) => res[i]! <= tol);
-        if (inliers.length >= 4) use = inliers;
-      }
-    }
-    const slope = fitSlope(
-      use.map((l) => xCenter(l)),
-      use.map((l) => yCenter(l))
-    );
-    // Noise floor — keep mild wall-plan skew for overlays / scoop.
-    if (Math.abs(slope) < OCR_SKEW_MIN_ABS_SLOPE) return 0;
-    return slope;
+    return slopeFromHeaderLikeStrip(headers, pageWidth);
   }
-  // Fallback: short shift tokens across the board (noisy — median of local slopes).
+
+  // Month-matrix screenshots often OCR day numbers without weekday ("1"…"30").
+  // Prefer that flat top strip over the noisy multi-row cell fallback.
+  const dayNums = lines.filter((l) => {
+    if (xCenter(l) < left * 0.55) return false;
+    return looksLikeDayNumber(l.text);
+  });
+  if (dayNums.length >= 6) {
+    const band = densestYBand(dayNums, Math.max(28, pageWidth * 0.02));
+    if (band.length >= 6) {
+      const fromDays = slopeFromHeaderLikeStrip(band, pageWidth);
+      // Flat day strip wins — do not invent slant from body cells.
+      return fromDays;
+    }
+  }
+
+  // Fallback: short shift tokens in ONE densest Y-band (never all rows by X —
+  // that invents ~few-degree drift on straight multi-person grids).
   const cells = lines.filter((l) => {
     if (xCenter(l) < left) return false;
     return looksLikeShiftCell(l.text);
   });
   if (cells.length < 8) return 0;
-  const byX = cells.slice().sort((a, b) => xCenter(a) - xCenter(b));
-  const xs = byX.map((l) => xCenter(l));
-  const ys = byX.map((l) => yCenter(l));
-  // Robust-ish: fit on every other point to reduce vertical stacking noise.
-  const sx: number[] = [];
-  const sy: number[] = [];
-  for (let i = 0; i < xs.length; i += 2) {
-    sx.push(xs[i]!);
-    sy.push(ys[i]!);
-  }
-  const slope = fitSlope(sx, sy);
-  // Cell fallback is noisy — only accept mild tilts.
-  if (Math.abs(slope) > 0.06) return 0;
+  const band = densestYBand(cells, Math.max(22, pageWidth * 0.018));
+  if (band.length < 6) return 0;
+  const byX = band.slice().sort((a, b) => xCenter(a) - xCenter(b));
+  const slope = fitSlope(
+    byX.map((l) => xCenter(l)),
+    byX.map((l) => yCenter(l))
+  );
+  // Cell fallback is noisy — only accept mild tilts with a real Y drop.
+  if (Math.abs(slope) < OCR_SKEW_MIN_ABS_SLOPE || Math.abs(slope) > 0.045) return 0;
+  const ySpan = Math.max(...byX.map((l) => yCenter(l))) - Math.min(...byX.map((l) => yCenter(l)));
+  if (ySpan <= Math.max(10, pageWidth * 0.006)) return 0;
   return slope;
 }
 

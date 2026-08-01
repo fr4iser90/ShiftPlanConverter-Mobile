@@ -45,8 +45,21 @@ import {
   setActiveWorkplaceId,
   setWorkplace,
 } from '../../src/state/store';
+import { defaultLabelForPack } from '../../src/state/workplaces';
 
 describe('workplace profiles', () => {
+  it('labels Ärzte · Anästhesie without repeating the preset', () => {
+    expect(
+      defaultLabelForPack(
+        'st-elisabeth-leipzig',
+        'St. Elisabeth Leipzig',
+        'Anästhesie',
+        'Anästhesie',
+        'Ärzte'
+      )
+    ).toBe('St. Elisabeth Leipzig · Ärzte · Anästhesie');
+  });
+
   it('creates a profile via setWorkplace and mirrors pack fields', async () => {
     // Clear leftover profiles from other tests in this file (module singleton).
     while (getSnapshot().workplaces.length) {

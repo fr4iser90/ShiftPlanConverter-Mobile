@@ -129,7 +129,7 @@
       "areas": [
         {
           "id": "op-anaesthesie",
-          "label": "OP · Anästhesie",
+          "label": "Anästhesie",
           "mapping": "mappings/arzt/op-anaesthesie.json",
           "supported": true,
           "defaultPreset": "Anästhesie",

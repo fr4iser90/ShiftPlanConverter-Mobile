@@ -37,7 +37,7 @@ export function isLikelyShiftPlanText(text: string): boolean {
     /Zeitprotokoll|Zeitdaten|Dienstplan|Schichtplan|Buchungen/i.test(t) ||
     (/Soll\/Ist|Anwesend|Schichtfrei/i.test(t) && /\b(MO|DI|MI|DO|FR|SA|SO)\b/.test(t)) ||
     (/Kalendarium|Monatsübersicht/i.test(t) && /\d{1,2}\.\d{1,2}\.\d{2,4}/.test(t)) ||
-    // Generic LOGA-style time sheet (not Verdienstabrechnung)
+    // Single-person LOGA Zeitabrechnung (KO*/GE*) — not Verdienstabrechnung
     (/Zeitabrechnung/i.test(t) && /KO\s*\*/i.test(t) && /GE\s*\*/i.test(t))
   );
 }

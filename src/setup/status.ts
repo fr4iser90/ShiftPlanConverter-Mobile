@@ -42,7 +42,7 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const group = pack?.groups.find((g) => g.id === snap.groupId);
   const area = group?.areas.find((a) => a.id === snap.areaId);
   const summary = workplaceOk
-    ? defaultLabelForPack(snap.packId, pack?.name, area?.label, snap.preset)
+    ? defaultLabelForPack(snap.packId, pack?.name, area?.label, snap.preset, group?.label)
     : '';
   return {
     urlOk,
