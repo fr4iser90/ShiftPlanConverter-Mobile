@@ -6,12 +6,14 @@ import {
 } from '../../src/packs';
 
 describe('st-elisabeth pack honesty', () => {
-  it('only OP · ATA is supported under Pflege; OTA and stations are placeholders', () => {
+  it('only OP · ATA is supported under Pflege; OTA/roles/stations are placeholders', () => {
     const pack = getPackById('st-elisabeth-leipzig');
     expect(pack).toBeTruthy();
     const pflege = pack!.groups.find((g) => g.id === 'pflege');
     expect(pflege?.areas.find((a) => a.id === 'op-ata')?.supported).toBe(true);
     expect(pflege?.areas.find((a) => a.id === 'op-ota')?.supported).toBe(false);
+    expect(pflege?.areas.find((a) => a.id === 'stationsleitung')?.supported).toBe(false);
+    expect(pflege?.areas.find((a) => a.id === 'wundmanagement')?.supported).toBe(false);
     for (let i = 1; i <= 19; i++) {
       const id = `station-${i}`;
       expect(pflege?.areas.some((a) => a.id === id && !a.supported)).toBe(true);

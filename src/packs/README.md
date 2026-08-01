@@ -42,6 +42,8 @@ Do **not** paste Station 1…19 by hand. Use `expand`:
 
 Or omit placeholders until a ward is real — only list supported areas.
 
+Shared payroll: St. Elisabeth Pflege areas can point at one `krankenhaus.payroll.json` (AVR Anlage 31 RK Ost P+EG tables). Station numbers ≠ Entgeltgruppe — user picks P8/EG… (or VN).
+
 ## Smoke default
 
 ```json
@@ -50,3 +52,21 @@ Or omit placeholders until a ward is real — only list supported areas.
 ```
 
 Schema: `pack.schema.json`.
+
+## Payroll numbers (`egRows`, Zulagen, …) — check before commit
+
+Before putting € / BD tariff grids into a **public** pack file, classify the source:
+
+1. **Officially published AVR / Vergütungstabellen** (e.g. authorised Caritas AVR online)  
+   Pure table values as facts are often usable. Prefer your own JSON layout — do **not** copy original document layout, wording, or PDFs 1:1.  
+   Overview: [AVR – Tarifrecht der Caritas](https://www.caritas.de/glossare/avr--tarifrecht-der-caritas) · text: [avr-caritas.de](https://www.avr-caritas.de).
+
+2. **Copy of protected materials**  
+   Layout, Erläuterungen, full wording of books/PDFs can be copyrighted → re-key numbers into our schema only.
+
+3. **Internal employer / colleague spreadsheets**  
+   Treat as confidential until you have clear permission. Do **not** commit. Use VN-only checks, user prefs, or a **gitignored** private overlay.
+
+**Default:** only commit EG/`bd` grids when case (1) applies and `notes` cite AVR Anlage + validity date + RK (pack/AG implies region, e.g. Leipzig → RK Ost). Otherwise VN + prefs only.
+
+Every new `*.payroll.json` with money rates: re-run this checklist in the PR.

@@ -4,6 +4,88 @@
   "tarifFamily": "avr-aerzte",
   "holidayRegion": "SN",
   "hourDivisor": 173.92,
+  "egRows": [
+    {
+      "eg": "I",
+      "label": "I – Assistenzarzt",
+      "salary": [
+        5722.05,
+        6046.42,
+        6278.07,
+        6679.58,
+        7158.37,
+        7355.29
+      ],
+      "bd": [
+        36.86,
+        36.86,
+        38.26,
+        38.26,
+        39.66,
+        39.66
+      ]
+    },
+    {
+      "eg": "II",
+      "label": "II – Facharzt",
+      "salary": [
+        7552.19,
+        8185.4,
+        8741.4,
+        9065.74,
+        9382.33,
+        9698.91
+      ],
+      "bd": [
+        43.83,
+        43.83,
+        45.23,
+        45.23,
+        46.64,
+        46.64
+      ]
+    },
+    {
+      "eg": "III",
+      "label": "III – Oberarzt",
+      "salary": [
+        9459.56,
+        10015.53,
+        10810.95,
+        null,
+        null,
+        null
+      ],
+      "bd": [
+        47.33,
+        47.33,
+        48.72,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "eg": "IV",
+      "label": "IV – CA-Vertretung",
+      "salary": [
+        11127.5,
+        11922.95,
+        null,
+        null,
+        null,
+        null
+      ],
+      "bd": [
+        51.5,
+        51.5,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
   "fixedLa": [
     "100",
     "200",
@@ -283,8 +365,8 @@
     }
   ],
   "notes": [
-    "EG salary/BD tables are not shipped in-repo (private / payslip only).",
-    "Port from Dienst- und Abrechnungsprüfer v3.2 (Thomas).",
+    "egRows: AVR Caritas Anlage 30 — Tabellenentgelt (Anhang A) + Bereitschaftsdienstentgelt (§ 8 Abs. 2), gültig ab 1. März 2026; Werte als Fakten in eigenem JSON (kein PDF-/Layout-Import). Pack = RK Ost (St. Elisabeth Leipzig / holidayRegion SN).",
+    "Quelle: AVR Online-PDF 2026 (Stand 19.03.2026) / autorisierte AVR-Fassung — nicht 1:1 Dokument kopieren.",
     "Kalender-Overrides (Feiertags-BD 25 %, Monatswechsel) folgen in der Engine."
   ]
 }

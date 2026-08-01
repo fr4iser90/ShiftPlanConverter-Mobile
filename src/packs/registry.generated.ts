@@ -12,7 +12,7 @@ import config_st_elisabeth_leipzig from './builtin/st-elisabeth-leipzig/config.j
 import ocr_st_elisabeth_leipzig from './builtin/st-elisabeth-leipzig/parsers/ocr.json';
 import pdf_st_elisabeth_leipzig from './builtin/st-elisabeth-leipzig/parsers/pdf.json';
 import map_st_elisabeth_leipzig_mappings_pflege_op_ata_json from './builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.json';
-import pay_st_elisabeth_leipzig_mappings_pflege_op_ata_payroll_json from './builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.payroll.json';
+import pay_st_elisabeth_leipzig_mappings_pflege_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/pflege/krankenhaus.payroll.json';
 import map_st_elisabeth_leipzig_mappings_pflege_op_ota_json from './builtin/st-elisabeth-leipzig/mappings/pflege/op-ota.json';
 import map_st_elisabeth_leipzig_mappings_pflege_station_standard_json from './builtin/st-elisabeth-leipzig/mappings/pflege/station-standard.json';
 import map_st_elisabeth_leipzig_mappings_pflege_station_16_json from './builtin/st-elisabeth-leipzig/mappings/pflege/station-16.json';
@@ -60,7 +60,7 @@ export const PACK_REGISTRY: PackRegistryEntry[] = [
     "mappings/arzt/op-anaesthesie.json": map_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_json as PackMapping,
     },
     payrollByPath: {
-    "mappings/pflege/op-ata.payroll.json": pay_st_elisabeth_leipzig_mappings_pflege_op_ata_payroll_json as PayrollProfile,
+    "mappings/pflege/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_pflege_krankenhaus_payroll_json as PayrollProfile,
     "mappings/arzt/op-anaesthesie.payroll.json": pay_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_payroll_json as PayrollProfile,
     },
   }

@@ -26,7 +26,7 @@
           "defaultPreset": "Anästhesie",
           "payroll": {
             "supported": true,
-            "profile": "mappings/pflege/op-ata.payroll.json"
+            "profile": "mappings/pflege/krankenhaus.payroll.json"
           }
         },
         {
@@ -34,7 +34,33 @@
           "label": "OP · OTA",
           "mapping": "mappings/pflege/op-ota.json",
           "supported": false,
-          "defaultPreset": "OTA"
+          "defaultPreset": "OTA",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/pflege/krankenhaus.payroll.json"
+          }
+        },
+        {
+          "id": "stationsleitung",
+          "label": "Stationsleitung",
+          "mapping": "mappings/pflege/station-standard.json",
+          "supported": false,
+          "defaultPreset": "Standard",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/pflege/krankenhaus.payroll.json"
+          }
+        },
+        {
+          "id": "wundmanagement",
+          "label": "Wundmanagement",
+          "mapping": "mappings/pflege/station-standard.json",
+          "supported": false,
+          "defaultPreset": "Standard",
+          "payroll": {
+            "supported": true,
+            "profile": "mappings/pflege/krankenhaus.payroll.json"
+          }
         },
         {
           "expand": {
@@ -45,6 +71,10 @@
             "mapping": "mappings/pflege/station-standard.json",
             "supported": false,
             "defaultPreset": "Standard",
+            "payroll": {
+              "supported": true,
+              "profile": "mappings/pflege/krankenhaus.payroll.json"
+            },
             "overrides": {
               "16": {
                 "label": "Station 16 (ITS)",

@@ -91,8 +91,14 @@ describe('extractTextFromPdfBuffer real Verdienstnachweis', () => {
 });
 
 describe('payroll pack gate', () => {
-  it('enables Pflege OP and Ärzte OP', () => {
+  it('enables Pflege Krankenhaus scopes and Ärzte OP', () => {
     expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')).toBe(
+      true
+    );
+    expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'pflege', 'op-ota')).toBe(
+      true
+    );
+    expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'pflege', 'station-16')).toBe(
       true
     );
     expect(isPayrollSupportedForScope('st-elisabeth-leipzig', 'arzt', 'op-anaesthesie')).toBe(
@@ -100,15 +106,16 @@ describe('payroll pack gate', () => {
     );
     expect(isPayrollSupportedForScope('default-generic', 'generic', 'import')).toBe(false);
     expect(getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')?.id).toBe(
-      'st-elisabeth-pflege-op-anaesthesie'
+      'st-elisabeth-pflege-krankenhaus'
     );
   });
 });
 
 describe('payroll pack has no personal tarif defaults', () => {
-  it('pflege profile omits personal salary/zulagen', () => {
+  it('pflege profile ships public AVR tables but no personal zulagen defaults', () => {
     const p = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-ata');
-    expect(p?.egRows?.length ?? 0).toBe(0);
+    expect(p?.egRows?.some((r) => r.eg === 'P8')).toBe(true);
+    expect(p?.egRows?.some((r) => r.eg === 'EG11')).toBe(true);
     expect(p?.defaults?.zulage2Y1).toBeUndefined();
     expect(p?.defaults?.bdRate).toBeUndefined();
     expect(p?.fullWeekHours).toBe(38.5);
