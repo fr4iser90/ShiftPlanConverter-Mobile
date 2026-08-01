@@ -90,10 +90,28 @@ export function canonicalizePackCode(
   const u = String(code || '')
     .trim()
     .toUpperCase();
-  if (!u || u === '/') return u;
-  const hit = codeAliases?.[u];
+  if (!u || u === '/' || u === '//') return u;
+  // Alias keys are matched case-insensitively (stored upper in maps).
+  let hit: string | undefined;
+  if (codeAliases) {
+    hit = codeAliases[u];
+    if (!hit) {
+      for (const [from, to] of Object.entries(codeAliases)) {
+        if (from.toUpperCase() === u) {
+          hit = to;
+          break;
+        }
+      }
+    }
+  }
   if (!hit) return u;
-  return String(hit).trim().toUpperCase() || u;
+  const out = String(hit).trim();
+  if (out === '/' || out === '//') return out;
+  // Preserve intentional mixed case in pack (OPTn / OPNn); else uppercase.
+  const ou = out.toUpperCase();
+  if (ou === 'OPTN') return 'OPTn';
+  if (ou === 'OPNN') return 'OPNn';
+  return ou || u;
 }
 
 /** Time-key fingerprints from the pack preset (HHMMHHMM → code). */

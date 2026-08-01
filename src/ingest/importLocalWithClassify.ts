@@ -9,6 +9,8 @@ import { ingestArtifacts, type IngestResult } from './ingestArtifacts';
 import { classifyKindFromText, type DocumentKind } from './classifyKind';
 import { importPayslipFromUris } from '../payroll/importPayslip';
 import type { PayslipDocument } from '../payroll/types';
+import { getMappingForScope, getPackById, getPdfConfigForPack } from '../packs';
+import { getSnapshot } from '../state/store';
 import type { SourceArtifact, SourcePeriod } from '../sources/types';
 import { t } from '../i18n';
 
@@ -71,6 +73,14 @@ export async function importLocalWithClassify(opts: {
     return { shift: null, payslips: [], errors: [], cancelled: true };
   }
 
+  const snap = getSnapshot();
+  const pack = snap.packId ? getPackById(snap.packId) : null;
+  const pdfConfig = getPdfConfigForPack(pack);
+  const mapping =
+    snap.packId && snap.groupId && snap.areaId
+      ? getMappingForScope(snap.packId, snap.groupId, snap.areaId)
+      : null;
+
   const now = new Date();
   const fallbackMonth = opts.period?.months?.[0] || now.getMonth() + 1;
   const fallbackYear = opts.period?.year || now.getFullYear();
@@ -87,7 +97,11 @@ export async function importLocalWithClassify(opts: {
       if (mime.includes('pdf') || nameLower.endsWith('.pdf')) {
         const bytes = await readUriBytes(asset.uri);
         const text = await extractTextFromPdfBuffer(toArrayBuffer(bytes));
-        let kind = classifyKindFromText(text);
+        let kind = classifyKindFromText(text, {
+          pdfConfig,
+          mapping,
+          preset: snap.preset,
+        });
         if (kind === 'payslip' && !allowPayslip) {
           kind = 'shift';
         }

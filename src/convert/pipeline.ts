@@ -12,6 +12,8 @@ export type ConvertOptions = {
   engineId?: string;
   /** Pack `parsers/pdf.json` (match params). */
   pdfConfig?: PackPdfConfig | null;
+  /** LOGA code-grid: only this person (optional). */
+  personFilter?: string | null;
 };
 
 /**
@@ -68,7 +70,11 @@ export function convertPdfText(pdfText: string, options: ConvertOptions = {}): C
 export function convertRawText(rawText: string, options: ConvertOptions = {}): ConvertResult {
   const preset = options.preset || 'Anästhesie';
   const mapping = options.mapping || getBuiltinMapping();
-  const parser = getParser(options.engineId || DEFAULT_PARSER_ID, options.pdfConfig);
+  const parser = getParser(options.engineId || DEFAULT_PARSER_ID, options.pdfConfig, {
+    mapping,
+    preset,
+    personFilter: options.personFilter,
+  });
   const result = parseTimeSheet(
     rawText,
     'pflege',

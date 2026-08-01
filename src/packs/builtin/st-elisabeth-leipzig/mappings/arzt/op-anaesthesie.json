@@ -44,7 +44,23 @@
   "codeAliases": {
     "URLAUB": "U",
     "SCHICHTFREI": "/",
-    "WUNSCHFREI": "//"
+    "WUNSCHFREI": "//",
+    "OPTN": "OPTn",
+    "OPNN": "OPNn",
+    "1D1": "ID1",
+    "IDI": "ID1",
+    "1D2": "ID2",
+    "1DT": "IDT",
+    "1DN1": "IDN1",
+    "1DN2": "IDN2",
+    "0PD1": "OPD1",
+    "0PD2": "OPD2",
+    "SI6": "S16",
+    "S1G": "S16",
+    "516": "S16",
+    "B5A": "B5A",
+    "BSA": "B5A",
+    "BBA": "B5A"
   },
   "composeRules": [
     {
@@ -264,7 +280,7 @@
       "SPECIAL:FT": {
         "code": "FT",
         "label": "Feiertag",
-        "type": "special",
+        "type": "holiday",
         "isValidated": true
       },
       "SPECIAL:U": {

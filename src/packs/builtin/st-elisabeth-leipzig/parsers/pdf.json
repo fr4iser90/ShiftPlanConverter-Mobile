@@ -1,10 +1,37 @@
 {
   "engine": "pdf-payroll",
-  "scoreHints": ["Abrechnungsmonat", "Zeitabrechnung", "KO*", "GE*", "Bereitschaft"],
+  "scoreHints": ["Abrechnungsmonat", "Zeitabrechnung", "KO*", "GE*", "Bereitschaft", "Mandant"],
   "monthHeader": {
     "pattern": "Abrechnungsmonat\\s+(\\d{2})/(\\d{4})",
     "monthGroup": 1,
     "yearGroup": 2
+  },
+  "codeGrid": {
+    "requirePatterns": ["Mandant\\s*:"],
+    "rejectPatterns": ["Abrechnungsmonat", "KO\\s*\\*"],
+    "monthHeader": {
+      "pattern": "\\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\\s+(\\d{4})\\b",
+      "monthGroup": 1,
+      "yearGroup": 2,
+      "monthNameMap": {
+        "januar": "01",
+        "februar": "02",
+        "maerz": "03",
+        "märz": "03",
+        "april": "04",
+        "mai": "05",
+        "juni": "06",
+        "juli": "07",
+        "august": "08",
+        "september": "09",
+        "oktober": "10",
+        "november": "11",
+        "dezember": "12"
+      }
+    },
+    "dayHeaderPattern": "1\\s+2\\s+3\\s+4\\b",
+    "skipLinePatterns": ["^Mandant\\s*:", "^Ver\\.:", "_{5,}", "Lang\\s+Heike"],
+    "minCodeHits": 10
   },
   "mainSectionRestart": "Zeitabrechnung",
   "onCallSection": "Bereitschaftsdienste",

@@ -1,3 +1,4 @@
+import { isKnownPackCode } from './codeTimes';
 import type {
   ConvertResult,
   PackMapping,
@@ -133,6 +134,22 @@ export function parseTimeSheet(
     if (entry.allDay) {
       void specialCodes;
       finalEntries.push({ ...entry, isValidated: true });
+      continue;
+    }
+
+    // LOGA code-grid / compose labels: keep printed type (FD vs SD share times).
+    if (
+      entry.type &&
+      !String(entry.type).startsWith('⚠️') &&
+      (isKnownPackCode(entry.type, packMapping, preset) ||
+        // compose rule labels (Hausdienst, …)
+        (entry.start && entry.end && entry.isValidated))
+    ) {
+      finalEntries.push({
+        ...entry,
+        isValidated: entry.isValidated !== false,
+        ...pickDayDetails(entry),
+      });
       continue;
     }
 

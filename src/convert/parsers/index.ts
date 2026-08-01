@@ -8,6 +8,7 @@ import {
   parsePdfTimesheet,
   runPdfEngine,
   type PackPdfConfig,
+  type RunPdfEngineOpts,
 } from './engines';
 import { PACK_REGISTRY } from '../../packs/registry.generated';
 
@@ -45,11 +46,12 @@ function fallbackPdfConfig(engineId: string): PackPdfConfig {
  */
 export function getParser(
   engineId: string | null | undefined,
-  pdfConfig?: PackPdfConfig | null
+  pdfConfig?: PackPdfConfig | null,
+  engineOpts?: RunPdfEngineOpts
 ): ParserFn {
   const id = (engineId || DEFAULT_PDF_ENGINE_ID).trim() || DEFAULT_PDF_ENGINE_ID;
   const config = pdfConfig || fallbackPdfConfig(id);
-  return (text: string) => runPdfEngine(id, text, config);
+  return (text: string) => runPdfEngine(id, text, config, engineOpts);
 }
 
 export function listParserIds(): string[] {
