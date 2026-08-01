@@ -1,6 +1,6 @@
 # Play Store Launch Checklist
 
-Package: `com.fr4iser.shiftplan` · Related: [security-audit.md](./security-audit.md), [releases.md](../releases.md), [google-oauth-android.md](./google-oauth-android.md) · Privacy: https://shift.fr4iser.com/privacy (ShiftPlanConverter repo)
+Package: `com.fr4iser.shiftplan` · Related: [security-audit.md](./security-audit.md), [releases.md](../releases.md), [google-oauth-android.md](./google-oauth-android.md), [ios-testflight.md](./ios-testflight.md) · Privacy: https://shift.fr4iser.com/privacy (ShiftPlanConverter repo)
 
 **Code prep in repo is done.** Items marked **YOU** need your Google / Expo accounts.
 

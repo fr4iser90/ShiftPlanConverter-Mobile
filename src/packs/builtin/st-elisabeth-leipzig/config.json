@@ -131,7 +131,7 @@
           "id": "op-anaesthesie",
           "label": "OP · Anästhesie",
           "mapping": "mappings/arzt/op-anaesthesie.json",
-          "supported": false,
+          "supported": true,
           "defaultPreset": "Anästhesie",
           "payroll": {
             "supported": true,

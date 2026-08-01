@@ -76,7 +76,8 @@ Leitplanken (wie sonst): **ein Pfad** — bei Unklarheit fragen, nicht Layout A 
 | **Peer-Review** | [`security-audit.md`](security-audit.md) §8 |
 | **`PROJECT_PLAY_STORE`** | In `src/support/legal.ts` setzen + Rebuild, sobald Listing live |
 | **Pack-Katalog** (ZIP / GitHub) | Aktuell Builtin-Packs im Code |
-| **iOS Geräte-Smoke** | Config/EAS bereit; Live-Fetch auf iPhone noch nicht durchgezogen |
+| **iOS TestFlight / Store** | Device profile + steps — [`ios-testflight.md`](ios-testflight.md); live iPhone smoke still open |
+| **iOS Geräte-Smoke** | Live-Fetch auf iPhone noch nicht durchgezogen |
 
 ## Nicht geplant (bewusst)
 

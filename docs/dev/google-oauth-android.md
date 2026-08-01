@@ -83,3 +83,13 @@ In the app: Setup / Export → **Connect Google** (system account picker — no 
 # GOOGLE_ANDROID_CLIENT_ID=….apps.googleusercontent.com
 # GOOGLE_IOS_CLIENT_ID=….apps.googleusercontent.com
 ```
+
+## iOS (TestFlight / App Store)
+
+Android OAuth clients do **not** cover iPhone. For Calendar sync on iOS:
+
+1. Google Cloud → Credentials → **OAuth client ID** → type **iOS**
+2. Bundle ID: `com.fr4iser.shiftplan`
+3. Put the client ID in `.env` as `GOOGLE_IOS_CLIENT_ID` (or wire via app config) if the app reads it
+
+Device / TestFlight steps: [`ios-testflight.md`](./ios-testflight.md).

@@ -63,10 +63,37 @@ export type MappingValue =
       isValidated?: boolean;
     };
 
+/** Multi-code LOGA compose (e.g. Ärzte Anästhesie Hausdienst). Engine may apply later. */
+export type PackComposeWhen =
+  | 'any'
+  | 'weekday'
+  | 'weekday-mon-thu'
+  | 'friday'
+  | 'weekend-or-holiday'
+  | 'next-day-weekend-or-holiday'
+  | 'next-day-weekday';
+
+export type PackComposeRule = {
+  id: string;
+  label: string;
+  codes: string[];
+  /** Codes on the following calendar day that complete the service */
+  nextDayCodes?: string[];
+  start: string;
+  end: string;
+  when?: PackComposeWhen;
+  type?: string;
+};
+
 export type PackMapping = {
   /** Display / Google-export colors (hex). Not an OCR code source. */
   colors?: Record<string, string>;
   /** Alternate printed codes → canonical pack code (e.g. synonym labels). */
   codeAliases?: Record<string, string>;
   presets?: Record<string, Record<string, MappingValue>>;
+  /**
+   * Ordered rules: match code sets → one calendar event (consume parts).
+   * Spec: pack mappings/arzt/LOGA-Dienstmapping.md — not all pipelines apply yet.
+   */
+  composeRules?: PackComposeRule[];
 };

@@ -59,10 +59,15 @@ Blocks staging `.env` / `node_modules` / keystores; if `package-lock.json` is st
 - Optional: Google OAuth client IDs
 - Optional: real LOGA3 credentials for live fetch
 
-**iOS:** Not buildable locally on Linux — config (`app.json` / `eas.json`) is ready. Build on a Mac or via EAS:
+**iOS:** Not buildable locally on Linux — config (`app.json` / `eas.json`) is ready. Real iPhone / TestFlight: see [`docs/dev/ios-testflight.md`](./docs/dev/ios-testflight.md).
 
 ```bash
+# Simulator (Mac only / EAS sim image):
 eas build --platform ios --profile preview
+
+# Real device → TestFlight / App Store:
+eas build --platform ios --profile production --no-wait
+eas submit --platform ios --profile production --latest
 ```
 
 ## Install

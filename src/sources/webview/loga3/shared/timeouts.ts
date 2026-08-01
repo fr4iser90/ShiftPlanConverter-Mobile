@@ -43,7 +43,7 @@ export const LoGa3Timeout = {
   /**
    * After arm + month-arrows away/back: day-grid must match.
    */
-  waitGridAktualisierung: 10_000,
+  waitGridAktualisierung: 20_000,
 
   /** @deprecated use waitPickerMonth — kept so old call sites don't break mid-refactor */
   waitCalendarHeader: 120_000,
