@@ -50,6 +50,9 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
   const monthsRaw = String(one('months') || '').trim();
   const yearRaw = String(one('year') || '').trim();
   const autofetch = /^(1|true)$/i.test(String(one('autofetch') || ''));
+  const jobRaw = String(one('job') || '').trim().toLowerCase();
+  const job: 'shift' | 'payslip' | undefined =
+    jobRaw === 'payslip' ? 'payslip' : jobRaw === 'shift' ? 'shift' : undefined;
   const wantsCreds = !!(baseUrl || user || pass);
 
   // Intent-only: months/autofetch without overwriting credentials
@@ -65,9 +68,10 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
       months: months.length ? months : [new Date().getMonth() + 1],
       year: Number.isFinite(year) ? year : new Date().getFullYear(),
       autofetch,
+      job,
     });
     await clearMatrixStatus();
-    const intentLine = `MATRIX_INTENT_SET months=${months.join(',')} year=${year} autofetch=${autofetch}`;
+    const intentLine = `MATRIX_INTENT_SET months=${months.join(',')} year=${year} autofetch=${autofetch} job=${job || 'shift'}`;
     // eslint-disable-next-line no-console
     console.warn(intentLine);
     await setMatrixStatus(intentLine);
@@ -105,9 +109,10 @@ export async function applySmokeSetupFromUrl(url: string): Promise<boolean> {
       months: months.length ? months : [new Date().getMonth() + 1],
       year: Number.isFinite(year) ? year : new Date().getFullYear(),
       autofetch,
+      job,
     });
     await clearMatrixStatus();
-    const intentLine = `MATRIX_INTENT_SET months=${months.join(',')} year=${year} autofetch=${autofetch}`;
+    const intentLine = `MATRIX_INTENT_SET months=${months.join(',')} year=${year} autofetch=${autofetch} job=${job || 'shift'}`;
     // eslint-disable-next-line no-console
     console.warn(intentLine);
     await setMatrixStatus(intentLine);

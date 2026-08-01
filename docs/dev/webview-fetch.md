@@ -1,7 +1,9 @@
 # WebView fetch — desktop workflow → mobile
 
 Desktop uses Playwright (`loga3-workflow.js` → `runDownloadPipeline`).  
-Mobile: WebView + injected JS + `fetchJob.ts`.
+Mobile: WebView + injected JS + `shift/fetchJob.ts`.
+
+**Step → Selektor-Map:** [`fetch-steps.md`](./fetch-steps.md) (Login → Zeiten öffnen → Arm → Monat/Grid → Export → PDF).
 
 ## Status
 

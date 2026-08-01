@@ -71,7 +71,14 @@ export type ShiftAutomationCommand =
 export type PayslipAutomationCommand =
   | { type: 'clickVerdienstOeffnen' }
   | { type: 'assertVerdienstContext' }
-  | { type: 'openVerdienstDocument'; month?: number; year?: number };
+  | { type: 'clickGenerierteDokumente' }
+  | { type: 'assertGenerierteDokumente' }
+  | { type: 'probeVerdienstListing'; month?: number; year?: number }
+  | { type: 'openVerdienstYearFolder'; year: number }
+  | { type: 'openVerdienstMonthFolder'; month: number; year: number }
+  | { type: 'assertVerdienstFileReady' }
+  | { type: 'clickVerdienstPdfDownload' }
+  | { type: 'clickVerdienstBack' };
 
 export type AutomationCommand =
   | CoreAutomationCommand
@@ -104,6 +111,15 @@ export type AutomationMessage = {
   /** Personal Cloud / Verdienstnachweis öffnen visible or opened */
   verdienstFound?: boolean;
   verdienstOpen?: boolean;
+  /** Generierte Dokumente toolbar (LMAGEDOK) */
+  generierteFound?: boolean;
+  generierteOpen?: boolean;
+  hasMonthFolder?: boolean;
+  hasYearFolder?: boolean;
+  hasFile?: boolean;
+  hasBack?: boolean;
+  dirCount?: number;
+  fileCount?: number;
   target?: string;
   month?: string | null;
   year?: string | null;

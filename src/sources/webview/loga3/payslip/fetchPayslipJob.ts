@@ -112,6 +112,7 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   status(ctx, t('fjLoginOk'));
 }
 
+/** Dashboard → Private Cloud öffnen (einmal). */
 async function ensureVerdienstOpen(ctx: Ctx): Promise<void> {
   status(ctx, t('payrollLoga3OpenVerdienst'));
   const already = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeQuick);
@@ -139,18 +140,102 @@ async function ensureVerdienstOpen(ctx: Ctx): Promise<void> {
   }, waitOpts(ctx, t('payrollLoga3WaitVerdienstOpen'), T.waitPickerAfterOpen, 500));
 }
 
+/** Sidebar LMAGEDOK — Generierte Dokumente. */
+async function ensureGenerierteDokumente(ctx: Ctx): Promise<void> {
+  status(ctx, t('payrollLoga3Generierte'));
+  const open = await softProbe(ctx, { type: 'assertGenerierteDokumente' }, T.softProbeQuick);
+  if (open.generierteOpen) return;
+
+  await run(ctx, { type: 'clickGenerierteDokumente' }, T.clickGenerierteDokumente);
+  await waitForCondition(async () => {
+    const st = await softProbe(ctx, { type: 'assertGenerierteDokumente' }, T.softProbeShort);
+    if (st.code === 'PROBE_TIMEOUT') return null;
+    if (st.generierteOpen) return true;
+    return null;
+  }, waitOpts(ctx, t('payrollLoga3WaitGenerierte'), T.waitGenerierteDokumente, 500));
+}
+
+/**
+ * Navigate up with Zurück until docs root (no Zurück). Max depth 2 (month→year→root).
+ * Waits between clicks for GWT; not a failed-action retry.
+ */
+async function ensureDocsRoot(ctx: Ctx): Promise<void> {
+  for (let depth = 0; depth < 3; depth++) {
+    const listing = await softProbe(
+      ctx,
+      { type: 'probeVerdienstListing', month: 1, year: ctx.year },
+      T.softProbeShort
+    );
+    if (!listing.hasBack) return;
+    status(ctx, t('payrollLoga3Back'));
+    await run(ctx, { type: 'clickVerdienstBack' }, T.clickVerdienstBack);
+    await ctx.sleep(700);
+  }
+  const still = await softProbe(
+    ctx,
+    { type: 'probeVerdienstListing', month: 1, year: ctx.year },
+    T.softProbeShort
+  );
+  if (still.hasBack) {
+    throw new Error(t('payrollLoga3NotAtRoot'));
+  }
+}
+
+async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<void> {
+  const label = `${MONTH_LABELS_DE[month - 1] || month} ${year}`;
+  status(ctx, t('payrollLoga3OpenDoc', { label, elapsed: ago(ctx.jobT0) }));
+
+  const listing = await softProbe(
+    ctx,
+    { type: 'probeVerdienstListing', month, year },
+    T.softProbe
+  );
+
+  if (listing.hasFile) {
+    return;
+  }
+
+  if (listing.hasMonthFolder) {
+    await run(ctx, { type: 'openVerdienstMonthFolder', month, year }, T.openVerdienstFolder);
+  } else if (listing.hasYearFolder) {
+    await run(ctx, { type: 'openVerdienstYearFolder', year }, T.openVerdienstFolder);
+    await waitForCondition(async () => {
+      const st = await softProbe(
+        ctx,
+        { type: 'probeVerdienstListing', month, year },
+        T.softProbeShort
+      );
+      if (st.code === 'PROBE_TIMEOUT') return null;
+      if (st.hasMonthFolder) return true;
+      return null;
+    }, waitOpts(ctx, t('payrollLoga3WaitMonthFolder', { label }), T.waitVerdienstFolder, 500));
+    await run(ctx, { type: 'openVerdienstMonthFolder', month, year }, T.openVerdienstFolder);
+  } else {
+    const probe = await softProbe(
+      ctx,
+      { type: 'probeVerdienstListing', month, year },
+      T.softProbe
+    );
+    const sample = probe.sample ? ` [${probe.sample}]` : '';
+    throw new Error(t('payrollLoga3MonthMissing', { label }) + sample);
+  }
+
+  await waitForCondition(async () => {
+    const st = await softProbe(ctx, { type: 'assertVerdienstFileReady' }, T.softProbeShort);
+    if (st.code === 'PROBE_TIMEOUT') return null;
+    if (st.hasFile || st.ok) return true;
+    return null;
+  }, waitOpts(ctx, t('payrollLoga3WaitFile', { label }), T.waitVerdienstFile, 500));
+}
+
 async function capturePdf(ctx: Ctx, label: string): Promise<{ base64: string; size?: number }> {
   const downloadSince = Date.now();
   try {
     await run(ctx, { type: 'armPdfCapture', ms: T.armPdfCaptureMs }, T.closePopups);
   } catch {
-    // optional
+    // optional arm
   }
-  try {
-    await run(ctx, { type: 'clickDownload' }, T.clickDownload);
-  } catch {
-    throw new Error(t('fjDownloadNotClickable'));
-  }
+  await run(ctx, { type: 'clickVerdienstPdfDownload' }, T.clickVerdienstPdfDownload);
 
   const pdfPromise = ctx.bridge.waitForPdf(T.waitPdf);
   const pollPromise = (async () => {
@@ -176,7 +261,8 @@ async function capturePdf(ctx: Ctx, label: string): Promise<{ base64: string; si
 }
 
 /**
- * One path: login → Personal Cloud / Verdienstnachweis öffnen → document → PDF.
+ * One path: login → Private Cloud öffnen → Generierte Dokumente →
+ * Monat(/Jahr)-Ordner → ic-download PDF.
  * No retries. Fail loud if portal UI differs.
  */
 export async function runPayslipFetchJob(
@@ -190,6 +276,7 @@ export async function runPayslipFetchJob(
   try {
     await ensureLoggedIn(ctx);
     await ensureVerdienstOpen(ctx);
+    await ensureGenerierteDokumente(ctx);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     appendDiag(`payslipFetch login/open: ${msg}`);
@@ -199,11 +286,8 @@ export async function runPayslipFetchJob(
   for (const month of opts.months) {
     const label = `${MONTH_LABELS_DE[month - 1] || month}/${opts.year}`;
     try {
-      status(ctx, t('payrollLoga3OpenDoc', { label, elapsed: ago(ctx.jobT0) }));
-      await run(ctx, { type: 'openVerdienstDocument', month, year: opts.year }, T.openVerdienstDocument);
-
-      // Dialog may already show Herunterladen; else wait briefly
-      await sleep(800);
+      await ensureDocsRoot(ctx);
+      await openMonthPath(ctx, month, opts.year);
       const pdf = await capturePdf(ctx, label);
       const buf = base64ToArrayBuffer(pdf.base64);
       const text = await extractTextFromPdfBuffer(buf);
@@ -223,16 +307,6 @@ export async function runPayslipFetchJob(
       } catch {
         // ignore
       }
-      try {
-        await run(ctx, { type: 'closeDialog' }, T.closeDialog);
-      } catch {
-        // ignore
-      }
-      try {
-        await run(ctx, { type: 'closePopups' }, T.closePopups);
-      } catch {
-        // ignore
-      }
     } catch (e) {
       const msg =
         e instanceof WaitTimeoutError
@@ -242,7 +316,6 @@ export async function runPayslipFetchJob(
             : String(e);
       appendDiag(`payslipFetch ${label}: ${msg}`);
       errors.push(`${label}: ${msg}`);
-      // One path — stop on first month failure (no retry loop)
       break;
     }
   }

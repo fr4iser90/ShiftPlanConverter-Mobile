@@ -1221,13 +1221,51 @@ export default function FetchScreen() {
       setYear(intent.year);
       const months = intent.months;
       const y = intent.year;
-      await setMatrixStatus(`MATRIX_FETCH_START months=${months.join(',')} year=${y}`);
+      const job = intent.job === 'payslip' ? 'payslip' : 'shift';
+      setActiveSourceId('loga3-webview');
+      setLoga3Job(job);
+      await setMatrixStatus(`MATRIX_FETCH_START job=${job} months=${months.join(',')} year=${y}`);
       setBusy(true);
       setShowWeb(true);
       setStatus(t('webViewStarting'));
       try {
         await waitUntilReady();
         await warmBridge();
+        if (job === 'payslip') {
+          const { imported, errors } = await runPayslipFetchJob({
+            username: c.username,
+            password: c.password,
+            months,
+            year: y,
+            workplaceId: snap.activeWorkplaceId || undefined,
+            bridge: bridgeRef.current,
+            inject: (cmd) => webRef.current?.run(cmd),
+            onStatus: setStatus,
+          });
+          const parts = [
+            imported.length
+              ? t('payrollImportOk', { count: String(imported.length) })
+              : null,
+            errors.length
+              ? t('payrollImportPartial', {
+                  ok: String(imported.length),
+                  fail: String(errors.length),
+                }) + `\n${errors.slice(0, 3).join('\n')}`
+              : null,
+          ].filter(Boolean) as string[];
+          const line = parts.join(' · ') || t('payrollImportOk', { count: '0' });
+          setStatus(line);
+          if (errors.length && !imported.length) {
+            await setMatrixStatus(`MATRIX_FETCH_FAIL ${line}`);
+          } else {
+            await setMatrixStatus(`MATRIX_FETCH_PASS ${line}`);
+          }
+          if (imported.length) {
+            router.replace('/(tabs)/pruefung' as Href);
+          }
+          Alert.alert(t('payrollTitle'), line);
+          return;
+        }
         const result = await runSourceAndIngest({
           sourceId: 'loga3-webview',
           credentials: { username: c.username, password: c.password },

@@ -54,7 +54,15 @@ export const LoGa3Timeout = {
   waitPdf: 120_000,
   armPdfCaptureMs: 60_000,
   openZeitprotokoll: 25_000,
+  /** @deprecated fuzzy path removed — kept for any stray call sites */
   openVerdienstDocument: 15_000,
+  clickGenerierteDokumente: 12_000,
+  waitGenerierteDokumente: 45_000,
+  openVerdienstFolder: 12_000,
+  waitVerdienstFolder: 30_000,
+  waitVerdienstFile: 30_000,
+  clickVerdienstPdfDownload: 15_000,
+  clickVerdienstBack: 8_000,
 
   /** Small UI clicks */
   closePopups: 5_000,

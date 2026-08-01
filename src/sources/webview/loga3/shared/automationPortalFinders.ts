@@ -28,7 +28,11 @@ export const AUTOMATION_PORTAL_FINDERS = `
     }
 
     function findVerdienstOeffnenControl() {
-      // Prefer Private-Cloud / Verdienstnachweis widget — never Zeiten
+      // Strict: öffnen inside .personal-cloud — never Zeiten
+      var inCloud = qa('.personal-cloud div.LG-Button[aria-label="öffnen"], .personal-cloud-container div.LG-Button[aria-label="öffnen"], .personal-cloud div.LG-Button[aria-label="Öffnen"]').find(function(el) {
+        return visible(el);
+      });
+      if (inCloud) return inCloud;
       function nearVerdienst(el) {
         var p = el;
         for (var i = 0; i < 8 && p; i++) {
@@ -36,7 +40,7 @@ export const AUTOMATION_PORTAL_FINDERS = `
           if (/\\bZeiten\\b|Kalendarium|Zeitdaten|Buchungen/i.test(blob) && !/Private\\s*Cloud|Verdienstnachweis|personal-cloud|Gehalts/i.test(blob)) {
             return false;
           }
-          if (/Private\\s*Cloud|Verdienstnachweis|personal-cloud|Verdienstabrechnung|Gehaltsabrechnung/i.test(blob)) return true;
+          if (/Private\\s*Cloud|Verdienstnachweis|personal-cloud|Verdienstabrechnung|Gehaltsabrechnung|\\.personal-cloud/i.test(blob)) return true;
           p = p.parentElement;
         }
         return null;
@@ -46,15 +50,59 @@ export const AUTOMATION_PORTAL_FINDERS = `
         var aria = (el.getAttribute && (el.getAttribute('aria-label') || '')) || '';
         return (/^öffnen$/i.test(t) || /^öffnen$/i.test(aria)) && visible(el);
       });
-      var preferred = buttons.find(function(el) { return nearVerdienst(el) === true; });
-      if (preferred) return preferred;
-      // Also accept a tile titled Verdienstnachweis itself
-      var tile = qa('div, span, a, button, [role="button"]').find(function(el) {
-        var t = textOf(el);
-        return /Verdienstnachweis|Private\\s*Cloud|personal-cloud/i.test(t) && visible(el) && t.length < 48;
+      return buttons.find(function(el) { return nearVerdienst(el) === true; }) || null;
+    }
+
+    function findGenerierteDokumenteControl() {
+      var byId = q('[data-id="LMAGEDOK"]');
+      if (byId) return byId;
+      return qa('[aria-label="Generierte Dokumente"], .LGAppToolbarIcon.money').find(function(el) {
+        var id = (el.getAttribute && el.getAttribute('data-id')) || '';
+        if (id === 'LMAMYDOK') return false;
+        return true;
+      }) || null;
+    }
+
+    function findCloudDirectory(labelExact) {
+      var want = String(labelExact || '').trim();
+      if (!want) return null;
+      return qa('.MyCloudDirectoryWidget').find(function(el) {
+        var aria = ((el.getAttribute && el.getAttribute('aria-label')) || '').trim();
+        if (aria === want) return true;
+        var titleEl = el.querySelector && el.querySelector('.Info .Title, .Title');
+        var title = textOf(titleEl || null);
+        if (title === want) return true;
+        // Loose: aria/title starts with label (truncation) or contains exact month+year
+        if (aria.indexOf(want) === 0 || title.indexOf(want) === 0) return true;
+        return false;
+      }) || null;
+    }
+
+    function listCloudDirectoryLabels(limit) {
+      var lim = limit || 24;
+      var out = [];
+      qa('.MyCloudDirectoryWidget').forEach(function(el) {
+        if (out.length >= lim) return;
+        var aria = ((el.getAttribute && el.getAttribute('aria-label')) || '').trim();
+        var titleEl = el.querySelector && el.querySelector('.Info .Title, .Title');
+        var title = textOf(titleEl || null);
+        out.push(aria || title || '?');
       });
-      if (tile) return tile;
-      return null;
+      return out;
+    }
+
+    function findVerdienstFileWidget() {
+      return qa('.MyCloudFileWidget').find(function(el) {
+        var aria = ((el.getAttribute && el.getAttribute('aria-label')) || '').trim();
+        var titleEl = el.querySelector && el.querySelector('.Info .Title, .Title');
+        var title = textOf(titleEl || null);
+        var blob = aria + ' ' + title;
+        return /Verdienstnachweis\\.pdf/i.test(blob) || /01\\s*Verdienstnachweis/i.test(blob);
+      }) || null;
+    }
+
+    function findVerdienstBackControl() {
+      return findCloudDirectory('Zurück');
     }
 
     function findZeitenControl() {

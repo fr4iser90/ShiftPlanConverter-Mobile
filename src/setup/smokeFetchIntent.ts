@@ -9,6 +9,8 @@ export type SmokeFetchIntent = {
   months: number[];
   year: number;
   autofetch: boolean;
+  /** Default shift (Zeiten). payslip = Verdienstnachweis path. */
+  job?: 'shift' | 'payslip';
 };
 
 const KEY = 'loga3.smokeFetchIntent.v1';

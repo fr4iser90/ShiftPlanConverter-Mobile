@@ -71,7 +71,7 @@ Ohne Pack: Generic-Heuristik + manuelle Overrides.
 Ja: nach Klick auf **LOGA3** (oder sobald LOGA3-Chip aktiv):
 
 - **Shift** → Zeiten / Zeitprotokoll (`job="shift"`, `runFetchJob`)
-- **Verdienst** → Private Cloud / VN (`job="payslip"`, `runPayslipFetchJob`)
+- **Verdienst** → Private Cloud / VN (`job="payslip"`, `runPayslipFetchJob`) — Selektoren: [`fetch-steps-payslip.md`](./fetch-steps-payslip.md)
 
 Nicht zwei getrennte Source-Chips „LOGA3-Zeiten“ und „LOGA3-VN“ in der ersten Reihe (zu laut). Eine Portal-Quelle, dann Job-Segment.
 
