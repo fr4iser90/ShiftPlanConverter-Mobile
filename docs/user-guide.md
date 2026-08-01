@@ -1,8 +1,20 @@
 # User handbook
 
-ShiftPlan Converter loads your **time sheets from LOGA3** or imports **PDF / CSV / ICS** from the device, keeps everything **on device only**, shows shifts in a calendar, and can share them as **ICS** or optionally sync to **Google Calendar**.
+## What is ShiftPlan Converter?
 
-The app is still experimental and currently aimed at **one employer and one role group** (pack). Another workplace or area may fail until a matching pack exists.
+An **on-device** app that imports your **shift plan** (and optionally **payslips**), stores everything locally, shows shifts in a calendar, and exports via **ICS** and/or optional **Google Calendar**.
+
+**Core idea:**
+
+1. **Employer pack** (required) — codes, times, parsers, optional payroll profile. Wrong pack → wrong codes/times.
+2. **Sources** — whatever the pack enables, all **optional**:
+   - **Files / camera / OCR** — PDF, CSV, ICS, photo; shared engines + pack mapping (lists, month matrix, …).
+   - **Portal / WebView** (e.g. **LOGA3**) — only if the pack declares it. May expose separate jobs: **shifts** and/or **payslips**.
+3. **Export** — ICS and/or Google; independent of how you imported.
+
+No Fr4iser server for your password or roster. Login stays in Secure Store; shifts and payslips are encrypted at rest.
+
+Experimental. One pack (e.g. St. Elisabeth · nursing · OR) is live-verified; **other employers** need their own pack (JSON mappings/parsers). The same LOGA3 automation can often be reused — employer codes and PDF layouts cannot.
 
 ---
 
@@ -10,116 +22,101 @@ The app is still experimental and currently aimed at **one employer and one role
 
 | Tab | Purpose |
 |-----|---------|
-| **Fetch** | Pick months and load Zeitprotokolle from LOGA3 **or** import files (PDF/CSV/ICS) |
+| **Import** | Pick source (files/OCR and/or LOGA3), months, load shifts or payslips |
 | **Calendar** | Review shifts (week / month / list) |
+| **Check** (Prüfung) | Only if the pack has a **payroll profile**: payslip ↔ imported shifts |
 | **Export** | Share ICS or sync Google |
 | **Settings** | Setup, fetch window, reminders, appearance, help |
 
-There is **no** Fr4iser server holding your password or schedule.
+**Check** appears only when your scope has `payroll.supported` plus a profile — not merely because you once imported a PDF. Without payslip data, the tab still guides you to load one.
 
 ---
 
 ## 2. First-time setup
 
-Under **Settings → Setup** (or on first launch):
+Under **Settings → Setup** (or first launch):
 
-1. **Employer / pack** — e.g. St. Elisabeth · anaesthesia. Wrong pack → wrong codes or times. **Required.**
-2. **LOGA3** (optional) — tenant URL + login, only for portal fetch. Skip for file import / OCR.
-3. **Google** — optional; you can add it later under Export.
+1. **Employer / pack** — group, area, preset. **Required.**
+2. **Portal login** (optional) — e.g. LOGA3 URL + credentials, only for WebView fetch. Skip for file/OCR-only.
+3. **Google** — optional; add later under Export.
 
-**File import / OCR** only need the employer pack. **LOGA3 fetch** also needs tenant URL and login.
+Pack without portal → Import UI shows files/OCR only. Pack with LOGA3 → **Shifts** / **Payslip** segment (payslip only if payroll is supported).
 
 ---
 
-## 3. Fetch time sheets
+## 3. Import
 
-### From LOGA3
+### Files / OCR
 
-1. Open the **Fetch** tab.
-2. Pick the **source** at the top: **LOGA3** or **File (PDF / CSV / ICS)**.
-3. For LOGA3: tick the **months** you need (defaults come from **Settings → Fetch**: previous/next months).
-4. Tap **Load time sheets** (DE UI: *Zeitprotokolle laden*).
+Source **File & photo** → pick PDF/CSV/ICS or use camera/gallery.  
+PDF/OCR use pack parsers and mappings (list, month-matrix, …). Ambiguous docs may ask “shift plan or payslip?” when payroll is supported.
 
-The app opens LOGA3 in an embedded view, signs in, and exports the monthly PDFs. That can take a while; the view may stay visible.
+### LOGA3 (when in pack)
 
-### Import a file
+1. Source **LOGA3**, job **Shifts** or **Payslip**.
+2. Select closed months (payslip: current/future calendar months disabled).
+3. Load — embedded portal, automation, PDF capture.
 
-On **Fetch** → source **File** → **Choose file & import**: pick file(s) from the device.  
-PDFs use the selected pack parser; CSV needs columns `date,type` (optional `start,end,allDay`); ICS reads `VEVENT`.
+Existing payslips are **kept** (no re-download). Months with no LOGA3 folder are skipped.
 
-After success, shifts usually appear under **Calendar**.
+After success: shifts → **Calendar**; payslips → often **Check**.
 
-**Note:** LOGA3 fetch only works while the app is open — there is no reliable silent overnight fetch without the app.
+**Note:** Portal fetch only while the app is open — no reliable silent overnight fetch.
 
 ---
 
 ## 4. Calendar
 
-- Switch **week / month / list**.
-- Below that, a **month summary** (AZK, carry-over, …) is often available and collapsible.
-- Colours and shift codes come from your pack. Unknown ranges can sometimes be mapped.
+- **Week / month / list**.
+- Often a **month summary** (balance, carry-over, …).
+- Colours and codes come from the pack.
 
 ---
 
-## 5. Export
+## 5. Payroll check (Prüfung tab)
+
+Compares **payslip** lines/tariff with **imported shifts** for the matching period.  
+Needs a pack payroll profile **and** a payslip (file or LOGA3). Missing shifts → hint and link back to Import.
+
+---
+
+## 6. Export
 
 | Path | What happens |
 |------|----------------|
-| **Share ICS** | Build a file and import it via the share sheet into Apple Calendar, Outlook, Samsung, Nextcloud, … |
-| **Google sync** | After sign-in, write to a **dedicated** shift calendar (not the primary calendar) |
-
-Google and ICS options are under **Settings → Fetch** and the Export tab.
+| **Share ICS** | File → share sheet (Apple, Outlook, Samsung, …) |
+| **Google sync** | Dedicated shift calendar (not primary) |
 
 ---
 
-## 6. Reminders
+## 7. Reminders
 
-Under **Settings → Reminders**:
-
-- **Sync due** — interval and hour, optional notification or prompt when opening the app, optional widget badge.
-- **Shift reminders** — pick a mapped Dienst and set a clock time (e.g. 06:00 before an early shift). If the time is not before shift start, the app asks whether to save it as an **evening-before** reminder.
+Under **Settings → Reminders**: sync-due prompts, per-Dienst reminders (including evening-before).
 
 ---
 
-## 7. Widgets & appearance
+## 8. Widgets & appearance
 
-Under **Settings → Appearance**: app theme and widget theme (system / light / dark).
-
-On the Android home screen you can add:
-
-- **LOGA3 next shift**
-- **LOGA3 this week**
-
-Tapping opens the app. Widgets show the last fetched plan (no network fetch of their own).
+Theme under **Settings → Appearance**. Android home widgets show the last loaded plan (no separate network fetch).
 
 ---
 
-## 8. Updating the app
+## 9. Updating the app
 
-The app is currently distributed as an **APK via GitHub Releases** (no Play Store auto-update).
-
-Under **Settings → App & support**:
-
-- see the installed version  
-- check for updates  
-- open the release page and read the changelog when a new build exists  
-- open this handbook again  
+Often **APK / Play**; under **Settings → App & support**: version, updates, this handbook.
 
 ---
 
-## 9. Privacy & limits
+## 10. Privacy & limits
 
 | Data | Where |
 |------|--------|
-| Password | Secure Store on device |
-| URL, shifts, preferences | App storage on device |
-| PDFs | App documents folder |
-| Google sign-in | Google Sign-In on device |
+| Password | Secure Store |
+| AES key | Secure Store |
+| Shifts / payslips | AsyncStorage, **AES-GCM** (`enc:v1:`) |
+| PDFs (shift capture) | App documents (encrypted where designed) |
+| Google | On-device Sign-In |
 
-**Limits (honest):**
+**Limits:** Other employers need a pack; portal UI changes can break fetch; testing focus is Android.
 
-- One pack verified live; other facilities may need a new pack.
-- If the LOGA3 UI changes, fetch can break — an app update may be required.
-- Testing focus so far is Android; iOS builds are possible but less exercised.
-
-If something fails: **Settings → App & support** → support email (anonymised sample available).
+Issues: **Settings → App & support** → support mail.

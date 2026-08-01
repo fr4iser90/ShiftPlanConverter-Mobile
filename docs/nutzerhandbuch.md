@@ -1,8 +1,20 @@
 # Nutzerhandbuch
 
-ShiftPlan Converter lädt deine **Zeitprotokolle aus LOGA3** oder importiert **PDF / CSV / ICS** von deinem Gerät, speichert alles **nur lokal**, zeigt Schichten im Kalender und kann sie als **ICS** teilen oder optional nach **Google Calendar** schreiben.
+## Was ist ShiftPlan Converter?
 
-Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Berufsgruppe** (Pack) ausgelegt. Anderer Arbeitgeber oder Bereich kann fehlschlagen, bis ein passendes Pack existiert.
+Eine **on-device** App, die deinen **Dienstplan** (und optional den **Verdienstnachweis**) aus verschiedenen Quellen einliest, Schichten lokal speichert, im Kalender zeigt und als **ICS** / optional **Google Calendar** exportiert.
+
+**Kernidee:**
+
+1. **Arbeitgeber-Pack** (Pflicht) — Mapping von Codes, Zeiten, Parsern, optional Payroll-Profil. Ohne passendes Pack sind Codes/Zeiten oft falsch.
+2. **Quellen** — alles **optional**, was das Pack anbietet:
+   - **Datei / Foto / OCR** — PDF, CSV, ICS, Kamera; generische Engines + Pack-Mapping (Listen, Monat-Matrix, …).
+   - **Portal / WebView** (z. B. **LOGA3**) — nur wenn das Pack das vorsieht. Kann getrennte Jobs haben: **Dienstplan** und/oder **Verdienstnachweis**.
+3. **Export** — ICS und/oder Google; unabhängig vom Abrufweg.
+
+Kein Fr4iser-Server für Passwort oder Plan. Login nur lokal (Secure Store); Schichten und Verdienstnachweise verschlüsselt at rest.
+
+Die App ist experimentell. Ein Pack (z. B. St. Elisabeth · Pflege · OP) ist live verifiziert; **andere Arbeitgeber** brauchen ein eigenes Pack (JSON: Mapping/Parser). Dieselbe LOGA3-Technik lässt sich oft wiederverwenden — die Codes und PDFs nicht.
 
 ---
 
@@ -10,12 +22,13 @@ Die App ist noch experimentell und derzeit für **einen Arbeitgeber und eine Ber
 
 | Tab | Wozu |
 |-----|------|
-| **Abrufen** | Monate wählen und Zeitprotokolle aus LOGA3 laden **oder** Dateien (PDF/CSV/ICS) importieren |
+| **Import** | Quelle wählen (Datei/OCR und/oder LOGA3), Monate, Dienstplan oder Verdienst laden |
 | **Kalender** | Schichten prüfen (Woche / Monat / Liste) |
+| **Prüfung** | Nur wenn das Pack ein **Payroll-Profil** hat: Verdienstnachweis ↔ importierte Dienste |
 | **Export** | ICS teilen oder Google synchronisieren |
-| **Einstellungen** | Einrichtung, Abrufen-Fenster, Erinnerungen, Darstellung, Hilfe |
+| **Einstellungen** | Einrichtung, Abruf-Fenster, Erinnerungen, Darstellung, Hilfe |
 
-Es gibt **keinen** Fr4iser-Server für dein Passwort oder deinen Dienstplan.
+**Prüfung** erscheint nur, wenn für deinen gewählten Bereich `payroll.supported` + Profil hinterlegt ist (nicht nur weil du irgendwann PDF importiert hast). Ohne VN-Daten zeigt die Prüfung Hinweise zum Nachladen.
 
 ---
 
@@ -23,103 +36,87 @@ Es gibt **keinen** Fr4iser-Server für dein Passwort oder deinen Dienstplan.
 
 Unter **Einstellungen → Einrichtung** (oder beim ersten Start):
 
-1. **Arbeitgeber / Pack** — z. B. St. Elisabeth · Anästhesie. Falsches Pack → falsche Codes oder Zeiten. **Pflicht.**
-2. **LOGA3** (optional) — Tenant-URL + Login, nur für Portal-Abruf. Für Datei/OCR überspringen.
-3. **Google** — optional, kannst du später unter Export nachholen.
+1. **Arbeitgeber / Pack** — Gruppe, Bereich, Preset. **Pflicht.**
+2. **Portal-Login** (optional) — z. B. LOGA3-URL + Kennung, nur wenn du WebView-Abruf nutzt. Für reinen Datei-/OCR-Import überspringen.
+3. **Google** — optional, später unter Export möglich.
 
-Für **Datei-Import / OCR** reicht der Arbeitgeber/Pack. **LOGA3-Abruf** braucht zusätzlich Tenant-URL und Login.
+Pack ohne Portal-Anbindung → in der Import-UI nur Datei/OCR. Pack mit LOGA3 → Segment **Dienstplan** / **Verdienst** (Verdienst nur bei Payroll-Support).
 
 ---
 
-## 3. Zeitprotokolle abrufen
+## 3. Import
 
-### Aus LOGA3
+### Datei / OCR
 
-1. Tab **Abrufen** öffnen.
-2. Oben die **Quelle** wählen: **LOGA3** oder **Datei (PDF / CSV / ICS)**.
-3. Bei LOGA3: gewünschte **Monate** anhaken (Vorauswahl kommt aus **Einstellungen → Abrufen**: Vorgänger-/Folgemonate).
-4. **Zeitprotokolle laden** tippen.
+Quelle **Datei & Foto** → PDF/CSV/ICS wählen oder Kamera/Galerie.  
+PDF/OCR nutzen Pack-Parser und -Mapping (verschiedene Layouts: Liste, Monat-Matrix, …). Unklare Dokumente fragt die App (Dienstplan vs. Verdienstnachweis), wenn Payroll unterstützt wird.
 
-Die App öffnet LOGA3 in einer eingebetteten Ansicht, meldet dich an und exportiert die Monats-PDFs. Das kann etwas dauern; die Ansicht kann dabei sichtbar sein.
+### LOGA3 (wenn im Pack)
 
-### Datei importieren
+1. Quelle **LOGA3**, Job **Dienstplan** oder **Verdienst**.
+2. Abgeschlossene Monate wählen (bei Verdienst: laufender/zukünftiger Monat deaktiviert).
+3. Laden — eingebettetes Portal, Automatisierung, PDF-Capture.
 
-Unter **Abrufen** → Quelle **Datei** → **Datei wählen & importieren**: Datei(en) vom Gerät wählen.  
-PDF wird mit dem gewählten Pack geparst; CSV braucht Spalten `date,type` (optional `start,end,allDay`); ICS liest `VEVENT`.
+Schon gespeicherte Verdienstnachweise werden **behalten** (kein erneutes Download), sofern nichts fehlt. Monate ohne Ordner in LOGA3 werden übersprungen.
 
-Nach Erfolg siehst du die Schichten typischerweise unter **Kalender**.
+Nach Erfolg: Schichten → **Kalender**; Verdienst → oft **Prüfung**.
 
-**Hinweis:** LOGA3-Abrufen funktioniert nur, während die App offen ist — es gibt keinen zuverlässigen stillen Abruf mitten in der Nacht ohne App.
+**Hinweis:** Portal-Abruf nur bei offener App — kein zuverlässiger stiller Nachtabruf.
 
 ---
 
 ## 4. Kalender
 
 - Umschalter **Woche / Monat / Liste**.
-- Darunter oft eine **Monatsübersicht** (AZK, Übertrag, …), einklappbar.
-- Farben und Dienst-Codes kommen aus deinem Pack. Unbekannte Zeiten kannst du ggf. zuordnen.
+- Oft **Monatsübersicht** (AZK, Übertrag, …).
+- Farben und Codes kommen aus dem Pack.
 
 ---
 
-## 5. Export
+## 5. Abrechnungsprüfung (Tab Prüfung)
+
+Vergleicht **Verdienstnachweis** (Zeilen/Tarif) mit **importierten Diensten** des zugehörigen Zeitraums.  
+Voraussetzung: Pack mit Payroll-Profil **und** passender VN (Import oder LOGA3 Verdienst). Fehlen Dienste → Hinweis und Link zurück zum Import.
+
+---
+
+## 6. Export
 
 | Weg | Was passiert |
 |-----|----------------|
-| **ICS teilen** | Datei erzeugen und über das Share-Menü in Apple Kalender, Outlook, Samsung, Nextcloud, … importieren |
-| **Google Sync** | Nach Anmeldung in einen **eigenen** Schicht-Kalender schreiben (nicht den Primärkalender) |
-
-Google und ICS steuerst du unter **Einstellungen → Abrufen** bzw. im Export-Tab.
+| **ICS teilen** | Datei → Share-Menü (Apple, Outlook, Samsung, …) |
+| **Google Sync** | Eigener Schicht-Kalender (nicht Primärkalender) |
 
 ---
 
-## 6. Erinnerungen
+## 7. Erinnerungen
 
-Unter **Einstellungen → Erinnerungen**:
-
-- **Sync fällig** — Intervall und Uhrzeit, optional Benachrichtigung oder Frage beim Öffnen der App, optional Hinweis im Widget.
-- **Schicht-Erinnerungen** — pro Dienst aus dem Mapping eine Uhrzeit setzen (z. B. 06:00 vor dem Frühdienst). Liegt die Uhrzeit nicht vor dem Schichtstart, fragt die App, ob es eine **Vorabend**-Erinnerung sein soll.
+Unter **Einstellungen → Erinnerungen**: Sync-fällig, Schicht-Erinnerungen (inkl. Vorabend-Option).
 
 ---
 
-## 7. Widgets & Darstellung
+## 8. Widgets & Darstellung
 
-Unter **Einstellungen → Darstellung**: App-Theme und Widget-Theme (System / Hell / Dunkel).
-
-Auf dem Homescreen (Android) kannst du hinzufügen:
-
-- **LOGA3 nächste Schicht**
-- **LOGA3 diese Woche**
-
-Tippen öffnet die App. Die Widgets zeigen den zuletzt abgerufenen Plan (kein eigener Netzwerkabruf).
+Theme unter **Einstellungen → Darstellung**. Android-Homescreen-Widgets zeigen den zuletzt geladenen Plan (kein eigener Netzwerkabruf).
 
 ---
 
-## 8. App aktualisieren
+## 9. App aktualisieren
 
-Die App kommt bisher als **APK über GitHub Releases** (kein Play-Store-Auto-Update).
-
-Unter **Einstellungen → App & Support**:
-
-- installierte Version sehen  
-- nach Updates suchen  
-- bei neuer Version die Release-Seite öffnen und das Changelog lesen  
-- dieses Handbuch erneut öffnen  
+Bisher oft **APK / Play**; unter **Einstellungen → App & Support** Version, Updates, Handbuch.
 
 ---
 
-## 9. Privatsphäre & Grenzen
+## 10. Privatsphäre & Grenzen
 
 | Daten | Ort |
 |-------|-----|
-| Passwort | Secure Store auf dem Gerät |
-| URL, Schichten, Einstellungen | App-Speicher auf dem Gerät |
-| PDFs | App-Dokumentordner |
-| Google-Anmeldung | Google Sign-In auf dem Gerät |
+| Passwort | Secure Store |
+| AES-Schlüssel | Secure Store |
+| Schichten / Verdienstnachweise | AsyncStorage, **AES-GCM** (`enc:v1:`) |
+| PDFs (Dienstplan-Capture) | App-Dokumentordner (verschlüsselt wo vorgesehen) |
+| Google | Sign-In auf dem Gerät |
 
-**Grenzen (ehrlich):**
+**Grenzen:** Anderer AG braucht Pack; Portal-UI-Änderungen können Abruf brechen; Fokus der Tests Android.
 
-- Ein Pack live verifiziert; andere Einrichtungen brauchen ggf. ein neues Pack.
-- Ändert sich die LOGA3-Oberfläche, kann Abrufen kaputtgehen — dann hilft ein App-Update.
-- Fokus der Tests bisher Android; iOS-Build ist möglich, aber weniger erprobt.
-
-Bei Problemen: **Einstellungen → App & Support** → Support-Mail (anonymisierte Probe möglich).
+Bei Problemen: **Einstellungen → App & Support** → Support-Mail.

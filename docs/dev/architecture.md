@@ -2,13 +2,25 @@
 
 Everything runs **on-device**. The Expo project lives at the **repo root** (not a nested Expo project folder). `app/` is only the Expo Router tree.
 
+## Product model (user-facing)
+
+| Layer | Role | Optional? |
+|-------|------|-----------|
+| **Pack** (employer / group / area) | Codes, mappings, PDF/OCR parser ids, optional payroll profile | Required to use the app meaningfully |
+| **File / OCR sources** | PDF, CSV, ICS, camera → shared engines + pack mapping | Yes — enough alone if no portal |
+| **WebView / portal sources** (e.g. LOGA3) | Automatable fetch; may expose **shift** and/or **payslip** jobs | Yes — only if pack lists the source |
+| **Export sinks** | ICS, Google, … | Yes |
+| **Prüfung (payroll check)** | Payslip ↔ shifts | Only if pack `payroll.supported` + profile; needs payslip data |
+
+Same portal plugin can serve many packs; a new employer is primarily a **new pack**. A different HR portal needs a **new Source plugin**. User handbooks: [`nutzerhandbuch.md`](../nutzerhandbuch.md) · [`user-guide.md`](../user-guide.md).
+
 **Target modular flow** (Phases 1–5 landed — see [`refactor-sources.md`](./refactor-sources.md)):
 
 ```
 Source (loga3-webview | local-files | …)
   → SourceArtifact (PDF / text / csv / ics)
-  → Pack (mapping + parserId) + convert/
-  → ShiftEntry store  (ingestArtifacts)
+    → Pack (mapping + parserId) + convert/
+  → ShiftEntry / PayslipDocument store
   → Sink (ICS / Google ExportTarget)
 ```
 
