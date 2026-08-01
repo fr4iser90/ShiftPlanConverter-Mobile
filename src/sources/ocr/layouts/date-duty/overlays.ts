@@ -1,7 +1,7 @@
 /**
  * Date × duty board overlays: teal = date column, orange = duty headers, blue = matched cells.
  */
-import { matchPreferredName, normalizeNameKeyPublic } from '../../names';
+import { filterPreferredNameMatches, normalizeNameKeyPublic } from '../../names';
 import {
   clamp01,
   dayFrameAt,
@@ -94,14 +94,18 @@ export function estimateDateDutyHighlightOverlays(
     if (!key || uniq.has(key)) continue;
     uniq.set(key, { id: key, label: a.personLabel, yCenter: a.yCenter, height: 0 });
   }
-  const hit = matchPreferredName(name, [...uniq.values()]);
-  if (!hit || hit.score < 0.8) return out;
-  const matchedKey = normalizeNameKeyPublic(hit.candidate.label);
+  // Match every OCR label variant (OA Dr. X / Dr. X / …), not one exact key.
+  const matchedKeys = new Set(
+    filterPreferredNameMatches(name, [...uniq.values()], null, 0.8).map((c) =>
+      normalizeNameKeyPublic(c.label)
+    )
+  );
+  if (!matchedKeys.size) return out;
 
   const rowByDay = new Map(dateRows.map((r) => [r.day, r]));
 
   for (const a of assignments) {
-    if (normalizeNameKeyPublic(a.personLabel) !== matchedKey) continue;
+    if (!matchedKeys.has(normalizeNameKeyPublic(a.personLabel))) continue;
     const band = rowByDay.get(a.day);
     let yLo = band?.yLo ?? a.yCenter - 12;
     let yHi = band?.yHi ?? a.yCenter + 12;

@@ -1,5 +1,5 @@
 import { memo, useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '@/src/i18n';
 import type { MappingValue } from '@/src/convert/types';
@@ -8,6 +8,10 @@ import {
   type OcrCellDisplayMode,
 } from '@/src/sources/ocr/cellDisplay';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
+import {
+  filterPreferredNameMatches,
+  normalizeNameKeyPublic,
+} from '@/src/sources/ocr/names';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 
@@ -24,16 +28,10 @@ type Props = {
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
   ocrEngineId?: string | null;
+  /** Default true when matchedName is set — photo below still shows full board. */
+  onlyMine?: boolean;
+  onOnlyMineChange?: (onlyMine: boolean) => void;
 };
-
-function nameKey(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9,]+/g, ' ')
-    .trim();
-}
 
 function OcrMonthMatrixScrollTableInner({
   grid,
@@ -43,28 +41,93 @@ function OcrMonthMatrixScrollTableInner({
   presetMapping = null,
   colors = null,
   ocrEngineId = null,
+  onlyMine = true,
+  onOnlyMineChange,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const matchKey = matchedName ? nameKey(matchedName) : '';
+  const matchName = String(matchedName || '').trim();
   const colW = displayMode === 'both' ? 72 : COL_W;
   const rowH = displayMode === 'both' ? 40 : ROW_H;
+
+  const mineKeys = useMemo(() => {
+    if (!matchName || !grid.rows.length) return new Set<string>();
+    const cands = grid.rows.map((r) => ({
+      id: normalizeNameKeyPublic(r.name),
+      label: r.name,
+      yCenter: r.yCenter,
+      height: 0,
+    }));
+    return new Set(
+      filterPreferredNameMatches(matchName, cands, null, 0.8).map((c) =>
+        normalizeNameKeyPublic(c.label)
+      )
+    );
+  }, [grid.rows, matchName]);
+
+  const rows = useMemo(() => {
+    if (!onlyMine || !matchName || !mineKeys.size) return grid.rows;
+    return grid.rows.filter((r) => mineKeys.has(normalizeNameKeyPublic(r.name)));
+  }, [grid.rows, onlyMine, matchName, mineKeys]);
 
   if (!grid.rows.length || !grid.headers.length) return null;
 
   const daysWidth = grid.headers.length * colW;
 
-  const cellText = (raw: string) =>
-    formatOcrCellForDisplay(raw, displayMode, presetMapping, colors, null, ocrEngineId);
+  const cellText = (raw: string) => {
+    // Date×duty cells are pack duty shorts (HD, RDN, …), not LOGA preset codes.
+    // formatOcrCellForDisplay would map them through the time→code allow-list and blank them.
+    if (grid.overlayLayout === 'date-duty') {
+      const s = String(raw || '').trim();
+      if (!s) return '';
+      if (displayMode === 'times') return '';
+      return s;
+    }
+    return formatOcrCellForDisplay(
+      raw,
+      displayMode,
+      presetMapping,
+      colors,
+      null,
+      ocrEngineId
+    );
+  };
+
+  const showPeopleToggle = !!matchName && grid.rows.length > 1;
 
   return (
     <View style={styles.wrap}>
       {title ? <Text style={styles.title}>{title}</Text> : null}
+      {showPeopleToggle ? (
+        <View style={styles.peopleSeg}>
+          <Pressable
+            onPress={() => onOnlyMineChange?.(true)}
+            style={[styles.peopleBtn, onlyMine && styles.peopleBtnOn]}
+          >
+            <Text style={[styles.peopleText, onlyMine && styles.peopleTextOn]}>
+              {t('sourceOcrComparePeopleMine')}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => onOnlyMineChange?.(false)}
+            style={[styles.peopleBtn, !onlyMine && styles.peopleBtnOn]}
+          >
+            <Text style={[styles.peopleText, !onlyMine && styles.peopleTextOn]}>
+              {t('sourceOcrComparePeopleAll')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Text style={styles.hint}>
-        {t('sourceOcrMatrixScrollHint', {
-          people: grid.rows.length,
-          days: grid.headers.length,
-        })}
+        {onlyMine && matchName && mineKeys.size
+          ? t('sourceOcrMatrixScrollHintMine', {
+              days: grid.headers.length,
+              name: matchName,
+            })
+          : t('sourceOcrMatrixScrollHint', {
+              people: rows.length,
+              days: grid.headers.length,
+            })}
       </Text>
       <View style={styles.frame}>
         <ScrollView
@@ -80,8 +143,8 @@ function OcrMonthMatrixScrollTableInner({
                   {t('sourceOcrMatrixNameCol')}
                 </Text>
               </View>
-              {grid.rows.map((r) => {
-                const mine = matchKey && nameKey(r.name) === matchKey;
+              {rows.map((r) => {
+                const mine = mineKeys.has(normalizeNameKeyPublic(r.name));
                 return (
                   <View
                     key={r.name + r.yCenter}
@@ -122,8 +185,8 @@ function OcrMonthMatrixScrollTableInner({
                     </View>
                   ))}
                 </View>
-                {grid.rows.map((r) => {
-                  const mine = matchKey && nameKey(r.name) === matchKey;
+                {rows.map((r) => {
+                  const mine = mineKeys.has(normalizeNameKeyPublic(r.name));
                   return (
                     <View
                       key={`d-${r.name}-${r.yCenter}`}
@@ -174,6 +237,31 @@ function makeStyles(theme: AppTheme) {
       color: theme.color.inkMuted,
       fontSize: 12,
       lineHeight: 16,
+    },
+    peopleSeg: {
+      flexDirection: 'row',
+      gap: 6,
+      alignSelf: 'flex-start',
+    },
+    peopleBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: theme.radius.sm,
+      borderWidth: 1,
+      borderColor: theme.color.borderStrong,
+      backgroundColor: theme.color.surface,
+    },
+    peopleBtnOn: {
+      borderColor: theme.color.primary,
+      backgroundColor: theme.color.primaryTint,
+    },
+    peopleText: {
+      color: theme.color.inkSecondary,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    peopleTextOn: {
+      color: theme.color.primary,
     },
     frame: {
       borderWidth: 1,

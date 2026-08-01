@@ -6,14 +6,16 @@
  * → `dateDuty` — never hardcode employer duty names here.
  */
 import type { PackDateDutyConfig, PackDateDutyColumn } from '@/src/packs/types';
-import type { MonthMatrixGrid, MatrixRow } from '../month-matrix/types';
-import { detectMonthYearFromOcr } from '../month-matrix/dayHeaders';
-import { cleanCell, xCenter, yCenter } from '../month-matrix/geometry';
 import { isPlausiblePersonName } from '../../names';
 import type { OcrLine } from '../../recognize';
+import { looksLikeDateDutyAxes, measureAxisCues } from '../axisCues';
+import { detectMonthYearFromOcr } from '../month-matrix/dayHeaders';
+import { cleanCell, xCenter, yCenter } from '../month-matrix/geometry';
+import type { MonthMatrixGrid, MatrixRow } from '../month-matrix/types';
 
+/** Same tolerance as axisCues — trailing `,` / `.` / glued weekday from ML Kit. */
 const DATE_LINE_RE =
-  /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\s*[,.]?\s*(Mo|Di|Mi|Do|Fr|Sa|So)?\b/i;
+  /^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?\s*[,.]?\s*(Mo|Di|Mi|Do|Fr|Sa|So)?\.?\s*[,.]?$/i;
 
 /** Leading honorific / role tokens ML Kit often emits as separate boxes. */
 const TITLE_TOKEN_RE =
@@ -271,18 +273,22 @@ function parseDateToken(
 
 /**
  * Score 0..1. Without pack `dateDuty.columns` → 0 (layout not configured).
+ * Axis cues: left date gutter + pack duty headers in the top band beat month-matrix noise.
  */
 export function scoreDateDuty(
   text: string,
   lines: OcrLine[],
   pageWidth: number,
-  config?: PackDateDutyConfig | null
+  config?: PackDateDutyConfig | null,
+  pageHeight?: number
 ): number {
   const columns = config?.columns;
   if (!columns?.length) return 0;
 
   const raw = String(text || '');
   if (!raw.trim() && !lines.length) return 0;
+
+  const cues = measureAxisCues(lines, pageWidth, pageHeight);
 
   const dateHits = raw.match(/\b\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\b/g) || [];
   const uniqueDates = new Set(dateHits.map((d) => d.replace(/\s/g, '')));
@@ -302,31 +308,50 @@ export function scoreDateDuty(
 
   let dateLines = 0;
   let dutyHeaders = 0;
+  let topDutyHeaders = 0;
   if (lines.length && pageWidth > 0) {
+    let maxY = 0;
+    for (const l of lines) {
+      const y1 = l.boundingBox.y + l.boundingBox.height;
+      if (y1 > maxY) maxY = y1;
+    }
+    const h = pageHeight && pageHeight > 0 ? pageHeight : Math.max(maxY, 1);
+    const topBand = h * 0.14;
     for (const l of lines) {
       const t = cleanCell(l.text);
+      if (!t) continue;
       if (parseDateToken(t)) dateLines += 1;
-      if (classifyDutyHeader(t, columns)) dutyHeaders += 1;
+      if (classifyDutyHeader(t, columns)) {
+        dutyHeaders += 1;
+        if (yCenter(l) <= topBand) topDutyHeaders += 1;
+      }
     }
   }
 
-  const dates = Math.max(uniqueDates.size, dateLines);
+  const dates = Math.max(uniqueDates.size, dateLines, cues.leftDateRows);
   if (dates < 8 && dutyHits < 2 && dutyHeaders < 2) return 0;
 
   let score = 0;
   score += Math.min(0.45, dates / 28);
   score += Math.min(0.4, (dutyHits + dutyHeaders) / Math.max(4, columns.length));
+  // Geometry: left dates + duty heads in header band are decisive for Anästhesie boards.
+  if (cues.leftDateRows >= 8) score += 0.12;
+  if (topDutyHeaders >= 2) score += Math.min(0.18, topDutyHeaders * 0.04);
+  if (looksLikeDateDutyAxes(cues) && (dutyHeaders >= 2 || dutyHits >= 2)) {
+    score += 0.15;
+  }
 
   for (const marker of config?.boardMarkers || []) {
     const m = String(marker || '').trim();
     if (m && new RegExp(m, 'i').test(raw)) {
-      score += 0.06;
+      score += 0.08;
       break;
     }
   }
 
-  if (dayStrip >= 10) score *= 0.35;
-  if (commaNames >= 6 && dates < 10) score *= 0.4;
+  // Month-matrix hallmarks → dampen (do not confuse with person×day).
+  if (cues.moDiHeaders >= 10 || dayStrip >= 10) score *= 0.3;
+  if (commaNames >= 6 && dates < 10 && cues.leftDateRows < 6) score *= 0.4;
 
   return Math.max(0, Math.min(1, score));
 }
@@ -448,7 +473,8 @@ export function buildDateDutyFromLines(
   for (const r of dateRowsRaw) {
     if (!byDay.has(r.day)) byDay.set(r.day, r);
   }
-  const rows = [...byDay.values()].sort((a, b) => a.yCenter - b.yCenter);
+  let rows = [...byDay.values()].sort((a, b) => a.yCenter - b.yCenter);
+  rows = fillDateRowGaps(rows, h);
   if (rows.length < 5) {
     return emptyBuild('few-date-rows', {
       month,
@@ -515,7 +541,8 @@ export function buildDateDutyFromLines(
         bestRow = r;
       }
     }
-    if (bestDy > Math.max(rowPitch * 0.65, h * 0.02)) continue;
+    // Loose enough for skewed photos / interpolated bottom date bands.
+    if (bestDy > Math.max(rowPitch * 1.05, h * 0.035)) continue;
 
     let bestDuty = duties[0]!;
     let bestDx = Math.abs(phrase.xc - bestDuty.xCenter);
@@ -526,7 +553,7 @@ export function buildDateDutyFromLines(
         bestDuty = d;
       }
     }
-    if (bestDx > Math.max(colPitch * 0.7, pageWidth * 0.06)) continue;
+    if (bestDx > Math.max(colPitch * 0.9, pageWidth * 0.085)) continue;
 
     assignments.push({
       day: bestRow.day,
@@ -599,6 +626,89 @@ function dutyDayFrames(
   });
 }
 
+/**
+ * Fill missing calendar days between first/last OCR dates (and extend toward
+ * month end when the bottom of the page still has room). Needed when ML Kit
+ * drops the lower date gutter.
+ */
+function fillDateRowGaps(rows: DateDutyRowGeo[], pageHeight: number): DateDutyRowGeo[] {
+  if (rows.length < 3) return rows;
+  const byY = [...rows].sort((a, b) => a.yCenter - b.yCenter);
+  const pitches: number[] = [];
+  for (let i = 1; i < byY.length; i++) {
+    const dy = byY[i]!.yCenter - byY[i - 1]!.yCenter;
+    const dd = byY[i]!.day - byY[i - 1]!.day;
+    if (dd === 1 && dy > 6 && dy < pageHeight * 0.08) pitches.push(dy);
+  }
+  pitches.sort((a, b) => a - b);
+  const pitch =
+    pitches.length > 0
+      ? pitches[Math.floor(pitches.length / 2)]!
+      : byY.length >= 2
+        ? Math.abs(byY[byY.length - 1]!.yCenter - byY[0]!.yCenter) /
+          Math.max(1, byY[byY.length - 1]!.day - byY[0]!.day)
+        : pageHeight * 0.028;
+  if (!(pitch > 4)) return rows;
+
+  const byDay = new Map<number, DateDutyRowGeo>();
+  for (const r of byY) byDay.set(r.day, r);
+
+  const minDay = Math.min(...byY.map((r) => r.day));
+  const maxDay = Math.max(...byY.map((r) => r.day));
+  const proto = byY[0]!;
+
+  for (let d = minDay; d <= maxDay; d++) {
+    if (byDay.has(d)) continue;
+    let prev: DateDutyRowGeo | null = null;
+    let next: DateDutyRowGeo | null = null;
+    for (let p = d - 1; p >= minDay; p--) {
+      if (byDay.has(p)) {
+        prev = byDay.get(p)!;
+        break;
+      }
+    }
+    for (let n = d + 1; n <= maxDay; n++) {
+      if (byDay.has(n)) {
+        next = byDay.get(n)!;
+        break;
+      }
+    }
+    let y: number;
+    if (prev && next && next.day !== prev.day) {
+      const t = (d - prev.day) / (next.day - prev.day);
+      y = prev.yCenter + t * (next.yCenter - prev.yCenter);
+    } else if (prev) {
+      y = prev.yCenter + pitch * (d - prev.day);
+    } else if (next) {
+      y = next.yCenter - pitch * (next.day - d);
+    } else {
+      continue;
+    }
+    byDay.set(d, {
+      day: d,
+      month: proto.month,
+      year: proto.year,
+      yCenter: y,
+    });
+  }
+
+  // Extend toward month end if the page still has vertical room (dropped OCR footer dates).
+  let last = byDay.get(Math.max(...byDay.keys()))!;
+  for (let d = last.day + 1; d <= 31; d++) {
+    const y = last.yCenter + pitch * (d - last.day);
+    if (y > pageHeight * 0.97) break;
+    byDay.set(d, {
+      day: d,
+      month: last.month,
+      year: last.year,
+      yCenter: y,
+    });
+    last = byDay.get(d)!;
+  }
+
+  return [...byDay.values()].sort((a, b) => a.yCenter - b.yCenter);
+}
+
 function dateRowBands(
   dateRows: DateDutyRowGeo[],
   pageHeight: number
@@ -624,7 +734,14 @@ export function dateDutyToPersonDayGrid(built: DateDutyBuild): MonthMatrixGrid {
   }
 
   const shortById = new Map(built.duties.map((d) => [d.id, d.short || d.id]));
-  const days = [...new Set(built.assignments.map((a) => a.day))].sort((a, b) => a - b);
+  // Full calendar from date gutter (not only days that already have a name) so the
+  // review table is not a sparse stub with empty middle columns.
+  const days = [
+    ...new Set([
+      ...built.dateRows.map((r) => r.day),
+      ...built.assignments.map((a) => a.day),
+    ]),
+  ].sort((a, b) => a - b);
   if (days.length < 3) {
     return { headers: [], rows: [], ok: false, reason: 'few-days' };
   }

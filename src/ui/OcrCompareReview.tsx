@@ -79,6 +79,7 @@ export function OcrCompareReview({
   const { width: winW, height: winH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<OcrCellDisplayMode>('codes');
+  const [onlyMine, setOnlyMine] = useState(true);
 
   const overlayLayout = grid?.overlayLayout === 'date-duty' ? 'date-duty' : null;
 
@@ -146,6 +147,8 @@ export function OcrCompareReview({
             presetMapping={presetMapping}
             colors={colors}
             ocrEngineId={ocrEngineId}
+            onlyMine={!!matchedName && onlyMine}
+            onOnlyMineChange={setOnlyMine}
           />
         </>
       ) : null}

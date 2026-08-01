@@ -2,6 +2,7 @@ import {
   listOcrLayoutsForPack,
   packAllowedConcreteLayouts,
   packPreferredLayoutId,
+  packShowsLayoutChips,
 } from '../../src/sources/ocr/packLayouts';
 
 describe('packLayouts', () => {
@@ -41,5 +42,16 @@ describe('packLayouts', () => {
     );
     expect(packPreferredLayoutId({ engine: 'ocr-roster', preferredLayout: 'auto' })).toBe('auto');
     expect(packPreferredLayoutId({ engine: 'ocr-roster', preferredLayout: 'nope' })).toBeNull();
+  });
+
+  it('hides chips for auto unless showLayoutChips', () => {
+    expect(packShowsLayoutChips({ engine: 'ocr-roster', preferredLayout: 'auto' })).toBe(false);
+    expect(
+      packShowsLayoutChips({
+        engine: 'ocr-roster',
+        preferredLayout: 'auto',
+        showLayoutChips: true,
+      })
+    ).toBe(true);
   });
 });

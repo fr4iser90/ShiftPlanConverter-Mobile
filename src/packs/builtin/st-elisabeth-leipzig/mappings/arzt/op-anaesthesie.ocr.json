@@ -1,8 +1,18 @@
 {
   "preferredLayout": "auto",
+  "showLayoutChips": false,
   "layouts": ["month-matrix", "week-strip", "date-duty"],
+  "layoutPriors": {
+    "date-duty": 0.1
+  },
   "dateDuty": {
-    "boardMarkers": ["Abteilung", "Dienstplan"],
+    "boardMarkers": [
+      "Abteilung",
+      "Dienstplan",
+      "Anästhesie",
+      "Anaesthesie",
+      "Elisabeth"
+    ],
     "roleSuffixes": ["FOA", "CA", "FA", "AA", "OA"],
     "columns": [
       {

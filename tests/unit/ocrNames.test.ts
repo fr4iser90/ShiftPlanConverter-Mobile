@@ -131,13 +131,24 @@ describe('OCR roster name detection', () => {
     expect(hit!.score).toBeGreaterThanOrEqual(0.88);
   });
 
-  it('does not auto-pick surname when two people share it', () => {
+  it('collapses title OCR variants of the same wall surname', () => {
     const names = [
-      { id: 'dr persona', label: 'Dr. PersonA', yCenter: 40, height: 14 },
-      { id: 'oa persona', label: 'OA PersonA', yCenter: 80, height: 14 },
+      { id: 'oa dr persona', label: 'OA Dr. PersonA', yCenter: 40, height: 14 },
+      { id: 'dr persona', label: 'Dr. PersonA', yCenter: 80, height: 14 },
+      { id: 'persona', label: 'PersonA', yCenter: 120, height: 14 },
+      { id: 'frau personb', label: 'Frau PersonB', yCenter: 160, height: 14 },
     ];
     const hit = matchPreferredName('PersonA, Alpha', names);
-    // Both surname PersonA — keep below auto-skip threshold unless given names help.
+    expect(hit?.score).toBeGreaterThanOrEqual(0.88);
+  });
+
+  it('does not unique-boost when two distinct people share a surname', () => {
+    const names = [
+      { id: 'persona alpha', label: 'PersonA, Alpha', yCenter: 40, height: 14 },
+      { id: 'persona beta', label: 'PersonA, Beta', yCenter: 80, height: 14 },
+    ];
+    const hit = matchPreferredName('PersonA, Gamma', names);
+    // Same surname, different givens — no unique-surname wall boost.
     expect(!hit || hit.score < 0.88).toBe(true);
   });
 

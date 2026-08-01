@@ -33,9 +33,14 @@ export function buildWeekStripGrid(lines: OcrLine[], pageWidth: number): MonthMa
 }
 
 export function scoreWeekStrip(text: string, lines: OcrLine[], pageWidth: number): number {
-  const matches = String(text || '').match(WEEKDAY_TOKEN) || [];
+  const raw = String(text || '');
+  const matches = raw.match(WEEKDAY_TOKEN) || [];
   const unique = new Set(matches.map((m) => m.slice(0, 2).toLowerCase()));
   if (unique.size < 4) return 0;
+
+  // Full-month date×duty boards emit many bare Mo/Di tokens next to `01.09` — not a week strip.
+  const calendarDates = raw.match(/\b\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?/g) || [];
+  if (calendarDates.length >= 12) return 0;
 
   const grid = buildMonthMatrixGrid(lines, pageWidth);
   if (isWeekSizedGrid(grid)) {

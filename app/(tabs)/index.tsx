@@ -71,6 +71,7 @@ import {
   listOcrLayoutsForPack,
   packAllowedConcreteLayouts,
   packPreferredLayoutId,
+  packShowsLayoutChips,
 } from '@/src/sources/ocr/packLayouts';
 import { isConcreteOcrLayout } from '@/src/sources/ocr/layouts';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
@@ -1750,24 +1751,32 @@ export default function FetchScreen() {
                   {!setup.workplaceReady ? (
                     <Meta>{t('setupIncompleteWorkplace')}</Meta>
                   ) : null}
-                  <SectionTitle>{t('sourceCameraOcrLayout')}</SectionTitle>
-                  <View style={styles.monthGrid}>
-                    {ocrLayouts.map((layout) => {
-                      const on = ocrLayoutId === layout.id;
-                      return (
-                        <Pressable
-                          key={layout.id}
-                          disabled={busy}
-                          onPress={() => void onPickOcrLayout(layout.id)}
-                          style={[styles.sourceChip, on && styles.sourceChipOn]}
-                        >
-                          <Text style={[styles.sourceChipText, on && styles.sourceChipTextOn]}>
-                            {t(layout.labelKey as 'ocrLayoutRaw')}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  {packShowsLayoutChips(ocrConfig) ? (
+                    <>
+                      <SectionTitle>{t('sourceCameraOcrLayout')}</SectionTitle>
+                      <View style={styles.monthGrid}>
+                        {ocrLayouts.map((layout) => {
+                          const on = ocrLayoutId === layout.id;
+                          return (
+                            <Pressable
+                              key={layout.id}
+                              disabled={busy}
+                              onPress={() => void onPickOcrLayout(layout.id)}
+                              style={[styles.sourceChip, on && styles.sourceChipOn]}
+                            >
+                              <Text
+                                style={[styles.sourceChipText, on && styles.sourceChipTextOn]}
+                              >
+                                {t(layout.labelKey as 'ocrLayoutRaw')}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </>
+                  ) : (
+                    <Meta>{t('sourceCameraOcrLayoutAutoOnly')}</Meta>
+                  )}
                   <Meta>
                     {ocrSettingsName
                       ? t('sourceOcrSettingsName', { name: ocrSettingsName })
@@ -1798,12 +1807,19 @@ export default function FetchScreen() {
                           ocrEngineId={getOcrEngineIdForPack(pack)}
                           title={
                             ocrMatchedName && ocrMatrix
-                              ? t('sourceOcrMatrixTitleMine', {
-                                  name: ocrMatchedName,
-                                  people: ocrMatrix.rows.length,
-                                })
+                              ? ocrMatrix.overlayLayout === 'date-duty'
+                                ? t('sourceOcrMatrixTitleDateDuty', {
+                                    name: ocrMatchedName,
+                                    people: ocrMatrix.rows.length,
+                                  })
+                                : t('sourceOcrMatrixTitleMine', {
+                                    name: ocrMatchedName,
+                                    people: ocrMatrix.rows.length,
+                                  })
                               : ocrMatrix
-                                ? t('sourceOcrMatrixTitleAll')
+                                ? ocrMatrix.overlayLayout === 'date-duty'
+                                  ? t('sourceOcrMatrixTitleDateDutyAll')
+                                  : t('sourceOcrMatrixTitleAll')
                                 : undefined
                           }
                         />

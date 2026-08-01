@@ -1067,6 +1067,9 @@ export function applyPackMappingToGrid(
   colors?: Record<string, string> | null,
   codeAliases?: Record<string, string> | null
 ): MonthMatrixGrid {
+  // Date×duty cells hold OCR duty shorts from `dateDuty.columns` (e.g. HD, RDN).
+  // Preset mapping is LOGA/time→code (ID1, B5A, …) — different vocabulary; sanitize would clear cells.
+  if (grid.overlayLayout === 'date-duty') return grid;
   const codes = collectPackCodes(presetMapping, colors, codeAliases);
   const rows = grid.rows.map((row) => ({
     ...row,
@@ -1685,6 +1688,8 @@ export function refinePersonRowFromOcr(
   colors?: Record<string, string> | null,
   codeAliases?: Record<string, string> | null
 ): MonthMatrixGrid {
+  // Person×day scoop assumes month-matrix geometry (name row × day columns).
+  if (grid.overlayLayout === 'date-duty') return grid;
   const centers = grid.colCenters;
   if (!centers?.length || !personName) return grid;
 
@@ -1903,6 +1908,7 @@ export function refineAllPersonRowsFromOcr(
   inkHints?: CellInkHint[][] | null,
   codeAliases?: Record<string, string> | null
 ): MonthMatrixGrid {
+  if (grid.overlayLayout === 'date-duty') return grid;
   const codes = collectPackCodes(presetMapping, colors, codeAliases);
   const fps = listPackFingerprints(presetMapping);
   const vac = primaryVacationCode(codes, fps);

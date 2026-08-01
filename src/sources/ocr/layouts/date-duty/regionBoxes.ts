@@ -1,7 +1,7 @@
 /**
  * Axis-aligned crop boxes for date × duty snapshot review.
  */
-import { matchPreferredName, normalizeNameKeyPublic } from '../../names';
+import { filterPreferredNameMatches, normalizeNameKeyPublic } from '../../names';
 import { clamp01, type OcrNormBox } from '../overlayGeom';
 import type { MonthMatrixGrid } from '../month-matrix/types';
 
@@ -65,11 +65,14 @@ export function estimateDateDutyOwnNameBox(
       height: 0,
     });
   }
-  const hit = matchPreferredName(matchedName, [...uniq.values()]);
-  if (!hit || hit.score < 0.8) return null;
-  const matchedKey = normalizeNameKeyPublic(hit.candidate.label);
-  const cells = assignments.filter(
-    (a) => normalizeNameKeyPublic(a.personLabel) === matchedKey
+  const matchedKeys = new Set(
+    filterPreferredNameMatches(matchedName, [...uniq.values()], null, 0.8).map((c) =>
+      normalizeNameKeyPublic(c.label)
+    )
+  );
+  if (!matchedKeys.size) return null;
+  const cells = assignments.filter((a) =>
+    matchedKeys.has(normalizeNameKeyPublic(a.personLabel))
   );
   if (!cells.length) return null;
   const padX = pageWidth * 0.04;

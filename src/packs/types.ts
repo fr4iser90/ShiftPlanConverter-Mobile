@@ -36,6 +36,16 @@ export type PackOcrScopeConfig = {
   usePackMapping?: boolean;
   /** Column vocabulary for layout `date-duty` (employer / role specific). */
   dateDuty?: PackDateDutyConfig;
+  /**
+   * Soft score bumps for auto-detect (0..~0.15). Never hardcodes duty names —
+   * only tilts close races (e.g. Anästhesie → date-duty).
+   */
+  layoutPriors?: Partial<Record<string, number>>;
+  /**
+   * When false (default if preferredLayout is auto): hide layout chips on Import.
+   * Escape hatch: Settings → OCR, or uncertainty modal during auto.
+   */
+  showLayoutChips?: boolean;
 };
 
 /**

@@ -82,6 +82,8 @@ export const de = {
   sourceCameraOcrResult: 'OCR-Ergebnis',
   sourceCameraOcrClear: 'OCR-Ergebnis löschen',
   sourceCameraOcrLayout: 'OCR-Layout',
+  sourceCameraOcrLayoutAutoOnly:
+    'Layout: Auto (Erkennung am Foto). Bei Unsicherheit fragt die App nach — manuell unter Einstellungen → OCR.',
   sourceCameraOcrLayoutStub: 'Layout „{layout}“: Parser folgt — nur Text.',
   ocrLayoutAuto: 'Auto',
   ocrLayoutAutoHint: 'Layout am Bild erkennen, dann OCR.',
@@ -152,6 +154,8 @@ export const de = {
     'Dienstplan (Monatsmatrix) — {people} Personen (deine Zeile: {name})',
   sourceOcrMatrixScrollHint:
     '{people} Personen · {days} Tage — seitlich wischen für den ganzen Plan (wie auf dem Foto).',
+  sourceOcrMatrixScrollHintMine:
+    '{days} Tage · nur du ({name}) — Foto unten zeigt den ganzen Plan.',
   sourceOcrMatrixNameCol: 'Name',
   sourceOcrMatrixWeakHint:
     'Tabelle nur teilweise erkannt — bitte Foto prüfen / näher und gerader fotografieren.',
@@ -205,6 +209,8 @@ export const de = {
   sourceOcrCompareDisplayCodes: 'Kürzel',
   sourceOcrCompareDisplayTimes: 'Zeiten',
   sourceOcrCompareDisplayBoth: 'Beides',
+  sourceOcrComparePeopleMine: 'Nur ich',
+  sourceOcrComparePeopleAll: 'Alle',
   sourceOcrCompareTapFull: 'Tippen = groß · zoomen / verschieben',
   sourceOcrCompareZoomHint: 'Zwei Finger: zoomen · schieben · Doppeltipp: 2,5× / zurück',
   sourceOcrCompareClose: 'Schließen',
@@ -233,6 +239,9 @@ export const de = {
   sourceOcrGalleryDenied: 'Galerie-Zugriff verweigert.',
   settingsHubOcr: 'Dienstplan-Name',
   settingsHubOcrMeta: 'Für Fotos (OCR)',
+  settingsOcrLayout: 'OCR-Layout (manuell)',
+  settingsOcrLayoutHint:
+    'Normalerweise erkennt die App das Layout selbst (Auto). Nur bei Fehlern hier festlegen.',
   settingsOcrName: 'Mein Name auf dem Dienstplan',
   settingsOcrNameHint:
     'Einmal hier speichern: „Nachname, Vorname“ wie auf dem Plan. OCR-Tippfehler werden beim nächsten Scan automatisch an diesen Namen angeglichen und deine Zeile markiert.',

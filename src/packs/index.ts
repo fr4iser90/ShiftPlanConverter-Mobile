@@ -151,6 +151,8 @@ function packOcrBase(raw: PackOcrConfig | undefined): PackOcrScopeConfig & { eng
       layouts: raw.layouts,
       usePackMapping: raw.usePackMapping !== false,
       dateDuty: raw.dateDuty,
+      layoutPriors: raw.layoutPriors,
+      showLayoutChips: raw.showLayoutChips,
     };
   }
   const base: PackOcrScopeConfig = { ...(raw.default || {}) };
@@ -163,6 +165,8 @@ function packOcrBase(raw: PackOcrConfig | undefined): PackOcrScopeConfig & { eng
     layouts: base.layouts,
     usePackMapping: base.usePackMapping !== false,
     dateDuty: base.dateDuty,
+    layoutPriors: base.layoutPriors,
+    showLayoutChips: base.showLayoutChips,
   };
 }
 
@@ -191,6 +195,10 @@ export function getOcrConfigForScope(
           ? g.usePackMapping !== false
           : merged.usePackMapping !== false,
       dateDuty: g.dateDuty !== undefined ? g.dateDuty : merged.dateDuty,
+      layoutPriors:
+        g.layoutPriors !== undefined ? g.layoutPriors : merged.layoutPriors,
+      showLayoutChips:
+        g.showLayoutChips !== undefined ? g.showLayoutChips : merged.showLayoutChips,
     };
   }
 
@@ -213,6 +221,14 @@ export function getOcrConfigForScope(
               : merged.usePackMapping !== false,
           dateDuty:
             areaScope.dateDuty !== undefined ? areaScope.dateDuty : merged.dateDuty,
+          layoutPriors:
+            areaScope.layoutPriors !== undefined
+              ? areaScope.layoutPriors
+              : merged.layoutPriors,
+          showLayoutChips:
+            areaScope.showLayoutChips !== undefined
+              ? areaScope.showLayoutChips
+              : merged.showLayoutChips,
         };
       }
     }
@@ -224,6 +240,8 @@ export function getOcrConfigForScope(
     layouts: merged.layouts,
     usePackMapping: merged.usePackMapping !== false,
     dateDuty: merged.dateDuty,
+    layoutPriors: merged.layoutPriors,
+    showLayoutChips: merged.showLayoutChips,
   };
 }
 

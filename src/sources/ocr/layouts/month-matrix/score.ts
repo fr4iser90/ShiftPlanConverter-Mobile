@@ -7,7 +7,9 @@
  * - many short shift/code cells in the body
  * Full `buildMonthMatrixGrid` success boosts the score; hints alone can still pick this layout.
  */
+import type { PackDateDutyConfig } from '@/src/packs/types';
 import type { OcrLine } from '../../recognize';
+import { looksLikeDateDutyAxes, measureAxisCues } from '../axisCues';
 import type { OcrLayoutProfile } from '../types';
 import { trimOcr } from '../types';
 import { buildMonthMatrixGrid } from './build';
@@ -110,6 +112,25 @@ export function scoreMonthMatrixHints(lines: OcrLine[], pageWidth: number): numb
   return Math.min(0.85, 0.4 * colScore + 0.4 * rowScore + 0.2 * cellScore);
 }
 
-export function scoreMonthMatrix(lines: OcrLine[], pageWidth: number): number {
-  return Math.max(scoreFromBuiltGrid(lines, pageWidth), scoreMonthMatrixHints(lines, pageWidth));
+export function scoreMonthMatrix(
+  lines: OcrLine[],
+  pageWidth: number,
+  opts?: { pageHeight?: number; dateDuty?: PackDateDutyConfig | null }
+): number {
+  let score = Math.max(
+    scoreFromBuiltGrid(lines, pageWidth),
+    scoreMonthMatrixHints(lines, pageWidth)
+  );
+  const cues = measureAxisCues(lines, pageWidth, opts?.pageHeight);
+  // Date×duty boards often fool the grid builder — dampen hard when left gutter is dates.
+  if (looksLikeDateDutyAxes(cues)) {
+    score *= 0.2;
+  } else if (cues.leftDateRows >= 6 && cues.moDiHeaders < 8) {
+    score *= 0.45;
+  }
+  // Pack has date-duty vocabulary and left dates → further prefer not month-matrix.
+  if (opts?.dateDuty?.columns?.length && cues.leftDateRows >= 8) {
+    score *= 0.75;
+  }
+  return Math.max(0, Math.min(1, score));
 }

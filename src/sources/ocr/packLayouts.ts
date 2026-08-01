@@ -21,6 +21,26 @@ export function packAllowedConcreteLayouts(
   return CONCRETE_OCR_LAYOUTS.filter((l) => l.status !== 'stub').map((l) => l.id as ConcreteOcrLayoutId);
 }
 
+export function packPreferredLayoutId(
+  ocr: PackOcrConfig | null | undefined
+): OcrLayoutId | null {
+  const pref = ocr?.preferredLayout?.trim();
+  if (!pref) return null;
+  if (pref === 'auto') return 'auto';
+  if (isConcreteOcrLayout(pref)) return pref;
+  return null;
+}
+
+/**
+ * Import chips: hidden when pack prefers auto (unless `showLayoutChips: true`).
+ * Settings / uncertainty modal can still pick a concrete layout.
+ */
+export function packShowsLayoutChips(ocr: PackOcrConfig | null | undefined): boolean {
+  if (ocr?.showLayoutChips === true) return true;
+  if (ocr?.showLayoutChips === false) return false;
+  return packPreferredLayoutId(ocr) !== 'auto';
+}
+
 /** Chip list for Fetch: auto + pack-allowed (hide stubs unless selected). */
 export function listOcrLayoutsForPack(
   ocr: PackOcrConfig | null | undefined,
@@ -33,14 +53,4 @@ export function listOcrLayoutsForPack(
     if (l.status === 'stub') return false;
     return allowed.has(l.id as ConcreteOcrLayoutId);
   });
-}
-
-export function packPreferredLayoutId(
-  ocr: PackOcrConfig | null | undefined
-): OcrLayoutId | null {
-  const pref = ocr?.preferredLayout?.trim();
-  if (!pref) return null;
-  if (pref === 'auto') return 'auto';
-  if (isConcreteOcrLayout(pref)) return pref;
-  return null;
 }

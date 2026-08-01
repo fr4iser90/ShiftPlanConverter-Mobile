@@ -373,8 +373,14 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           text: ocr.text,
           lines: ocr.lines,
           pageWidth: ocr.pageWidth,
+          pageHeight: ocr.pageHeight,
         },
-        { dateDuty: ocrConfigEarly.dateDuty }
+        {
+          dateDuty: ocrConfigEarly.dateDuty,
+          layoutPriors: ocrConfigEarly.layoutPriors as
+            | Partial<Record<ConcreteOcrLayoutId, number>>
+            | undefined,
+        }
       );
       // Zero out layouts the pack does not offer.
       for (const id of Object.keys(textDet.scores) as ConcreteOcrLayoutId[]) {

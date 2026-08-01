@@ -10,7 +10,7 @@ const MAPPING_PATH = join(
   '../../src/packs/builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.json'
 );
 
-describe('Arzt Anästhesie pack mapping (Thomas LOGA)', () => {
+describe('Arzt Anästhesie pack mapping (LOGA)', () => {
   const raw = JSON.parse(readFileSync(MAPPING_PATH, 'utf8')) as PackMapping;
   const preset = raw.presets?.Anästhesie || {};
 

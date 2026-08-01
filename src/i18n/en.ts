@@ -82,6 +82,8 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceCameraOcrResult: 'OCR result',
   sourceCameraOcrClear: 'Clear OCR result',
   sourceCameraOcrLayout: 'OCR layout',
+  sourceCameraOcrLayoutAutoOnly:
+    'Layout: Auto (detect from photo). If unsure, the app asks — override under Settings → OCR.',
   sourceCameraOcrLayoutStub: 'Layout “{layout}”: parser coming — text only.',
   ocrLayoutAuto: 'Auto',
   ocrLayoutAutoHint: 'Detect layout from the image, then OCR.',
@@ -153,6 +155,8 @@ export const en: { [K in keyof typeof de]: string } = {
     'Roster (month matrix) — {people} people (your row: {name})',
   sourceOcrMatrixScrollHint:
     '{people} people · {days} days — swipe sideways to see the full plan (like the photo).',
+  sourceOcrMatrixScrollHintMine:
+    '{days} days · only you ({name}) — photo below still shows the full plan.',
   sourceOcrMatrixNameCol: 'Name',
   sourceOcrMatrixWeakHint:
     'Table only partly recognized — check the photo / shoot closer and straighter.',
@@ -206,6 +210,8 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrCompareDisplayCodes: 'Codes',
   sourceOcrCompareDisplayTimes: 'Times',
   sourceOcrCompareDisplayBoth: 'Both',
+  sourceOcrComparePeopleMine: 'Only me',
+  sourceOcrComparePeopleAll: 'Everyone',
   sourceOcrCompareTapFull: 'Tap = full · pinch / pan',
   sourceOcrCompareZoomHint: 'Pinch to zoom · drag to pan · double-tap: 2.5× / reset',
   sourceOcrCompareClose: 'Close',
@@ -234,6 +240,9 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrGalleryDenied: 'Photo library access denied.',
   settingsHubOcr: 'Roster name',
   settingsHubOcrMeta: 'For photos (OCR)',
+  settingsOcrLayout: 'OCR layout (manual)',
+  settingsOcrLayoutHint:
+    'Usually the app detects the layout (Auto). Set this only when detection is wrong.',
   settingsOcrName: 'My name on the roster',
   settingsOcrNameHint:
     'Save once here: “Last, First” as on the plan. OCR typos are auto-corrected to this name on the next scan and your row is marked.',

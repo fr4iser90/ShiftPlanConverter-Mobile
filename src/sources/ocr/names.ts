@@ -271,6 +271,33 @@ function givenTokens(normalized: string): string[] {
   return nameCore(normalized).given;
 }
 
+/**
+ * Stable person identity after dropping titles.
+ * Collapses OCR wall variants ("OA Dr. X" / "Dr. X" / "X") to one person for
+ * unique-surname checks — counting raw labels would false-dampen matching.
+ */
+function personIdentityKey(normalized: string): string {
+  const { surname, given } = nameCore(normalized);
+  if (!surname) return '';
+  return given.length ? `${surname}|${given.join(' ')}` : surname;
+}
+
+/** Distinct people sharing a surname (title variants count once). */
+function surnamePersonCounts(candidates: OcrNameCandidate[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const c of candidates) {
+    const key = normalizeNameKey(c.label);
+    const ident = personIdentityKey(key);
+    if (!ident || seen.has(ident)) continue;
+    seen.add(ident);
+    const sur = surnameToken(key);
+    if (!sur) continue;
+    counts.set(sur, (counts.get(sur) || 0) + 1);
+  }
+  return counts;
+}
+
 function editDistance(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
@@ -307,6 +334,83 @@ export function normalizeNameKeyPublic(s: string): string {
  * Tolerates OCR typos (e.g. last-token / given-token variations) via edit distance.
  * Optional aliases: previous OCR spellings → your corrected name.
  */
+function scorePreferredCandidate(
+  pref: string,
+  prefSur: string,
+  prefGiven: string[],
+  candidate: OcrNameCandidate,
+  aliasMap: Record<string, string>,
+  surnamePeople: Map<string, number>
+): number {
+  const key = normalizeNameKey(candidate.label);
+  const aliasTarget = aliasMap[key];
+  const aliasHitsPreferred =
+    !!aliasTarget && normalizeNameKey(aliasTarget) === pref;
+
+  if (aliasHitsPreferred || key === pref || stripTitleTokens(key) === pref) {
+    return 1;
+  }
+
+  const candSur = surnameToken(key);
+  const candGiven = givenTokens(key);
+  const surSim = tokenSimilarity(prefSur, candSur);
+  const givenSim =
+    prefGiven.length && candGiven.length
+      ? Math.max(
+          ...prefGiven.map((p) =>
+            Math.max(...candGiven.map((g) => tokenSimilarity(p, g)))
+          )
+        )
+      : 0;
+
+  if (surSim >= 0.85 && givenSim >= 0.75) return 0.95;
+  if (surSim >= 0.8 && givenSim >= 0.65) return 0.9;
+  if (surSim >= 0.9 && givenSim >= 0.5) return 0.88;
+  if (
+    prefSur &&
+    candSur &&
+    prefSur === candSur &&
+    (key.includes(pref) || pref.includes(key))
+  ) {
+    return 0.9;
+  }
+  if (
+    prefSur &&
+    candSur &&
+    (prefSur === candSur || surSim >= 0.92) &&
+    (!prefGiven.length || !candGiven.length) &&
+    (surnamePeople.get(candSur) || 0) === 1
+  ) {
+    // Unique person with that surname on plan (wall: "OA Dr. X").
+    return 0.9;
+  }
+  if (prefSur && candSur && prefSur === candSur) {
+    const pt = new Set(
+      stripTitleTokens(pref)
+        .split(/[,\s]+/)
+        .filter(Boolean)
+    );
+    const ct = stripTitleTokens(key)
+      .split(/[,\s]+/)
+      .filter(Boolean);
+    const hit = ct.filter((t) => pt.has(t)).length;
+    return hit >= 2 ? 0.85 : 0.65;
+  }
+  if (surSim >= 0.75 && givenSim >= 0.55) return 0.8;
+  const pt = new Set(
+    stripTitleTokens(pref)
+      .split(/[,\s]+/)
+      .filter(Boolean)
+  );
+  const ct = stripTitleTokens(key)
+    .split(/[,\s]+/)
+    .filter(Boolean);
+  const hit = ct.filter((t) => pt.has(t)).length;
+  if (hit >= 2) return 0.5;
+  if (hit === 1) return 0.35;
+  return 0;
+}
+
 export function matchPreferredName(
   preferred: string | null | undefined,
   candidates: OcrNameCandidate[],
@@ -319,86 +423,53 @@ export function matchPreferredName(
   const prefSur = surnameToken(pref);
   const prefGiven = givenTokens(pref);
   const aliasMap = aliases || {};
-
-  const surnameCounts = new Map<string, number>();
-  for (const c of candidates) {
-    const sur = surnameToken(normalizeNameKey(c.label));
-    if (!sur) continue;
-    surnameCounts.set(sur, (surnameCounts.get(sur) || 0) + 1);
-  }
+  const surnamePeople = surnamePersonCounts(candidates);
 
   let best: NameMatch | null = null;
   for (const c of candidates) {
-    const key = normalizeNameKey(c.label);
-    const aliasTarget = aliasMap[key];
-    const aliasHitsPreferred =
-      !!aliasTarget && normalizeNameKey(aliasTarget) === pref;
-
-    let score = 0;
-    if (aliasHitsPreferred || key === pref || stripTitleTokens(key) === pref) {
-      score = 1;
-    } else {
-      const candSur = surnameToken(key);
-      const candGiven = givenTokens(key);
-      const surSim = tokenSimilarity(prefSur, candSur);
-      const givenSim =
-        prefGiven.length && candGiven.length
-          ? Math.max(
-              ...prefGiven.map((p) =>
-                Math.max(...candGiven.map((g) => tokenSimilarity(p, g)))
-              )
-            )
-          : 0;
-
-      if (surSim >= 0.85 && givenSim >= 0.75) score = 0.95;
-      else if (surSim >= 0.8 && givenSim >= 0.65) score = 0.9;
-      else if (surSim >= 0.9 && givenSim >= 0.5) score = 0.88;
-      else if (
-        prefSur &&
-        candSur &&
-        prefSur === candSur &&
-        (key.includes(pref) || pref.includes(key))
-      ) {
-        score = 0.9;
-      } else if (
-        prefSur &&
-        candSur &&
-        (prefSur === candSur || surSim >= 0.92) &&
-        (!prefGiven.length || !candGiven.length) &&
-        (surnameCounts.get(candSur) || 0) === 1
-      ) {
-        // Unique surname on plan + Mein Name has that surname (wall: "OA Dr. X").
-        score = 0.9;
-      } else if (prefSur && candSur && prefSur === candSur) {
-        const pt = new Set(
-          stripTitleTokens(pref)
-            .split(/[,\s]+/)
-            .filter(Boolean)
-        );
-        const ct = stripTitleTokens(key)
-          .split(/[,\s]+/)
-          .filter(Boolean);
-        const hit = ct.filter((t) => pt.has(t)).length;
-        score = hit >= 2 ? 0.85 : 0.65;
-      } else if (surSim >= 0.75 && givenSim >= 0.55) {
-        score = 0.8;
-      } else {
-        const pt = new Set(
-          stripTitleTokens(pref)
-            .split(/[,\s]+/)
-            .filter(Boolean)
-        );
-        const ct = stripTitleTokens(key)
-          .split(/[,\s]+/)
-          .filter(Boolean);
-        const hit = ct.filter((t) => pt.has(t)).length;
-        if (hit >= 2) score = 0.5;
-        else if (hit === 1) score = 0.35;
-      }
-    }
+    const score = scorePreferredCandidate(
+      pref,
+      prefSur,
+      prefGiven,
+      c,
+      aliasMap,
+      surnamePeople
+    );
     if (!best || score > best.score) best = { candidate: c, score };
   }
   return best && best.score >= 0.65 ? best : null;
+}
+
+/**
+ * All candidates that match the preferred name at/above `minScore`.
+ * Used for date×duty overlays where OCR label variants must all mark.
+ */
+export function filterPreferredNameMatches(
+  preferred: string | null | undefined,
+  candidates: OcrNameCandidate[],
+  aliases?: Record<string, string> | null,
+  minScore = 0.8
+): OcrNameCandidate[] {
+  const prefRaw = String(preferred || '').replace(/\s+/g, ' ').trim();
+  const pref = normalizeNameKey(prefRaw);
+  if (!pref || !candidates.length) return [];
+
+  const prefSur = surnameToken(pref);
+  const prefGiven = givenTokens(pref);
+  const aliasMap = aliases || {};
+  const surnamePeople = surnamePersonCounts(candidates);
+
+  return candidates.filter(
+    (c) =>
+      scorePreferredCandidate(
+        pref,
+        prefSur,
+        prefGiven,
+        c,
+        aliasMap,
+        surnamePeople
+      ) >= minScore
+  );
 }
 
 /**
