@@ -31,13 +31,25 @@ describe('applyPackMapping', () => {
   });
 
   it('normalizes known pack codes (Kürzel-only cells)', () => {
-    const codes = collectPackCodes(anaesthesie, colors);
-    expect(applyPackMappingToCell('urlauB', anaesthesie, codes)).toBe('URLAUB');
-    expect(applyPackMappingToCell('b36', anaesthesie, codes)).toBe('B36');
-    expect(applyPackMappingToCell('U', anaesthesie, codes)).toBe('U');
-    expect(applyPackMappingToCell('MO', anaesthesie, codes)).toBe('MO');
-    expect(applyPackMappingToCell('XYZ99', anaesthesie, codes)).toBe('XYZ99');
-    expect(applyPackMappingToCell('06:00-14:00', anaesthesie, codes)).toBe('⚠️ 06:00-14:00');
+    const aliases = { URLAUB: 'U' };
+    const preset: Record<string, MappingValue> = {
+      ...anaesthesie,
+      'SPECIAL:U': { code: 'U', type: 'special', isValidated: true },
+      'SPECIAL:MO': { code: 'MO', type: 'special', isValidated: true },
+    };
+    const codes = collectPackCodes(preset, null, aliases);
+    expect(applyPackMappingToCell('urlauB', preset, codes, aliases)).toBe('U');
+    expect(applyPackMappingToCell('b36', preset, codes)).toBe('B36');
+    expect(applyPackMappingToCell('U', preset, codes)).toBe('U');
+    expect(applyPackMappingToCell('MO', preset, codes)).toBe('MO');
+    expect(applyPackMappingToCell('XYZ99', preset, codes)).toBe('XYZ99');
+    expect(applyPackMappingToCell('06:00-14:00', preset, codes)).toBe('⚠️ 06:00-14:00');
+  });
+
+  it('does not treat color-only keys as OCR codes', () => {
+    const codes = collectPackCodes(anaesthesie, { ONLYCOLOR: '#fff', F: '#22c55e' });
+    expect(codes.has('ONLYCOLOR')).toBe(false);
+    expect(codes.has('F')).toBe(true);
   });
 
   it('maps mashed OCR times via pack fingerprints (Zeit-only cells)', () => {
@@ -78,15 +90,19 @@ describe('applyPackMapping', () => {
 
   it('canonicalizes pack code aliases (B41→B36, URLAUB→U)', () => {
     const aliases = { B41: 'B36', URLAUB: 'U' };
-    const codes = collectPackCodes(anaesthesie, { ...colors, B41: '#b91c1c', U: '#a78bfa' }, aliases);
-    expect(applyPackMappingToCell('B41', anaesthesie, codes, aliases)).toBe('B36');
-    expect(applyPackMappingToCell('urlauB', anaesthesie, codes, aliases)).toBe('U');
+    const preset: Record<string, MappingValue> = {
+      ...anaesthesie,
+      'SPECIAL:U': { code: 'U', type: 'special', isValidated: true },
+    };
+    const codes = collectPackCodes(preset, null, aliases);
+    expect(applyPackMappingToCell('B41', preset, codes, aliases)).toBe('B36');
+    expect(applyPackMappingToCell('urlauB', preset, codes, aliases)).toBe('U');
     const grid: MonthMatrixGrid = {
       ok: true,
       headers: ['Sa1'],
       rows: [{ name: 'PersonA, Alpha', yCenter: 10, cells: ['B41', 'URLAUB'] }],
     };
-    const out = applyPackMappingToGrid(grid, anaesthesie, colors, aliases);
+    const out = applyPackMappingToGrid(grid, preset, null, aliases);
     expect(out.rows[0].cells).toEqual(['B36', 'U']);
   });
 
@@ -134,9 +150,13 @@ describe('applyPackMapping', () => {
         },
       ],
     };
-    const out = applyPackMappingToGrid(grid, anaesthesie, colors);
+    const preset: Record<string, MappingValue> = {
+      ...anaesthesie,
+      'SPECIAL:U': { code: 'U', type: 'special', isValidated: true },
+    };
+    const out = applyPackMappingToGrid(grid, preset, null, { URLAUB: 'U' });
     expect(out.rows[0].name).toBe('PersonA, Alpha');
-    expect(out.rows[0].cells).toEqual(['F', 'URLAUB', '']);
+    expect(out.rows[0].cells).toEqual(['F', 'U', '']);
   });
 
   it('refines the known person row from OCR geometry (Kürzel or Zeit)', () => {

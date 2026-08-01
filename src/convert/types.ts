@@ -64,6 +64,7 @@ export type MappingValue =
     };
 
 export type PackMapping = {
+  /** Display / Google-export colors (hex). Not an OCR code source. */
   colors?: Record<string, string>;
   /** Alternate printed codes → canonical pack code (e.g. synonym labels). */
   codeAliases?: Record<string, string>;

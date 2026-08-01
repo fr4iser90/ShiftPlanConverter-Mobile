@@ -8,6 +8,7 @@ import type { ShiftEntry } from '../convert/types';
 import { t } from '../i18n';
 import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
 import { getGoogleCalendarId, setGoogleCalendarId } from '../state/store';
+import { googleColorIdForShiftType } from './googleEventColor';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -360,11 +361,14 @@ export async function syncEntriesToGoogle(
     eventFormat = DEFAULT_EVENT_FORMAT,
     onCalendarMissing,
     source = 'sync',
+    packColors = null,
   }: {
     eventFormat?: EventFormatPrefs;
     onCalendarMissing?: (oldId: string) => Promise<string | null>;
     /** Label for TIMING logs (export | fetch). */
     source?: string;
+    /** Pack mapping colors (hex) → Google event colorId when present. */
+    packColors?: Record<string, string> | null;
   } = {}
 ): Promise<{ created: number; deleted: number }> {
   if (!entries.length) return { created: 0, deleted: 0 };
@@ -413,18 +417,21 @@ export async function syncEntriesToGoogle(
       endDate = d.toISOString().split('T')[0];
     }
 
+    const colorId = googleColorIdForShiftType(entry.type, packColors);
     const body = entry.allDay
       ? {
           summary,
           description,
           start: { date: entry.date },
           end: { date: entry.date },
+          ...(colorId ? { colorId } : {}),
         }
       : {
           summary,
           description,
           start: { dateTime: `${entry.date}T${entry.start}:00`, timeZone: 'Europe/Berlin' },
           end: { dateTime: `${endDate}T${entry.end}:00`, timeZone: 'Europe/Berlin' },
+          ...(colorId ? { colorId } : {}),
         };
 
     await gfetch(`/calendars/${encodeURIComponent(id)}/events`, {

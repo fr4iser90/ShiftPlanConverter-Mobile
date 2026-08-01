@@ -45,6 +45,7 @@ export const googleExportTarget: ExportTarget = {
         eventFormat: opts.eventFormat ?? snap.eventFormat,
         onCalendarMissing: opts.onCalendarMissing ?? askRecreateGoogleCalendar,
         source: 'fetch',
+        packColors: mapping?.colors || null,
       });
       return { skipped: false, created, deleted };
     } catch (e) {

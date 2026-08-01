@@ -1,6 +1,6 @@
 /**
  * Apply pack shift mapping to OCR matrix cells.
- * Duty codes and times come only from the pack mapping (presets + colors).
+ * Duty codes and times come from pack presets (+ also / aliases). Colors are display/export only.
  * This module never hard-codes employer-specific codes or clock ranges.
  */
 import { mappingCode, resolveShiftMapping } from '../../shiftMapping';
@@ -47,19 +47,14 @@ export type PackFingerprint = {
   dutyType: string;
 };
 
-/** Codes declared on the pack (preset values + color keys + alias keys). */
+/** Codes from pack presets (`code` + `also`) and alias keys — not from `colors`. */
 export function collectPackCodes(
   presetMapping: Record<string, MappingValue> | null | undefined,
-  colors?: Record<string, string> | null,
+  /** @deprecated Ignored. Colors are UI/export only; kept for call-site compat. */
+  _colors?: Record<string, string> | null,
   codeAliases?: Record<string, string> | null
 ): Set<string> {
   const codes = new Set<string>();
-  if (colors) {
-    for (const k of Object.keys(colors)) {
-      const c = k.trim().toUpperCase();
-      if (c) codes.add(c);
-    }
-  }
   if (presetMapping) {
     for (const v of Object.values(presetMapping)) {
       const { code } = mappingCode(v);

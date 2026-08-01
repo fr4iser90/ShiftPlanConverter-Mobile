@@ -46,16 +46,21 @@ SHA1: 5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25
 
 ### Production / Play Store (required before store)
 
-Use an **EAS production keystore** (not `debug.keystore`). See [play-store-launch.md](./play-store-launch.md).
+Play Console → **Mit Google Play geschützt** → **Google Play Store-Schutz** → **Play App-Signatur**.
 
-```bash
-eas credentials -p android
-# production → view keystore → copy SHA-1
-```
+Android OAuth clients (same package `com.fr4iser.shiftplan`), **one SHA-1 per client**:
 
-Add that SHA-1 **and** the Play Console “App signing key certificate” SHA-1 to the Android OAuth client.
+| Key | Where | SHA-1 |
+|-----|--------|-------|
+| **App signing (current)** | App-Signaturschlüssel → Klassischer Schlüssel | `FE:66:7A:65:A0:C8:88:DF:6D:84:CF:18:AF:4E:7B:54:A8:5A:DD:D6` |
+| **App signing (previous)** | Bisherige App-Signaturschlüssel — keep until devices update | `B9:DD:88:C2:67:39:52:46:A9:56:68:EA:8E:34:E9:FA:EC:DC:BB:CE` |
+| **Upload** (EAS AAB) | Zertifikat des Uploadschlüssels | `A3:3F:B7:3C:25:45:58:8D:6D:99:BA:61:FE:A3:E3:BA:D3:B1:29:D4` |
 
-If you later use a **dedicated release key** or **Play App Signing**, add that SHA-1 to the same Android client (or create another).
+Do **not** rotate Play app signing keys casually — Google Sign-In breaks until Cloud SHA-1s match. Register current **and** previous app-signing fingerprints while old installs remain.
+
+Also keep debug SHA-1 for local Dev Client builds (below).
+
+**App-Inhaberschaft bestätigen** in Cloud Console: optional / not required for Android OAuth clients.
 
 ## Build the app
 

@@ -145,9 +145,14 @@ export function GoogleSyncCard({
         if (!hasGoogleSession()) await connectGoogle();
         setGoogleEmail(getGoogleAccountEmail());
       }
+      const mapping =
+        snap.packId && snap.groupId && snap.areaId
+          ? getMappingForScope(snap.packId, snap.groupId, snap.areaId) || undefined
+          : undefined;
       const { created, deleted } = await syncEntriesToGoogle(resolvedEntries(), calendarId, {
         eventFormat: snap.eventFormat,
         source: 'settings',
+        packColors: mapping?.colors || null,
         onCalendarMissing: async (oldId) => {
           const next = await askRecreateGoogleCalendar(oldId);
           if (next) {

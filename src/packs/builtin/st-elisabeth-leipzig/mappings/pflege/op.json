@@ -50,7 +50,11 @@
       "18:05-19:35": { "code": "B41", "type": "oncall", "isValidated": true },
       "19:35-07:35": { "code": "B38", "type": "night", "isValidated": true },
       "19:50-07:35": { "code": "B39", "type": "night", "isValidated": true },
-      "07:30-15:45": { "code": "ST", "type": "work", "isValidated": true }
+      "07:30-15:45": { "code": "ST", "type": "work", "isValidated": true },
+      "SPECIAL:U": { "code": "U", "type": "special", "isValidated": true },
+      "SPECIAL:KRANK": { "code": "KRANK", "type": "special", "isValidated": true },
+      "SPECIAL:KROAU": { "code": "KROAU", "type": "special", "isValidated": true },
+      "SPECIAL:FEIERTAG": { "code": "FEIERTAG", "type": "special", "isValidated": true }
     },
     "OP-Pflege": {},
     "Schmerzdienst": {}
