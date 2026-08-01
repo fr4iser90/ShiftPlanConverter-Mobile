@@ -505,6 +505,20 @@ export async function upsertPayslip(doc: PayslipDocument): Promise<void> {
   notify();
 }
 
+/** Existing VN for payMonth (YYYY-MM) + optional workplace — or null. */
+export function findPayslip(
+  payMonth: string,
+  workplaceId?: string | null
+): PayslipDocument | null {
+  const wp = workplaceId || cache.activeWorkplaceId || '';
+  const match = cache.payslips.find((p) => {
+    if (p.payMonth !== payMonth) return false;
+    if (!wp) return true;
+    return !p.workplaceId || p.workplaceId === wp;
+  });
+  return match || null;
+}
+
 export async function setUserMappings(mappings: Record<string, string>): Promise<void> {
   cache = { ...cache, userMappings: mappings };
   await AsyncStorage.setItem(KEYS.userMappings, JSON.stringify(mappings));

@@ -3,7 +3,7 @@ import { AutomationBridge } from '../../bridge';
 import { extractTextFromPdfBuffer } from '@/src/convert/pdfText';
 import { isLikelyPayslipText, parsePayslipText } from '@/src/convert/parsers/engines/pdf-payslip';
 import type { PayslipDocument } from '@/src/payroll/types';
-import { upsertPayslip } from '@/src/state/store';
+import { upsertPayslip, findPayslip } from '@/src/state/store';
 import { base64ToArrayBuffer } from '../../pdfStore';
 import { waitForCondition, WaitTimeoutError } from '../../wait';
 import { pollAndroidDownloadsForPdf } from '../../androidDownloadPoll';
@@ -26,6 +26,8 @@ export type PayslipFetchOptions = {
 
 export type PayslipFetchResult = {
   imported: PayslipDocument[];
+  /** Already in store — kept, no re-download. */
+  kept: PayslipDocument[];
   errors: string[];
   skipped: string[];
 };
@@ -275,8 +277,28 @@ export async function runPayslipFetchJob(
   const sleep = opts.delay || ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const ctx: Ctx = { ...opts, sleep, jobT0: Date.now() };
   const imported: PayslipDocument[] = [];
+  const kept: PayslipDocument[] = [];
   const errors: string[] = [];
   const skipped: string[] = [];
+
+  const months = [...opts.months].filter((m) => m >= 1 && m <= 12).sort((a, b) => a - b);
+  const toFetch: number[] = [];
+
+  for (const month of months) {
+    const payMonth = `${opts.year}-${String(month).padStart(2, '0')}`;
+    const label = `${MONTH_LABELS_DE[month - 1] || month}/${opts.year}`;
+    const existing = findPayslip(payMonth, opts.workplaceId);
+    if (existing) {
+      kept.push(existing);
+      status(ctx, t('payrollLoga3AlreadyHave', { month: existing.payMonth }));
+      continue;
+    }
+    toFetch.push(month);
+  }
+
+  if (!toFetch.length) {
+    return { imported, kept, errors, skipped };
+  }
 
   try {
     await ensureLoggedIn(ctx);
@@ -285,12 +307,10 @@ export async function runPayslipFetchJob(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     appendDiag(`payslipFetch login/open: ${msg}`);
-    return { imported, errors: [msg], skipped };
+    return { imported, kept, errors: [msg], skipped };
   }
 
-  const months = [...opts.months].filter((m) => m >= 1 && m <= 12).sort((a, b) => a - b);
-
-  for (const month of months) {
+  for (const month of toFetch) {
     const label = `${MONTH_LABELS_DE[month - 1] || month}/${opts.year}`;
     try {
       await ensureDocsRoot(ctx);
@@ -333,5 +353,5 @@ export async function runPayslipFetchJob(
     }
   }
 
-  return { imported, errors, skipped };
+  return { imported, kept, errors, skipped };
 }

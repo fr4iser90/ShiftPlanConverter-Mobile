@@ -180,6 +180,9 @@ function makeFetchStyles(theme: AppTheme) {
       backgroundColor: theme.color.primary,
       borderColor: theme.color.primary,
     },
+    monthChipDisabled: {
+      opacity: 0.35,
+    },
     monthChipText: {
       fontSize: 13,
       fontWeight: '600',
@@ -883,7 +886,22 @@ export default function FetchScreen() {
     }
   };
 
+  /** Verdienst: current + future calendar months are not selectable (not closed yet). */
+  const payslipMonthLocked = useCallback(
+    (m: number, y: number = year) => {
+      if (loga3Job !== 'payslip') return false;
+      const now = new Date();
+      const cy = now.getFullYear();
+      const cm = now.getMonth() + 1;
+      if (y > cy) return true;
+      if (y < cy) return false;
+      return m >= cm;
+    },
+    [loga3Job, year]
+  );
+
   const toggleMonth = (m: number) => {
+    if (payslipMonthLocked(m)) return;
     setSelected((prev) => {
       const key = ymKey(m, year);
       if (prev.some((x) => ymKey(x.month, x.year) === key)) {
@@ -897,6 +915,14 @@ export default function FetchScreen() {
 
   const monthSelected = (m: number) =>
     selected.some((x) => x.month === m && x.year === year);
+
+  useEffect(() => {
+    if (loga3Job !== 'payslip') return;
+    setSelected((prev) => {
+      const next = prev.filter((x) => !payslipMonthLocked(x.month, x.year));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [loga3Job, year, payslipMonthLocked]);
 
   const onPayslipFetch = async () => {
     if (!setup?.complete || !creds) {
@@ -919,7 +945,7 @@ export default function FetchScreen() {
     try {
       await waitUntilReady();
       await warmBridge();
-      const { imported, errors, skipped } = await runPayslipFetchJob({
+      const { imported, kept, errors, skipped } = await runPayslipFetchJob({
         username: creds.username,
         password: creds.password,
         months: selected.map((s) => s.month),
@@ -929,22 +955,26 @@ export default function FetchScreen() {
         inject: (cmd) => webRef.current?.run(cmd),
         onStatus: setStatus,
       });
+      const totalOk = imported.length + kept.length;
       const parts = [
         imported.length
           ? t('payrollImportOk', { count: String(imported.length) })
+          : null,
+        kept.length
+          ? t('payrollLoga3KeptLine', { months: kept.map((p) => p.payMonth).join(', ') })
           : null,
         skipped.length
           ? t('payrollLoga3SkippedLine', { months: skipped.join(', ') })
           : null,
         errors.length
           ? t('payrollImportPartial', {
-              ok: String(imported.length),
+              ok: String(totalOk),
               fail: String(errors.length),
             }) + `\n${errors.slice(0, 3).join('\n')}`
           : null,
       ].filter(Boolean) as string[];
       setStatus(parts.join(' · ') || t('payrollLoga3Imported', { month: '—' }));
-      if (imported.length) {
+      if (totalOk) {
         setShowWeb(false);
         router.replace('/(tabs)/pruefung' as Href);
       }
@@ -1246,7 +1276,7 @@ export default function FetchScreen() {
         await waitUntilReady();
         await warmBridge();
         if (job === 'payslip') {
-          const { imported, errors, skipped } = await runPayslipFetchJob({
+          const { imported, kept, errors, skipped } = await runPayslipFetchJob({
             username: c.username,
             password: c.password,
             months,
@@ -1256,28 +1286,32 @@ export default function FetchScreen() {
             inject: (cmd) => webRef.current?.run(cmd),
             onStatus: setStatus,
           });
+          const totalOk = imported.length + kept.length;
           const parts = [
             imported.length
               ? t('payrollImportOk', { count: String(imported.length) })
+              : null,
+            kept.length
+              ? t('payrollLoga3KeptLine', { months: kept.map((p) => p.payMonth).join(', ') })
               : null,
             skipped.length
               ? t('payrollLoga3SkippedLine', { months: skipped.join(', ') })
               : null,
             errors.length
               ? t('payrollImportPartial', {
-                  ok: String(imported.length),
+                  ok: String(totalOk),
                   fail: String(errors.length),
                 }) + `\n${errors.slice(0, 3).join('\n')}`
               : null,
           ].filter(Boolean) as string[];
           const line = parts.join(' · ') || t('payrollImportOk', { count: '0' });
           setStatus(line);
-          if (errors.length && !imported.length) {
+          if (errors.length && !totalOk) {
             await setMatrixStatus(`MATRIX_FETCH_FAIL ${line}`);
           } else {
             await setMatrixStatus(`MATRIX_FETCH_PASS ${line}`);
           }
-          if (imported.length) {
+          if (totalOk) {
             setShowWeb(false);
             router.replace('/(tabs)/pruefung' as Href);
           }
@@ -1574,33 +1608,39 @@ export default function FetchScreen() {
                     {MONTHS.map((m) => {
                       const on = monthSelected(m);
                       const hasData = monthsWithData.has(m);
+                      const locked = payslipMonthLocked(m);
                       return (
                         <Pressable
                           key={m}
-                          disabled={busy}
+                          disabled={busy || locked}
                           onPress={() => toggleMonth(m)}
-                          accessibilityState={{ selected: on }}
+                          accessibilityState={{ selected: on, disabled: locked }}
                           accessibilityLabel={
-                            hasData
-                              ? `${String(m).padStart(2, '0')} · ${t('fetchMonthHasData')}`
-                              : String(m).padStart(2, '0')
+                            locked
+                              ? `${String(m).padStart(2, '0')} · ${t('payrollMonthNotClosed')}`
+                              : hasData
+                                ? `${String(m).padStart(2, '0')} · ${t('fetchMonthHasData')}`
+                                : String(m).padStart(2, '0')
                           }
                           style={[
                             styles.monthChip,
-                            hasData && !on && styles.monthChipHasData,
+                            hasData && !on && !locked && styles.monthChipHasData,
                             on && styles.monthChipOn,
+                            locked && styles.monthChipDisabled,
                           ]}
                         >
                           <Text
                             style={[
                               styles.monthChipText,
-                              hasData && !on && styles.monthChipTextHasData,
+                              hasData && !on && !locked && styles.monthChipTextHasData,
                               on && styles.monthChipTextOn,
                             ]}
                           >
                             {String(m).padStart(2, '0')}
                           </Text>
-                          {hasData ? <View style={[styles.monthDot, on && styles.monthDotOn]} /> : null}
+                          {hasData && !locked ? (
+                            <View style={[styles.monthDot, on && styles.monthDotOn]} />
+                          ) : null}
                         </Pressable>
                       );
                     })}
