@@ -8,6 +8,7 @@ export type OcrLayoutStatus = 'stub' | 'experimental' | 'ready';
 export type ConcreteOcrLayoutId =
   | 'month-matrix'
   | 'week-strip'
+  | 'date-duty'
   | 'list-protocol'
   | 'day-plan'
   | 'single-calendar';

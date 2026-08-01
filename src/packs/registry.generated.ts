@@ -2,7 +2,7 @@
 import type { PackMapping } from '../convert/types';
 import type { PayrollProfile } from '../payroll/types';
 import type { PackPdfConfig } from '../convert/parsers/engines';
-import type { PackOcrConfig, PackConfigJson } from './types';
+import type { PackOcrConfig, PackOcrScopeConfig, PackConfigJson } from './types';
 
 import config_default_generic from './builtin/default-generic/config.json';
 import ocr_default_generic from './builtin/default-generic/parsers/ocr.json';
@@ -22,6 +22,7 @@ import map_st_elisabeth_leipzig_mappings_service_station_standard_json from './b
 import map_st_elisabeth_leipzig_mappings_service_station_16_json from './builtin/st-elisabeth-leipzig/mappings/service/station-16.json';
 import map_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.json';
 import pay_st_elisabeth_leipzig_mappings_arzt_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/arzt/krankenhaus.payroll.json';
+import ocrp_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_ocr_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.ocr.json';
 
 export type PackRegistryEntry = {
   id: string;
@@ -30,6 +31,7 @@ export type PackRegistryEntry = {
   pdf: PackPdfConfig;
   mappingsByPath: Record<string, PackMapping>;
   payrollByPath: Record<string, PayrollProfile>;
+  ocrByPath: Record<string, PackOcrScopeConfig>;
 };
 
 export const PACK_REGISTRY: PackRegistryEntry[] = [
@@ -42,6 +44,9 @@ export const PACK_REGISTRY: PackRegistryEntry[] = [
     "mappings/generic.json": map_default_generic_mappings_generic_json as PackMapping,
     },
     payrollByPath: {
+
+    },
+    ocrByPath: {
 
     },
   },
@@ -64,6 +69,9 @@ export const PACK_REGISTRY: PackRegistryEntry[] = [
     "mappings/pflege/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_pflege_krankenhaus_payroll_json as PayrollProfile,
     "mappings/service/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_service_krankenhaus_payroll_json as PayrollProfile,
     "mappings/arzt/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_arzt_krankenhaus_payroll_json as PayrollProfile,
+    },
+    ocrByPath: {
+    "mappings/arzt/op-anaesthesie.ocr.json": ocrp_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_ocr_json as PackOcrScopeConfig,
     },
   }
 ];

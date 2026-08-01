@@ -4,7 +4,12 @@
  */
 import { File } from 'expo-file-system';
 
-import { extractTextFromPdfBuffer } from '../convert/pdfText';
+import {
+  extractLargestJpegFromPdf,
+  extractTextFromPdfBuffer,
+  isPdfTextEmptyError,
+} from '../convert/pdfText';
+import { writePdfPageJpegForOcr } from '../convert/pdfOcrImage';
 import { ingestArtifacts, type IngestResult } from './ingestArtifacts';
 import { classifyKindFromText, type DocumentKind } from './classifyKind';
 import { importPayslipFromUris } from '../payroll/importPayslip';
@@ -14,11 +19,21 @@ import { getSnapshot } from '../state/store';
 import type { SourceArtifact, SourcePeriod } from '../sources/types';
 import { t } from '../i18n';
 
+export type LocalOcrImage = {
+  uri: string;
+  name: string;
+};
+
 export type LocalClassifyResult = {
   shift: IngestResult | null;
   payslips: PayslipDocument[];
   errors: string[];
   cancelled: boolean;
+  /**
+   * Image-only PDFs (no text layer): page JPEG URIs for the OCR pipeline.
+   * Not a retry — text PDFs stay on the text path; these never had text.
+   */
+  ocrImages: LocalOcrImage[];
 };
 
 export type AskDocumentKind = (opts: {
@@ -70,7 +85,7 @@ export async function importLocalWithClassify(opts: {
   opts.onStatus?.(t('sourceLocalRunning'));
   const picked = await pickDocuments();
   if (picked.canceled || !picked.assets?.length) {
-    return { shift: null, payslips: [], errors: [], cancelled: true };
+    return { shift: null, payslips: [], errors: [], cancelled: true, ocrImages: [] };
   }
 
   const snap = getSnapshot();
@@ -87,6 +102,7 @@ export async function importLocalWithClassify(opts: {
 
   const shiftArtifacts: SourceArtifact[] = [];
   const payslipAssets: Array<{ uri: string; name?: string }> = [];
+  const ocrImages: LocalOcrImage[] = [];
   const errors: string[] = [];
 
   for (const asset of picked.assets) {
@@ -96,7 +112,21 @@ export async function importLocalWithClassify(opts: {
     try {
       if (mime.includes('pdf') || nameLower.endsWith('.pdf')) {
         const bytes = await readUriBytes(asset.uri);
-        const text = await extractTextFromPdfBuffer(toArrayBuffer(bytes));
+        let text = '';
+        try {
+          text = await extractTextFromPdfBuffer(toArrayBuffer(bytes));
+        } catch (e) {
+          if (!isPdfTextEmptyError(e)) throw e;
+          // Image PDF (scan / PaperPort): one path → embedded page → OCR.
+          const jpeg = extractLargestJpegFromPdf(bytes);
+          if (!jpeg) throw e;
+          opts.onStatus?.(t('sourceOcrFromPdf', { name }));
+          ocrImages.push({
+            uri: writePdfPageJpegForOcr(jpeg, name),
+            name,
+          });
+          continue;
+        }
         let kind = classifyKindFromText(text, {
           pdfConfig,
           mapping,
@@ -167,5 +197,5 @@ export async function importLocalWithClassify(opts: {
     });
   }
 
-  return { shift, payslips, errors, cancelled: false };
+  return { shift, payslips, errors, cancelled: false, ocrImages };
 }

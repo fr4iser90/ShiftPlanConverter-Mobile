@@ -8,6 +8,7 @@
  * - text-only = fallback/debug when structure is unclear — not a layout (see types)
  * Each concrete layout lives in its own file under this folder.
  */
+import { DATE_DUTY_LAYOUT } from './date-duty';
 import { DAY_PLAN_LAYOUT } from './day-plan';
 import { LIST_PROTOCOL_LAYOUT } from './list-protocol';
 import { MONTH_MATRIX_LAYOUT } from './month-matrix';
@@ -44,6 +45,7 @@ const AUTO_LAYOUT: OcrLayoutProfile = {
 export const CONCRETE_OCR_LAYOUTS: OcrLayoutProfile[] = [
   MONTH_MATRIX_LAYOUT,
   WEEK_STRIP_LAYOUT,
+  DATE_DUTY_LAYOUT,
   LIST_PROTOCOL_LAYOUT,
   DAY_PLAN_LAYOUT,
   SINGLE_CALENDAR_LAYOUT,

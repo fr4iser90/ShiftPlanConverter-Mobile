@@ -3,6 +3,7 @@ import { getOcrEngine, listOcrEngineIds, OCR_ROSTER_ENGINE_ID } from '../../src/
 import {
   getDefaultGenericPack,
   getOcrConfigForPack,
+  getOcrConfigForScope,
   getOcrEngineIdForPack,
   getPackById,
   getParserIdForPack,
@@ -28,7 +29,11 @@ describe('default-generic pack parsers', () => {
 
     const st = getPackById('st-elisabeth-leipzig');
     expect(getOcrEngineIdForPack(st)).toBe('ocr-roster');
-    expect(getOcrConfigForPack(st).preferredLayout).toBe('month-matrix');
+    expect(getOcrConfigForPack(st).preferredLayout).toBe('auto');
+    expect(getOcrConfigForScope(st, 'pflege').layouts).toEqual([
+      'month-matrix',
+      'week-strip',
+    ]);
     expect(getParserIdForPack(st)).toBe('pdf-payroll');
     expect(getPdfConfigForPack(st).engine).toBe('pdf-payroll');
   });

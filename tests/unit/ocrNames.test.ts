@@ -119,6 +119,28 @@ describe('OCR roster name detection', () => {
     expect(hit?.score).toBe(1);
   });
 
+  it('matches wall-plan titles (OA Dr. Surname) to Mein Name Last, First', () => {
+    const names = [
+      { id: 'oa dr persona', label: 'OA Dr. PersonA', yCenter: 40, height: 14 },
+      { id: 'frau personb', label: 'Frau PersonB', yCenter: 80, height: 14 },
+    ];
+    expect(isPlausiblePersonName('OA Dr. PersonA')).toBe(true);
+    expect(isPlausiblePersonName('Dr. PersonA')).toBe(true);
+    const hit = matchPreferredName('PersonA, Alpha', names);
+    expect(hit?.candidate.label).toBe('OA Dr. PersonA');
+    expect(hit!.score).toBeGreaterThanOrEqual(0.88);
+  });
+
+  it('does not auto-pick surname when two people share it', () => {
+    const names = [
+      { id: 'dr persona', label: 'Dr. PersonA', yCenter: 40, height: 14 },
+      { id: 'oa persona', label: 'OA PersonA', yCenter: 80, height: 14 },
+    ];
+    const hit = matchPreferredName('PersonA, Alpha', names);
+    // Both surname PersonA — keep below auto-skip threshold unless given names help.
+    expect(!hit || hit.score < 0.88).toBe(true);
+  });
+
   it('extracts header + person row strip', () => {
     const names = detectRosterNames(sample, pageWidth);
     const alice = names[0];

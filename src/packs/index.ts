@@ -8,17 +8,20 @@ import {
   SMOKE_DEFAULT_PACK_ID,
   type PackRegistryEntry,
 } from './registry.generated';
-import type { PackArea, PackConfig, PackOcrConfig } from './types';
+import type { PackArea, PackConfig, PackOcrConfig, PackOcrScopeConfig } from './types';
 import { expandPackAreas } from './expandAreas';
 
 export type {
   PackArea,
   PackConfig,
   PackConfigJson,
+  PackDateDutyColumn,
+  PackDateDutyConfig,
   PackGroup,
   PackOcrConfig,
+  PackOcrScopeConfig,
 } from './types';
-export type { PackAreaEntry, PackAreaSeries } from './expandAreas';
+export type { PackAreaEntry, PackAreaOcr, PackAreaSeries } from './expandAreas';
 export type { PackPdfConfig };
 
 export const DEFAULT_GENERIC_PACK_ID = 'default-generic';
@@ -135,14 +138,98 @@ export function getOcrEngineIdForPack(pack: PackConfig | null | undefined): stri
   return pack?.ocr?.engine?.trim() || DEFAULT_OCR_ENGINE_ID;
 }
 
-export function getOcrConfigForPack(pack: PackConfig | null | undefined): PackOcrConfig {
-  return (
-    pack?.ocr || {
-      engine: DEFAULT_OCR_ENGINE_ID,
-      preferredLayout: 'auto',
-      usePackMapping: true,
+function packOcrBase(raw: PackOcrConfig | undefined): PackOcrScopeConfig & { engine: string } {
+  const engine = raw?.engine?.trim() || DEFAULT_OCR_ENGINE_ID;
+  if (!raw) {
+    return { engine, preferredLayout: 'auto', usePackMapping: true };
+  }
+  const hasScoped = !!(raw.default || (raw.byGroup && Object.keys(raw.byGroup).length));
+  if (!hasScoped) {
+    return {
+      engine,
+      preferredLayout: raw.preferredLayout,
+      layouts: raw.layouts,
+      usePackMapping: raw.usePackMapping !== false,
+      dateDuty: raw.dateDuty,
+    };
+  }
+  const base: PackOcrScopeConfig = { ...(raw.default || {}) };
+  if (raw.usePackMapping !== undefined && base.usePackMapping === undefined) {
+    base.usePackMapping = raw.usePackMapping;
+  }
+  return {
+    engine,
+    preferredLayout: base.preferredLayout ?? 'auto',
+    layouts: base.layouts,
+    usePackMapping: base.usePackMapping !== false,
+    dateDuty: base.dateDuty,
+  };
+}
+
+/**
+ * Resolve OCR for active workplace:
+ * 1) pack `parsers/ocr.json` (shared engine + default layouts)
+ * 2) optional `byGroup[groupId]` overlay
+ * 3) area `ocr.profile` (e.g. mappings/arzt/*.ocr.json) — like payroll.profile
+ */
+export function getOcrConfigForScope(
+  pack: PackConfig | null | undefined,
+  groupId?: string | null,
+  areaId?: string | null
+): PackOcrConfig {
+  const raw = pack?.ocr;
+  let merged = packOcrBase(raw);
+
+  const gid = String(groupId || '').trim();
+  if (raw?.byGroup?.[gid]) {
+    const g = raw.byGroup[gid];
+    merged = {
+      ...merged,
+      ...g,
+      usePackMapping:
+        g.usePackMapping !== undefined
+          ? g.usePackMapping !== false
+          : merged.usePackMapping !== false,
+      dateDuty: g.dateDuty !== undefined ? g.dateDuty : merged.dateDuty,
+    };
+  }
+
+  const aid = String(areaId || '').trim();
+  if (pack?.id && gid && aid) {
+    const area = pack.groups
+      .find((g) => g.id === gid)
+      ?.areas.find((a) => a.id === aid);
+    const ocrPath = area?.ocr?.profile?.trim();
+    if (ocrPath) {
+      const entry = entryById(pack.id);
+      const areaScope = entry?.ocrByPath?.[ocrPath];
+      if (areaScope) {
+        merged = {
+          ...merged,
+          ...areaScope,
+          usePackMapping:
+            areaScope.usePackMapping !== undefined
+              ? areaScope.usePackMapping !== false
+              : merged.usePackMapping !== false,
+          dateDuty:
+            areaScope.dateDuty !== undefined ? areaScope.dateDuty : merged.dateDuty,
+        };
+      }
     }
-  );
+  }
+
+  return {
+    engine: merged.engine,
+    preferredLayout: merged.preferredLayout ?? 'auto',
+    layouts: merged.layouts,
+    usePackMapping: merged.usePackMapping !== false,
+    dateDuty: merged.dateDuty,
+  };
+}
+
+/** Pack-level OCR (no group) — uses `default` / flat legacy. Prefer `getOcrConfigForScope`. */
+export function getOcrConfigForPack(pack: PackConfig | null | undefined): PackOcrConfig {
+  return getOcrConfigForScope(pack, null, null);
 }
 
 /** Product-safe default when no pack / empty preferred. */

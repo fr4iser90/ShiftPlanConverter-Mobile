@@ -57,6 +57,7 @@ describe('OCR layouts', () => {
       'auto',
       'month-matrix',
       'week-strip',
+      'date-duty',
       'list-protocol',
       'day-plan',
       'single-calendar',
@@ -68,9 +69,10 @@ describe('OCR layouts', () => {
     expect(isOcrTextOnlyFallback(OCR_TEXT_ONLY_FALLBACK)).toBe(true);
   });
 
-  it('marks auto/month/week experimental; others stub; text-only is not a layout', () => {
+  it('marks auto/month/week/date-duty experimental; others stub; text-only is not a layout', () => {
     expect(requireOcrLayout('auto').status).toBe('experimental');
     expect(requireOcrLayout('month-matrix').status).toBe('experimental');
+    expect(requireOcrLayout('date-duty').status).toBe('experimental');
     expect(requireOcrLayout('list-protocol').status).toBe('stub');
     expect(requireOcrLayout('week-strip').status).toBe('experimental');
     expect(requireOcrLayout('day-plan').status).toBe('stub');

@@ -2,7 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as zlib from 'zlib';
 
-import { extractTextFromPdfBuffer, tokensToLoga3Text } from '../../src/convert/pdfText';
+import {
+  extractJpegImagesFromPdf,
+  extractLargestJpegFromPdf,
+  extractTextFromPdfBuffer,
+  isPdfTextEmptyError,
+  tokensToLoga3Text,
+} from '../../src/convert/pdfText';
 
 function ascii(s: string): Uint8Array {
   const u = new Uint8Array(s.length);
@@ -77,6 +83,46 @@ describe('pdfText hybrid LOGA3', () => {
   it('tokensToLoga3Text keeps month header', () => {
     const rebuilt = tokensToLoga3Text(['Abrechnungsmonat', '08/2026', 'Zeitabrechnung', '01', 'Mo', 'KO*FD']);
     expect(rebuilt).toContain('Abrechnungsmonat 08/2026');
+  });
+
+  it('extracts DCTDecode JPEG from image-only PDF (OCR route)', async () => {
+    const jpeg = new Uint8Array([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+      0x00, 0x01, 0x00, 0x00, 0xff, 0xd9,
+    ]);
+    const imgDict =
+      `4 0 obj<< /Type /XObject /Subtype /Image /Width 10 /Height 8 /BitsPerComponent 8 ` +
+      `/ColorSpace /DeviceRGB /Filter /DCTDecode /Length ${jpeg.length} >>stream\n`;
+    const pdf = concat(
+      ascii('%PDF-1.4\n'),
+      ascii('1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n'),
+      ascii('2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n'),
+      ascii(
+        '3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] ' +
+          '/Resources << /XObject << /Im0 4 0 R >> >> >>endobj\n'
+      ),
+      ascii(imgDict),
+      jpeg,
+      ascii('\nendstream\nendobj\ntrailer<< /Root 1 0 R >>\n%%EOF\n')
+    );
+
+    await expect(extractTextFromPdfBuffer(toAb(pdf))).rejects.toMatchObject({
+      code: 'PDF_TEXT_EMPTY',
+    });
+    try {
+      await extractTextFromPdfBuffer(toAb(pdf));
+    } catch (e) {
+      expect(isPdfTextEmptyError(e)).toBe(true);
+    }
+
+    const imgs = extractJpegImagesFromPdf(pdf);
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]!.width).toBe(10);
+    expect(imgs[0]!.height).toBe(8);
+    expect(imgs[0]!.bytes[0]).toBe(0xff);
+    expect(imgs[0]!.bytes[1]).toBe(0xd8);
+    const largest = extractLargestJpegFromPdf(pdf);
+    expect(largest?.length).toBe(jpeg.length);
   });
 
   it('extracts real REPTIP hybrid PDF when present', async () => {

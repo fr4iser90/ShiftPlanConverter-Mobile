@@ -1,11 +1,18 @@
 import type { PackAreaPayroll } from '../payroll/types';
 
+/** Area OCR extras (layouts / dateDuty) — path under pack, like payroll.profile. */
+export type PackAreaOcr = {
+  profile: string;
+};
+
 export type PackArea = {
   id: string;
   label: string;
   mapping: string;
   supported: boolean;
   defaultPreset?: string;
+  /** Optional OCR scope JSON (e.g. mappings/arzt/*.ocr.json). */
+  ocr?: PackAreaOcr;
   /** Optional Abrechnungsprüfer — omit or supported:false = feature off. */
   payroll?: PackAreaPayroll;
 };
@@ -24,6 +31,7 @@ export type PackAreaSeries = {
     mapping: string;
     supported: boolean;
     defaultPreset?: string;
+    ocr?: PackAreaOcr;
     payroll?: PackAreaPayroll;
     /** Per-index overrides (`"16": { label, mapping, … }`). */
     overrides?: Record<string, Partial<PackArea>>;
@@ -61,6 +69,7 @@ export function expandPackAreas(entries: PackAreaEntry[]): PackArea[] {
         mapping: ovr.mapping || e.mapping,
         supported: ovr.supported ?? e.supported,
         defaultPreset: ovr.defaultPreset ?? e.defaultPreset,
+        ocr: ovr.ocr ?? e.ocr,
         payroll: ovr.payroll ?? e.payroll,
       });
     }

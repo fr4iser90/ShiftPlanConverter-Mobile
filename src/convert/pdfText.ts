@@ -133,6 +133,28 @@ function dictBeforeStream(pdf: Uint8Array, streamPos: number): string {
  * Byte-scan stream bodies. Do NOT regex [\s\S]*? over a latin1 copy of the whole PDF —
  * that burned ~30–40s per month on Hermes (UI still showed savePdf).
  */
+function streamBodyAt(
+  pdf: Uint8Array,
+  streamKeywordPos: number
+): { body: Uint8Array; nextPos: number } | null {
+  let dataStart = streamKeywordPos + 6;
+  if (pdf[dataStart] === 0x0d) dataStart++;
+  if (pdf[dataStart] === 0x0a) dataStart++;
+  const e = indexOfAscii(pdf, 'endstream', dataStart);
+  if (e < 0) return null;
+  let end = e;
+  while (
+    end > dataStart &&
+    (pdf[end - 1] === 0x0a || pdf[end - 1] === 0x0d || pdf[end - 1] === 0x20)
+  ) {
+    end--;
+  }
+  return {
+    body: end > dataStart ? pdf.subarray(dataStart, end) : pdf.subarray(dataStart, dataStart),
+    nextPos: e + 9,
+  };
+}
+
 function findStreams(pdf: Uint8Array): { body: Uint8Array; flate: boolean }[] {
   const out: { body: Uint8Array; flate: boolean }[] = [];
   let pos = 0;
@@ -147,27 +169,86 @@ function findStreams(pdf: Uint8Array): { body: Uint8Array; flate: boolean }[] {
     const dict = dictBeforeStream(pdf, s);
     if (isImageStreamDict(dict)) {
       // Advance past this stream body without treating image bytes as content.
-      let dataStart = s + 6;
-      if (pdf[dataStart] === 0x0d) dataStart++;
-      if (pdf[dataStart] === 0x0a) dataStart++;
-      const eImg = indexOfAscii(pdf, 'endstream', dataStart);
-      pos = eImg < 0 ? s + 6 : eImg + 9;
+      const skipped = streamBodyAt(pdf, s);
+      pos = skipped ? skipped.nextPos : s + 6;
       continue;
     }
     const flate = /\/FlateDecode\b/.test(dict);
-    let dataStart = s + 6;
-    if (pdf[dataStart] === 0x0d) dataStart++;
-    if (pdf[dataStart] === 0x0a) dataStart++;
-    const e = indexOfAscii(pdf, 'endstream', dataStart);
-    if (e < 0) break;
-    let end = e;
-    while (end > dataStart && (pdf[end - 1] === 0x0a || pdf[end - 1] === 0x0d || pdf[end - 1] === 0x20)) {
-      end--;
-    }
-    if (end > dataStart) out.push({ body: pdf.subarray(dataStart, end), flate });
-    pos = e + 9;
+    const got = streamBodyAt(pdf, s);
+    if (!got) break;
+    if (got.body.length) out.push({ body: got.body, flate });
+    pos = got.nextPos;
   }
   return out;
+}
+
+export type PdfEmbeddedJpeg = {
+  bytes: Uint8Array;
+  width: number | null;
+  height: number | null;
+};
+
+function isJpegBytes(u8: Uint8Array): boolean {
+  return u8.length >= 4 && u8[0] === 0xff && u8[1] === 0xd8;
+}
+
+/**
+ * Embedded page JPEGs (DCTDecode /Image). Hermes-safe byte scan — no pdf.js.
+ * Used when text extract is empty: route the page image into OCR.
+ */
+export function extractJpegImagesFromPdf(pdfIn: Uint8Array): PdfEmbeddedJpeg[] {
+  let pdf = pdfIn;
+  if (pdf.length >= 5 && pdf[0] !== 0x25) {
+    let offset = -1;
+    const lim = Math.min(pdf.length - 5, 2048);
+    for (let i = 0; i < lim; i++) {
+      if (pdf[i] === 0x25 && pdf[i + 1] === 0x50 && pdf[i + 2] === 0x44 && pdf[i + 3] === 0x46) {
+        offset = i;
+        break;
+      }
+    }
+    if (offset > 0) pdf = pdf.subarray(offset);
+  }
+  const out: PdfEmbeddedJpeg[] = [];
+  let pos = 0;
+  while (pos < pdf.length) {
+    const s = indexOfAscii(pdf, 'stream', pos);
+    if (s < 0) break;
+    if (s >= 3 && pdf[s - 3] === 0x65 && pdf[s - 2] === 0x6e && pdf[s - 1] === 0x64) {
+      pos = s + 6;
+      continue;
+    }
+    const dict = dictBeforeStream(pdf, s);
+    const got = streamBodyAt(pdf, s);
+    if (!got) break;
+    pos = got.nextPos;
+    if (!isImageStreamDict(dict)) continue;
+    if (!/\/DCTDecode\b/.test(dict) && !/\/Filter\s*\[\s*\/DCTDecode\b/.test(dict)) continue;
+    if (!isJpegBytes(got.body)) continue;
+    const wm = dict.match(/\/Width\s+(\d+)/);
+    const hm = dict.match(/\/Height\s+(\d+)/);
+    out.push({
+      bytes: got.body.slice(),
+      width: wm ? Number(wm[1]) : null,
+      height: hm ? Number(hm[1]) : null,
+    });
+  }
+  out.sort((a, b) => b.bytes.length - a.bytes.length);
+  return out;
+}
+
+/** Largest embedded JPEG, or null. */
+export function extractLargestJpegFromPdf(pdf: Uint8Array): Uint8Array | null {
+  const imgs = extractJpegImagesFromPdf(pdf);
+  return imgs[0]?.bytes || null;
+}
+
+export function isPdfTextEmptyError(e: unknown): boolean {
+  return (
+    !!e &&
+    typeof e === 'object' &&
+    (e as { code?: string }).code === 'PDF_TEXT_EMPTY'
+  );
 }
 
 const WEEKDAY = /^(Mo|Di|Mi|Do|Fr|Sa|So)$/i;

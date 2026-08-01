@@ -61,6 +61,18 @@
                     },
                     "supported": { "type": "boolean" },
                     "defaultPreset": { "type": "string" },
+                    "ocr": {
+                      "type": "object",
+                      "description": "Optional area OCR extras (layouts / dateDuty), like payroll.profile",
+                      "additionalProperties": false,
+                      "required": ["profile"],
+                      "properties": {
+                        "profile": {
+                          "type": "string",
+                          "description": "Relative path to *.ocr.json under this pack (e.g. mappings/arzt/…)"
+                        }
+                      }
+                    },
                     "payroll": {
                       "type": "object",
                       "description": "Optional Abrechnungsprüfer profile (omit = feature off for this area)",
@@ -94,6 +106,14 @@
                         "mapping": { "type": "string" },
                         "supported": { "type": "boolean" },
                         "defaultPreset": { "type": "string" },
+                        "ocr": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["profile"],
+                          "properties": {
+                            "profile": { "type": "string" }
+                          }
+                        },
                         "payroll": {
                           "type": "object",
                           "additionalProperties": false,
@@ -114,6 +134,7 @@
                               "mapping": { "type": "string" },
                               "supported": { "type": "boolean" },
                               "defaultPreset": { "type": "string" },
+                              "ocr": { "type": "object" },
                               "payroll": { "type": "object" }
                             }
                           }
@@ -130,6 +151,60 @@
     }
   },
   "$defs": {
+    "ocrScope": {
+      "title": "OCR options for one pack group (or default)",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferredLayout": {
+          "type": "string",
+          "description": "auto or a concrete layout id from sources/ocr/layouts"
+        },
+        "layouts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "usePackMapping": {
+          "type": "boolean",
+          "default": true
+        },
+        "dateDuty": {
+          "type": "object",
+          "description": "Pack vocabulary for OCR layout date-duty (dates × duty columns)",
+          "additionalProperties": false,
+          "required": ["columns"],
+          "properties": {
+            "boardMarkers": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "roleSuffixes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "columns": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["id", "match"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "short": { "type": "string" },
+                  "label": { "type": "string" },
+                  "match": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "minItems": 1
+                  },
+                  "matchAll": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "ocrConfig": {
       "title": "Pack OCR config (parsers/ocr.json)",
       "type": "object",
@@ -143,7 +218,7 @@
         },
         "preferredLayout": {
           "type": "string",
-          "description": "auto or a concrete layout id from sources/ocr/layouts"
+          "description": "Legacy flat: auto or concrete layout id"
         },
         "layouts": {
           "type": "array",
@@ -152,6 +227,13 @@
         "usePackMapping": {
           "type": "boolean",
           "default": true
+        },
+        "dateDuty": { "$ref": "#/$defs/ocrScope/properties/dateDuty" },
+        "default": { "$ref": "#/$defs/ocrScope" },
+        "byGroup": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ocrScope" },
+          "description": "OCR options keyed by pack group id (pflege, arzt, …)"
         }
       }
     },

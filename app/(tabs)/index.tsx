@@ -23,7 +23,7 @@ import { resolveStoredEntries } from '@/src/convert/pipeline';
 import {
   getMappingForScope,
   getPackById,
-  getOcrConfigForPack,
+  getOcrConfigForScope,
   getOcrEngineIdForPack,
   getPreferredSourceId,
   isPayrollSupportedForScope,
@@ -67,7 +67,12 @@ import {
   DEFAULT_OCR_LAYOUT_ID,
   type OcrLayoutId,
 } from '@/src/sources/ocr/layouts';
-import { listOcrLayoutsForPack, packPreferredLayoutId } from '@/src/sources/ocr/packLayouts';
+import {
+  listOcrLayoutsForPack,
+  packAllowedConcreteLayouts,
+  packPreferredLayoutId,
+} from '@/src/sources/ocr/packLayouts';
+import { isConcreteOcrLayout } from '@/src/sources/ocr/layouts';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
 import {
   loadOcrPreferredName,
@@ -380,11 +385,22 @@ export default function FetchScreen() {
     () => (snap.packId ? getPackById(snap.packId) : null),
     [snap.packId]
   );
-  const ocrConfig = useMemo(() => getOcrConfigForPack(pack), [pack]);
+  const ocrConfig = useMemo(
+    () => getOcrConfigForScope(pack, snap.groupId, snap.areaId),
+    [pack, snap.groupId, snap.areaId]
+  );
   const ocrLayouts = useMemo(
     () => listOcrLayoutsForPack(ocrConfig, ocrLayoutId),
     [ocrConfig, ocrLayoutId]
   );
+  // Group switch (Pflege ↔ Arzt): drop layouts the new scope does not offer.
+  useEffect(() => {
+    if (!isConcreteOcrLayout(ocrLayoutId)) return;
+    const allowed = packAllowedConcreteLayouts(ocrConfig);
+    if (allowed.includes(ocrLayoutId)) return;
+    setOcrLayoutId(DEFAULT_OCR_LAYOUT_ID);
+    void saveOcrLayoutId(DEFAULT_OCR_LAYOUT_ID);
+  }, [ocrConfig, ocrLayoutId]);
   const sources = useMemo(() => listSourcesForPack(pack), [pack]);
   const payrollSupported = useMemo(
     () => isPayrollSupportedForScope(snap.packId, snap.groupId, snap.areaId),
@@ -473,7 +489,9 @@ export default function FetchScreen() {
       setYear(new Date().getFullYear());
     }
     const savedLayout = await loadOcrLayoutId();
-    const packPref = packPreferredLayoutId(getOcrConfigForPack(packNow));
+    const packPref = packPreferredLayoutId(
+      getOcrConfigForScope(packNow, getSnapshot().groupId, getSnapshot().areaId)
+    );
     if (
       packPref &&
       packPref !== 'auto' &&
@@ -636,6 +654,7 @@ export default function FetchScreen() {
       }
       const shiftCount = result.shift?.fetchedCount || 0;
       const payCount = result.payslips.length;
+      const ocrImages = result.ocrImages || [];
       const parts = [
         shiftCount || payCount
           ? t('sourceImportMixedOk', { shifts: shiftCount, payslips: payCount })
@@ -649,6 +668,19 @@ export default function FetchScreen() {
             })
           : null,
       ].filter(Boolean);
+      // Image-only PDF → same OCR path as Galerie (page JPEG already extracted).
+      if (ocrImages.length) {
+        setBusy(false);
+        if (parts.length) {
+          setStatus(parts.join(' · '));
+          Alert.alert(t('sourceLocalDone'), parts.join('\n'));
+        }
+        for (const img of ocrImages) {
+          setStatus(t('sourceOcrFromPdf', { name: img.name }));
+          await onCameraOcr('gallery', img.uri);
+        }
+        return;
+      }
       setStatus(parts.join(' · ') || t('sourceLocalDone'));
       if (payCount > 0 && payrollSupported) {
         router.replace('/(tabs)/pruefung' as Href);

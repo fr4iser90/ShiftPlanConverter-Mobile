@@ -4,7 +4,12 @@
  */
 import { t } from '../i18n';
 import { getOcrEngine } from '../convert/parsers/ocr';
-import { getMappingForScope, getPackById, getOcrEngineIdForPack, getOcrConfigForPack } from '../packs';
+import {
+  getMappingForScope,
+  getPackById,
+  getOcrEngineIdForPack,
+  getOcrConfigForScope,
+} from '../packs';
 import { loadOcrLayoutId } from '../state/ocrLayout';
 import {
   loadOcrPreferredName,
@@ -40,6 +45,7 @@ import { detectOcrLayout, mergeLayoutDetections } from './ocr/detectLayout';
 import { analyzeLayoutUncertainty } from './ocr/layoutUncertainty';
 import { packAllowedConcreteLayouts } from './ocr/packLayouts';
 import { captureAutoSnapshots, type OcrRegionSnapshot } from './ocr/regionSnapshots';
+import { buildDateDutyGrid } from './ocr/layouts/date-duty';
 import { buildWeekStripGrid } from './ocr/layouts/week-strip';
 import type { ConcreteOcrLayoutId } from './ocr/layouts/types';
 import type {
@@ -354,15 +360,22 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
     let layoutScore: number | null = null;
     const snapEarly = getSnapshot();
     const packEarly = getPackById(snapEarly.packId);
-    const ocrConfigEarly = getOcrConfigForPack(packEarly);
+    const ocrConfigEarly = getOcrConfigForScope(
+      packEarly,
+      snapEarly.groupId,
+      snapEarly.areaId
+    );
     const allowedLayouts = packAllowedConcreteLayouts(ocrConfigEarly);
 
     if (isAutoOcrLayout(requestedLayoutId)) {
-      const textDet = detectOcrLayout({
-        text: ocr.text,
-        lines: ocr.lines,
-        pageWidth: ocr.pageWidth,
-      });
+      const textDet = detectOcrLayout(
+        {
+          text: ocr.text,
+          lines: ocr.lines,
+          pageWidth: ocr.pageWidth,
+        },
+        { dateDuty: ocrConfigEarly.dateDuty }
+      );
       // Zero out layouts the pack does not offer.
       for (const id of Object.keys(textDet.scores) as ConcreteOcrLayoutId[]) {
         if (!allowedLayouts.includes(id)) textDet.scores[id] = 0;
@@ -435,7 +448,10 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       });
     }
 
-    const isMatrixLayout = layoutId === 'month-matrix' || layoutId === 'week-strip';
+    const isMatrixLayout =
+      layoutId === 'month-matrix' ||
+      layoutId === 'week-strip' ||
+      layoutId === 'date-duty';
 
     // Text-only fallback: trim OCR text — no structure parser.
     if (isOcrTextOnlyFallback(layoutId)) {
@@ -456,9 +472,12 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       line:
         layoutId === 'week-strip'
           ? t('sourceOcrStatusBuildingWeek')
-          : t('sourceOcrStatusBuildingMatrix'),
+          : layoutId === 'date-duty'
+            ? t('sourceOcrStatusBuildingDateDuty')
+            : t('sourceOcrStatusBuildingMatrix'),
     });
     let workingLines: OcrLine[] = ocr.lines;
+    const dateDutyCfg = ocrConfigEarly.dateDuty;
 
     async function latticeForPage(
       imageUri: string,
@@ -522,6 +541,12 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       pageH?: number
     ): MonthMatrixGrid {
       if (layoutId === 'week-strip') return buildWeekStripGrid(lines, pageW);
+      if (layoutId === 'date-duty') {
+        return buildDateDutyGrid(lines, pageW, {
+          pageHeight: pageH,
+          dateDuty: dateDutyCfg,
+        });
+      }
       const rectifier =
         pageH && pageH > 0
           ? buildPerspectiveRectifier(lines, pageW, pageH, lattice || null)
@@ -777,7 +802,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       // Pack OCR JSON → shared engine; codes/times from mapping JSON.
       const snap = getSnapshot();
       const pack = getPackById(snap.packId);
-      const ocrConfig = getOcrConfigForPack(pack);
+      const ocrConfig = getOcrConfigForScope(pack, snap.groupId, snap.areaId);
       const ocrEngine = getOcrEngine(getOcrEngineIdForPack(pack));
       const packMapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
       const presetMap = packMapping?.presets?.[snap.preset] ?? null;

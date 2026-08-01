@@ -133,6 +133,9 @@
           "mapping": "mappings/arzt/op-anaesthesie.json",
           "supported": true,
           "defaultPreset": "Anästhesie",
+          "ocr": {
+            "profile": "mappings/arzt/op-anaesthesie.ocr.json"
+          },
           "payroll": {
             "supported": true,
             "profile": "mappings/arzt/krankenhaus.payroll.json"
@@ -144,6 +147,9 @@
           "mapping": "mappings/arzt/op-anaesthesie.json",
           "supported": false,
           "defaultPreset": "Anästhesie",
+          "ocr": {
+            "profile": "mappings/arzt/op-anaesthesie.ocr.json"
+          },
           "payroll": {
             "supported": true,
             "profile": "mappings/arzt/krankenhaus.payroll.json"

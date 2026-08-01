@@ -5,7 +5,9 @@
  * Never “month failed → try list → try week”.
  * Weak score → text-only fallback (not a layout).
  */
+import type { PackDateDutyConfig } from '@/src/packs/types';
 import type { OcrLine } from './recognize';
+import { scoreDateDuty } from './layouts/date-duty';
 import { scoreDayPlan } from './layouts/day-plan';
 import type { ImageLayoutDetection } from './layouts/detectFromImage';
 import { scoreListProtocol } from './layouts/list-protocol';
@@ -75,15 +77,20 @@ function asDetection(
 
 /**
  * Detect layout from one OCR result (text/geometry). Prefer image-first when available.
+ * `dateDuty` from pack `parsers/ocr.json` — without it, date-duty scores 0.
  */
-export function detectOcrLayout(ocr: {
-  text: string;
-  lines: OcrLine[];
-  pageWidth: number;
-}): OcrLayoutDetection {
+export function detectOcrLayout(
+  ocr: {
+    text: string;
+    lines: OcrLine[];
+    pageWidth: number;
+  },
+  opts?: { dateDuty?: PackDateDutyConfig | null }
+): OcrLayoutDetection {
   const scores: Record<ConcreteOcrLayoutId, number> = {
     'month-matrix': scoreMonthMatrix(ocr.lines, ocr.pageWidth),
     'week-strip': scoreWeekStrip(ocr.text, ocr.lines, ocr.pageWidth),
+    'date-duty': scoreDateDuty(ocr.text, ocr.lines, ocr.pageWidth, opts?.dateDuty),
     'list-protocol': scoreListProtocol(ocr.text),
     'day-plan': scoreDayPlan(ocr.text),
     'single-calendar': scoreSingleCalendar(ocr.text, ocr.lines),
@@ -91,55 +98,66 @@ export function detectOcrLayout(ocr: {
   return asDetection(scores, 'ocr-text');
 }
 
+function emptyScores(): Record<ConcreteOcrLayoutId, number> {
+  return {
+    'month-matrix': 0,
+    'week-strip': 0,
+    'date-duty': 0,
+    'list-protocol': 0,
+    'day-plan': 0,
+    'single-calendar': 0,
+  };
+}
+
 /**
  * Merge image lattice scores with OCR-text scores (max per id).
- * Image-only confident month-matrix wins even when OCR text is garbage.
+ *
+ * Ruled tables look alike in pixels (month-matrix vs date-duty). When OCR text
+ * is available, always max-merge — do not let image alone lock month-matrix.
+ * Garbage OCR (text-only / ~0 structural scores) still loses to a strong image.
  */
 export function mergeLayoutDetections(
   image: ImageLayoutDetection | null | undefined,
   ocrText: OcrLayoutDetection | null | undefined
 ): OcrLayoutDetection {
-  if (image && image.layoutId !== OCR_TEXT_ONLY_FALLBACK && image.score >= OCR_LAYOUT_AUTO_MIN_SCORE) {
-    // Image structure is authoritative when confident.
-    return {
-      layoutId: image.layoutId,
-      score: image.score,
-      scores: image.scores,
-      source: 'image',
-      reason: image.reason,
-    };
-  }
-
-  if (!ocrText && image) {
-    return {
-      layoutId: image.layoutId,
-      score: image.score,
-      scores: image.scores,
-      source: 'image',
-      reason: image.reason,
-    };
-  }
-
   if (!image && ocrText) return { ...ocrText, source: ocrText.source || 'ocr-text' };
+  if (image && !ocrText) {
+    return {
+      layoutId: image.layoutId,
+      score: image.score,
+      scores: image.scores,
+      source: 'image',
+      reason: image.reason,
+    };
+  }
   if (!image || !ocrText) {
     return {
       layoutId: OCR_TEXT_ONLY_FALLBACK,
       score: 0,
-      scores: {
-        'month-matrix': 0,
-        'week-strip': 0,
-        'list-protocol': 0,
-        'day-plan': 0,
-        'single-calendar': 0,
-      },
+      scores: emptyScores(),
       source: 'merged',
       reason: 'no image/ocr layout signal → text-only',
     };
   }
 
-  const scores: Record<ConcreteOcrLayoutId, number> = { ...ocrText.scores };
+  const scores: Record<ConcreteOcrLayoutId, number> = { ...emptyScores(), ...ocrText.scores };
   for (const id of Object.keys(image.scores) as ConcreteOcrLayoutId[]) {
     scores[id] = Math.max(scores[id] || 0, image.scores[id] || 0);
   }
-  return asDetection(scores, 'merged', `merged image+ocr`);
+  const det = asDetection(scores, 'merged', 'merged image+ocr');
+
+  // Preserve image attribution when OCR added no structural signal.
+  if (
+    ocrText.layoutId === OCR_TEXT_ONLY_FALLBACK &&
+    image.layoutId !== OCR_TEXT_ONLY_FALLBACK &&
+    image.score >= OCR_LAYOUT_AUTO_MIN_SCORE &&
+    det.layoutId === image.layoutId
+  ) {
+    return {
+      ...det,
+      source: 'image',
+      reason: image.reason,
+    };
+  }
+  return det;
 }

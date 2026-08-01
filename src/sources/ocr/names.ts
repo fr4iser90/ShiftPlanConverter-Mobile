@@ -72,6 +72,14 @@ export function isPlausiblePersonName(label: string): boolean {
   if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{1,20}\.,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,30}$/.test(t)) {
     return true;
   }
+  // Wall plans: "Dr. Muster", "OA Dr. Muster", "Frau Muster"
+  if (
+    /^(?:(?:OA|FA|CA|Prof\.?|Dr\.?|Frau|Herr|Hr\.?|Fr\.?)\s+)+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,40}$/.test(
+      t
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -188,17 +196,79 @@ export type NameMatch = {
   score: number;
 };
 
-/** Last-name token (before comma), normalized. */
+/** DE/medical honorifics — strip before surname / match (OA Dr. Zeuner ↔ Zeuner, Thomas). */
+const NAME_TITLE_TOKENS = new Set([
+  'dr',
+  'med',
+  'oa',
+  'fa',
+  'ca',
+  'prof',
+  'frau',
+  'herr',
+  'hr',
+  'fr',
+  'dipl',
+  'ing',
+  'phd',
+  'mr',
+  'mrs',
+  'ms',
+  'doktor',
+  'dent',
+]);
+
+function stripTitleTokens(normalized: string): string {
+  const keepComma = normalized.includes(',');
+  const parts = normalized
+    .split(/[,\s]+/)
+    .map((t) => t.trim())
+    .filter((t) => t && !NAME_TITLE_TOKENS.has(t));
+  if (!parts.length) return '';
+  if (keepComma && normalized.includes(',')) {
+    // Rebuild "surname, given…" from original sides minus titles.
+    const left = normalized
+      .split(',')[0]!
+      .split(/\s+/)
+      .filter((t) => t && !NAME_TITLE_TOKENS.has(t));
+    const right = normalized
+      .split(',')
+      .slice(1)
+      .join(' ')
+      .split(/\s+/)
+      .filter((t) => t && !NAME_TITLE_TOKENS.has(t));
+    if (left.length && right.length) return `${left.join(' ')}, ${right.join(' ')}`;
+    return [...left, ...right].join(' ');
+  }
+  return parts.join(' ');
+}
+
+/**
+ * Surname + given after dropping titles.
+ * Comma form: "zeuner, thomas". Title-only wall labels: "oa dr zeuner" → surname zeuner.
+ * Western order without comma: last token = surname ("thomas zeuner").
+ */
+function nameCore(normalized: string): { surname: string; given: string[] } {
+  const core = stripTitleTokens(normalized);
+  if (!core) return { surname: '', given: [] };
+  if (core.includes(',')) {
+    const before = core.split(',')[0]?.trim() || '';
+    const after = core.split(',').slice(1).join(' ').trim();
+    const sur = before.split(/\s+/).filter(Boolean)[0] || '';
+    return { surname: sur, given: after.split(/\s+/).filter(Boolean) };
+  }
+  const parts = core.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return { surname: parts[0]!, given: [] };
+  return { surname: parts[parts.length - 1]!, given: parts.slice(0, -1) };
+}
+
+/** Last-name token (before comma / after titles), normalized. */
 function surnameToken(normalized: string): string {
-  const beforeComma = normalized.split(',')[0]?.trim() || '';
-  return beforeComma.split(/\s+/).filter(Boolean)[0] || '';
+  return nameCore(normalized).surname;
 }
 
 function givenTokens(normalized: string): string[] {
-  const after = normalized.includes(',')
-    ? normalized.split(',').slice(1).join(' ')
-    : normalized.split(/\s+/).slice(1).join(' ');
-  return after.split(/\s+/).filter(Boolean);
+  return nameCore(normalized).given;
 }
 
 function editDistance(a: string, b: string): number {
@@ -250,6 +320,13 @@ export function matchPreferredName(
   const prefGiven = givenTokens(pref);
   const aliasMap = aliases || {};
 
+  const surnameCounts = new Map<string, number>();
+  for (const c of candidates) {
+    const sur = surnameToken(normalizeNameKey(c.label));
+    if (!sur) continue;
+    surnameCounts.set(sur, (surnameCounts.get(sur) || 0) + 1);
+  }
+
   let best: NameMatch | null = null;
   for (const c of candidates) {
     const key = normalizeNameKey(c.label);
@@ -258,7 +335,7 @@ export function matchPreferredName(
       !!aliasTarget && normalizeNameKey(aliasTarget) === pref;
 
     let score = 0;
-    if (aliasHitsPreferred || key === pref) {
+    if (aliasHitsPreferred || key === pref || stripTitleTokens(key) === pref) {
       score = 1;
     } else {
       const candSur = surnameToken(key);
@@ -283,16 +360,37 @@ export function matchPreferredName(
         (key.includes(pref) || pref.includes(key))
       ) {
         score = 0.9;
+      } else if (
+        prefSur &&
+        candSur &&
+        (prefSur === candSur || surSim >= 0.92) &&
+        (!prefGiven.length || !candGiven.length) &&
+        (surnameCounts.get(candSur) || 0) === 1
+      ) {
+        // Unique surname on plan + Mein Name has that surname (wall: "OA Dr. X").
+        score = 0.9;
       } else if (prefSur && candSur && prefSur === candSur) {
-        const pt = new Set(pref.split(/[,\s]+/).filter(Boolean));
-        const ct = key.split(/[,\s]+/).filter(Boolean);
+        const pt = new Set(
+          stripTitleTokens(pref)
+            .split(/[,\s]+/)
+            .filter(Boolean)
+        );
+        const ct = stripTitleTokens(key)
+          .split(/[,\s]+/)
+          .filter(Boolean);
         const hit = ct.filter((t) => pt.has(t)).length;
         score = hit >= 2 ? 0.85 : 0.65;
       } else if (surSim >= 0.75 && givenSim >= 0.55) {
         score = 0.8;
       } else {
-        const pt = new Set(pref.split(/[,\s]+/).filter(Boolean));
-        const ct = key.split(/[,\s]+/).filter(Boolean);
+        const pt = new Set(
+          stripTitleTokens(pref)
+            .split(/[,\s]+/)
+            .filter(Boolean)
+        );
+        const ct = stripTitleTokens(key)
+          .split(/[,\s]+/)
+          .filter(Boolean);
         const hit = ct.filter((t) => pt.has(t)).length;
         if (hit >= 2) score = 0.5;
         else if (hit === 1) score = 0.35;

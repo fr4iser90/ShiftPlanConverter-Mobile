@@ -1,0 +1,66 @@
+{
+  "preferredLayout": "auto",
+  "layouts": ["month-matrix", "week-strip", "date-duty"],
+  "dateDuty": {
+    "boardMarkers": ["Abteilung", "Dienstplan"],
+    "roleSuffixes": ["FOA", "CA", "FA", "AA", "OA"],
+    "columns": [
+      {
+        "id": "hausdienst-nacht",
+        "short": "HDN",
+        "label": "HD Nacht",
+        "match": ["hausdienst", "nacht"],
+        "matchAll": true
+      },
+      {
+        "id": "rufdienst-nacht",
+        "short": "RDN",
+        "label": "RD Nacht",
+        "match": ["rufdienst", "nacht"],
+        "matchAll": true
+      },
+      {
+        "id": "hausdienst",
+        "short": "HD",
+        "label": "Hausdienst",
+        "match": ["hausdienst"]
+      },
+      {
+        "id": "rufdienst",
+        "short": "RD",
+        "label": "Rufdienst",
+        "match": ["rufdienst"]
+      },
+      {
+        "id": "praemedikation",
+        "short": "PD",
+        "label": "Prämedikation",
+        "match": ["praemed", "pramed"]
+      },
+      {
+        "id": "zwischendienst-2",
+        "short": "ZD2",
+        "label": "Zwischendienst 2",
+        "match": ["zwischendienst 2", "zwischen 2", "zd 2"]
+      },
+      {
+        "id": "zwischendienst-1",
+        "short": "ZD1",
+        "label": "Zwischendienst 1",
+        "match": ["zwischendienst", "zd 1", "zd"]
+      },
+      {
+        "id": "langdienst",
+        "short": "LD",
+        "label": "Langdienst",
+        "match": ["langdienst"]
+      },
+      {
+        "id": "schmerz",
+        "short": "SD",
+        "label": "Schmerz",
+        "match": ["schmerz"]
+      }
+    ]
+  }
+}
