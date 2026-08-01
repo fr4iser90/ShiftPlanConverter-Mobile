@@ -418,7 +418,7 @@ export default function FetchScreen() {
 
   useEffect(() => {
     return subscribeKeys(
-      ['entries', 'locale', 'themePref', 'packId', 'groupId', 'areaId', 'preset', 'summary', 'workplaces', 'activeWorkplaceId'],
+      ['entries', 'payslips', 'locale', 'themePref', 'packId', 'groupId', 'areaId', 'preset', 'summary', 'workplaces', 'activeWorkplaceId'],
       () => setTick((n) => n + 1)
     );
   }, []);
@@ -552,10 +552,20 @@ export default function FetchScreen() {
 
   const selectionLabel = useMemo(() => formatMonthWindow(selected), [selected]);
 
-  /** Months in `year` that already have shifts in the store (still selectable to refresh). */
+  /** Months in `year` that already have data (shifts or payslips — depends on LOGA3 job). */
   const monthsWithData = useMemo(() => {
     const wp = snap.activeWorkplaceId;
     const set = new Set<number>();
+    if (loga3Job === 'payslip') {
+      for (const p of snap.payslips) {
+        if (wp && p.workplaceId && p.workplaceId !== wp) continue;
+        const m = /^(\d{4})-(\d{2})/.exec(String(p.payMonth || ''));
+        if (!m) continue;
+        if (Number(m[1]) !== year) continue;
+        set.add(Number(m[2]));
+      }
+      return set;
+    }
     for (const e of snap.entries) {
       if (wp && e.workplaceId && e.workplaceId !== wp) continue;
       const m = /^(\d{4})-(\d{2})/.exec(String(e.date || ''));
@@ -564,7 +574,7 @@ export default function FetchScreen() {
       set.add(Number(m[2]));
     }
     return set;
-  }, [snap.entries, snap.activeWorkplaceId, year]);
+  }, [snap.entries, snap.payslips, snap.activeWorkplaceId, year, loga3Job]);
 
   const shareIcsNow = () => {
     void (async () => {
@@ -909,7 +919,7 @@ export default function FetchScreen() {
     try {
       await waitUntilReady();
       await warmBridge();
-      const { imported, errors } = await runPayslipFetchJob({
+      const { imported, errors, skipped } = await runPayslipFetchJob({
         username: creds.username,
         password: creds.password,
         months: selected.map((s) => s.month),
@@ -923,6 +933,9 @@ export default function FetchScreen() {
         imported.length
           ? t('payrollImportOk', { count: String(imported.length) })
           : null,
+        skipped.length
+          ? t('payrollLoga3SkippedLine', { months: skipped.join(', ') })
+          : null,
         errors.length
           ? t('payrollImportPartial', {
               ok: String(imported.length),
@@ -932,6 +945,7 @@ export default function FetchScreen() {
       ].filter(Boolean) as string[];
       setStatus(parts.join(' · ') || t('payrollLoga3Imported', { month: '—' }));
       if (imported.length) {
+        setShowWeb(false);
         router.replace('/(tabs)/pruefung' as Href);
       }
       Alert.alert(
@@ -1232,7 +1246,7 @@ export default function FetchScreen() {
         await waitUntilReady();
         await warmBridge();
         if (job === 'payslip') {
-          const { imported, errors } = await runPayslipFetchJob({
+          const { imported, errors, skipped } = await runPayslipFetchJob({
             username: c.username,
             password: c.password,
             months,
@@ -1245,6 +1259,9 @@ export default function FetchScreen() {
           const parts = [
             imported.length
               ? t('payrollImportOk', { count: String(imported.length) })
+              : null,
+            skipped.length
+              ? t('payrollLoga3SkippedLine', { months: skipped.join(', ') })
               : null,
             errors.length
               ? t('payrollImportPartial', {
@@ -1261,6 +1278,7 @@ export default function FetchScreen() {
             await setMatrixStatus(`MATRIX_FETCH_PASS ${line}`);
           }
           if (imported.length) {
+            setShowWeb(false);
             router.replace('/(tabs)/pruefung' as Href);
           }
           Alert.alert(t('payrollTitle'), line);

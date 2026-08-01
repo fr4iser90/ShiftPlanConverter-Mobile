@@ -144,12 +144,20 @@ export const AUTOMATION_HANDLERS_CORE = `
       var zCtrl = findZeitenControl();
       var oCtrl = findOeffnenControl();
       var picker2 = q('#ZeitdatenMonthPicker');
+      // Verdienst path: Private Cloud / Generierte Dokumente is also a post-login shell
+      var cloudToolbar = q('[data-id="LMAGEDOK"]') || q('[data-id="LMAMYDOK"]');
+      var cloudDash = q('.personal-cloud, .personal-cloud-container') || findVerdienstOeffnenControl();
+      var cloudListing = qa('.MyCloudDirectoryWidget, .MyCloudFileWidget').length > 0;
+      var cloudShell = !!(cloudToolbar || cloudDash || cloudListing);
       // Desktop: post-login shell shows "öffnen" long before a "Zeiten" tab exists.
-      var ready = !stillLogin2 && !splash && (!!picker2 || !!oCtrl || !!zCtrl);
+      var ready = !stillLogin2 && !splash && (!!picker2 || !!oCtrl || !!zCtrl || cloudShell);
       var noteBits = [];
       if (picker2) noteBits.push('picker');
       if (oCtrl) noteBits.push('oeffnen');
       if (zCtrl) noteBits.push('zeiten:' + textOf(zCtrl).slice(0, 24));
+      if (cloudToolbar) noteBits.push('cloud-toolbar');
+      if (cloudDash) noteBits.push('cloud-dash');
+      if (cloudListing) noteBits.push('cloud-listing');
       if (!noteBits.length) noteBits.push('no_entry');
       post({
         ok: ready,
@@ -159,6 +167,7 @@ export const AUTOMATION_HANDLERS_CORE = `
         zeitenFound: !!zCtrl,
         oeffnenFound: !!oCtrl,
         pickerFound: !!picker2,
+        verdienstOpen: cloudShell,
         error: stillLogin2
           ? 'still_on_login'
           : (splash ? 'shell_loading' : (ready ? undefined : 'shell_not_ready')),

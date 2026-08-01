@@ -27,6 +27,7 @@ export type PayslipFetchOptions = {
 export type PayslipFetchResult = {
   imported: PayslipDocument[];
   errors: string[];
+  skipped: string[];
 };
 
 type Ctx = PayslipFetchOptions & {
@@ -181,7 +182,7 @@ async function ensureDocsRoot(ctx: Ctx): Promise<void> {
   }
 }
 
-async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<void> {
+async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<'ok' | 'missing'> {
   const label = `${MONTH_LABELS_DE[month - 1] || month} ${year}`;
   status(ctx, t('payrollLoga3OpenDoc', { label, elapsed: ago(ctx.jobT0) }));
 
@@ -191,8 +192,9 @@ async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<voi
     T.softProbe
   );
 
-  if (listing.hasFile) {
-    return;
+  // Only stay if the visible file is already this month — never treat another month's PDF as done
+  if (listing.fileMatchesMonth && listing.hasFile) {
+    return 'ok';
   }
 
   if (listing.hasMonthFolder) {
@@ -217,7 +219,8 @@ async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<voi
       T.softProbe
     );
     const sample = probe.sample ? ` [${probe.sample}]` : '';
-    throw new Error(t('payrollLoga3MonthMissing', { label }) + sample);
+    status(ctx, t('payrollLoga3MonthSkipped', { label }) + sample);
+    return 'missing';
   }
 
   await waitForCondition(async () => {
@@ -226,6 +229,7 @@ async function openMonthPath(ctx: Ctx, month: number, year: number): Promise<voi
     if (st.hasFile || st.ok) return true;
     return null;
   }, waitOpts(ctx, t('payrollLoga3WaitFile', { label }), T.waitVerdienstFile, 500));
+  return 'ok';
 }
 
 async function capturePdf(ctx: Ctx, label: string): Promise<{ base64: string; size?: number }> {
@@ -272,6 +276,7 @@ export async function runPayslipFetchJob(
   const ctx: Ctx = { ...opts, sleep, jobT0: Date.now() };
   const imported: PayslipDocument[] = [];
   const errors: string[] = [];
+  const skipped: string[] = [];
 
   try {
     await ensureLoggedIn(ctx);
@@ -280,14 +285,22 @@ export async function runPayslipFetchJob(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     appendDiag(`payslipFetch login/open: ${msg}`);
-    return { imported, errors: [msg] };
+    return { imported, errors: [msg], skipped };
   }
 
-  for (const month of opts.months) {
+  const months = [...opts.months].filter((m) => m >= 1 && m <= 12).sort((a, b) => a - b);
+
+  for (const month of months) {
     const label = `${MONTH_LABELS_DE[month - 1] || month}/${opts.year}`;
     try {
       await ensureDocsRoot(ctx);
-      await openMonthPath(ctx, month, opts.year);
+      const path = await openMonthPath(ctx, month, opts.year);
+      if (path === 'missing') {
+        // Like shift NO_PLAN: month not published yet — continue other months
+        skipped.push(label);
+        appendDiag(`payslipFetch skip ${label}: folder missing`);
+        continue;
+      }
       const pdf = await capturePdf(ctx, label);
       const buf = base64ToArrayBuffer(pdf.base64);
       const text = await extractTextFromPdfBuffer(buf);
@@ -320,5 +333,5 @@ export async function runPayslipFetchJob(
     }
   }
 
-  return { imported, errors };
+  return { imported, errors, skipped };
 }

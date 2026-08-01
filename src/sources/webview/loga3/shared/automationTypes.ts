@@ -117,6 +117,8 @@ export type AutomationMessage = {
   hasMonthFolder?: boolean;
   hasYearFolder?: boolean;
   hasFile?: boolean;
+  /** File widget subtitle/aria matches requested month */
+  fileMatchesMonth?: boolean;
   hasBack?: boolean;
   dirCount?: number;
   fileCount?: number;

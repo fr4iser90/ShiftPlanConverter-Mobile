@@ -735,6 +735,8 @@ export const de = {
   payrollLoga3Back: 'Zurück zur Dokumentenliste…',
   payrollLoga3NotAtRoot: 'Private Cloud: nicht zur Dokumenten-Root gekommen (Zurück).',
   payrollLoga3MonthMissing: 'Monatsordner fehlt: {label}',
+  payrollLoga3MonthSkipped: '{label}: noch kein Ordner in Generierte Dokumente — übersprungen.',
+  payrollLoga3SkippedLine: 'Übersprungen (noch nicht da): {months}',
   payrollLoga3WaitMonthFolder: 'Warte auf Monatsordner {label}',
   payrollLoga3WaitFile: 'Warte auf Verdienstnachweis-PDF {label}',
   payrollLoga3OpenDoc: 'Dokument {label} öffnen… ({elapsed})',

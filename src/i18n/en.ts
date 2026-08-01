@@ -732,6 +732,8 @@ export const en: { [K in keyof typeof de]: string } = {
   payrollLoga3Back: 'Back to document list…',
   payrollLoga3NotAtRoot: 'Private Cloud: could not reach documents root (Back).',
   payrollLoga3MonthMissing: 'Month folder missing: {label}',
+  payrollLoga3MonthSkipped: '{label}: no folder in Generated Documents yet — skipped.',
+  payrollLoga3SkippedLine: 'Skipped (not published yet): {months}',
   payrollLoga3WaitMonthFolder: 'Waiting for month folder {label}',
   payrollLoga3WaitFile: 'Waiting for payslip PDF {label}',
   payrollLoga3OpenDoc: 'Opening document {label}… ({elapsed})',

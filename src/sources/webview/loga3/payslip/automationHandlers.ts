@@ -105,16 +105,33 @@ export const AUTOMATION_HANDLERS_PAYSLIP = `
       var fileW = findVerdienstFileWidget();
       var back = findVerdienstBackControl();
       var labels = listCloudDirectoryLabels(16);
+      var fileNote = fileW ? (((fileW.getAttribute && fileW.getAttribute('aria-label')) || textOf(fileW)).slice(0, 80)) : null;
+      var fileSub = '';
+      if (fileW) {
+        var subEl = fileW.querySelector && fileW.querySelector('.Info .SubTitle, .SubTitle');
+        fileSub = textOf(subEl || null);
+      }
+      // e.g. SubTitle "01.06.2026 Abrechnung" or aria with month
+      var mm = month ? String(month).padStart(2, '0') : '';
+      var fileMatches =
+        !!fileW &&
+        !!month &&
+        !!year &&
+        ((fileSub && fileSub.indexOf(mm + '/' + year) >= 0) ||
+          (fileSub && fileSub.indexOf(mm + '.' + year) >= 0) ||
+          (fileSub && fileSub.indexOf('.' + mm + '.' + year) >= 0) ||
+          (fileNote && monthLabel && fileNote.indexOf(monthLabel) >= 0));
       post({
         ok: true,
         type: 'probeVerdienstListing',
         hasMonthFolder: !!monthDir,
         hasYearFolder: !!yearDir,
         hasFile: !!fileW,
+        fileMatchesMonth: !!fileMatches,
         hasBack: !!back,
         dirCount: labels.length,
         label: monthLabel || null,
-        note: (monthDir && 'month') || (yearDir && 'year') || (fileW && 'file') || 'empty',
+        note: (monthDir && 'month') || (yearDir && 'year') || (fileMatches && 'file') || (fileW && 'file-other') || 'empty',
         sample: labels.join(' | ').slice(0, 280)
       });
       return true;
