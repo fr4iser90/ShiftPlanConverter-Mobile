@@ -4,6 +4,23 @@ Deutsch. Englische Fassung: [CHANGELOG.en.md](./CHANGELOG.en.md)
 
 Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## 0.1.6 — 2026-08-01
+
+### Hinzugefügt
+- LOGA3 **Verdienstnachweis**-Abruf (Private Cloud → Generierte Dokumente → Monats-PDF)
+- Import: Segment **Dienstplan / Verdienst**; Monate mit vorhandenem VN markiert
+- Verdienst: laufender/zukünftiger Monat nicht wählbar; vorhandene VN werden behalten (kein erneutes Download)
+- Fehlende Monatsordner in LOGA3 werden übersprungen statt den ganzen Abruf abzubrechen
+- Nutzerhandbuch DE/EN: Produktmodell (Pack, optionale Quellen, Prüfung)
+
+### Geändert
+- LOGA3-Dienstplan: Grid-Aktualisierung zuverlässiger (Arm + Monatspfeile)
+- Shell-Ready erkennt auch Private-Cloud / Generierte Dokumente (kein Hänger nach VN-Abruf)
+- Import-Button „+ Sync“ nur wenn OAuth-Schnellsync wirklich läuft
+
+### Behoben
+- Verdienst-Abruf: falscher Pfad / Abbruch bei noch nicht veröffentlichten Monaten
+
 ## 0.1.5 — 2026-07-25
 
 ### Hinzugefügt

@@ -4,6 +4,23 @@ English. German version: [CHANGELOG.md](./CHANGELOG.md)
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.1.6 — 2026-08-01
+
+### Added
+- LOGA3 **payslip** fetch (Private Cloud → Generated Documents → monthly PDF)
+- Import: **Shifts / Payslip** segment; months with an existing payslip marked
+- Payslip: current/future calendar months disabled; existing payslips kept (no re-download)
+- Missing LOGA3 month folders are skipped instead of aborting the whole job
+- User handbooks DE/EN: product model (pack, optional sources, payroll check)
+
+### Changed
+- LOGA3 shifts: more reliable day-grid refresh (arm + month arrows)
+- Shell-ready also recognizes Private Cloud / Generated Documents (no hang after payslip fetch)
+- Import “+ Sync” label only when OAuth quick-sync will actually run
+
+### Fixed
+- Payslip fetch: wrong path / abort when a month is not published yet
+
 ## 0.1.5 — 2026-07-25
 
 ### Added
