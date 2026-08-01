@@ -10,45 +10,11 @@ import { pollAndroidDownloadsForPdf } from '../../androidDownloadPoll';
 import { t } from '@/src/i18n';
 import { appendDiag } from '@/src/support/diagLog';
 import { LoGa3Timeout as T } from '../shared/timeouts';
+import { assertContentReady } from './steps/assertContentReady';
+import { selectMonthVerified } from './steps/selectMonthVerified';
 
-export type FetchJobOptions = {
-  username: string;
-  password: string;
-  months: number[];
-  year: number;
-  inject: (cmd: AutomationCommand) => void;
-  bridge: AutomationBridge;
-  onStatus?: (line: string) => void;
-  /** true: wipe all stored entries; false: append/merge; default true */
-  replaceEntries?: boolean;
-  /**
-   * Keep entries outside the fetched months/year; replace only that window.
-   * Implies merge with existing store (ignores replaceEntries=true wipe-all).
-   */
-  preserveOutsideMonths?: boolean;
-  delay?: (ms: number) => Promise<void>;
-  /** Dump live selectors after each pipeline gate */
-  gateTrace?: boolean;
-};
-
-export type FetchStepTiming = {
-  step: string;
-  ms: number;
-  at: string;
-};
-
-export type FetchJobResult = {
-  /** Raw PDFs / skips — convert+store via `ingestArtifacts`. */
-  artifacts: SourceArtifact[];
-  texts: string[];
-  savedPdfs: string[];
-  skippedNoPlan: string[];
-  errors: string[];
-  /** Gate dump file paths (when gateTrace) */
-  gateTraces?: string[];
-  /** Per-step wall times (action + waits) */
-  timings?: FetchStepTiming[];
-};
+export type { FetchJobOptions, FetchJobResult, FetchStepTiming } from './fetchJobTypes';
+import type { FetchJobOptions, FetchJobResult, FetchStepTiming } from './fetchJobTypes';
 
 type Ctx = FetchJobOptions & {
   sleep: (ms: number) => Promise<void>;
@@ -302,56 +268,6 @@ async function ensureExportZeitprotokollButton(ctx: Ctx): Promise<void> {
       return null;
     }, waitOpts(ctx, t('fjWaitZeitprotokollButton'), T.waitZeitprotokollButton, 600));
     await gate(ctx, '08-lagsdzpg');
-  });
-}
-
-/** Precondition: picker. Action: selectMonth once. Postcondition: header month/year. */
-async function selectMonthVerified(ctx: Ctx, month: number, year: number): Promise<void> {
-  const label = `${String(month).padStart(2, '0')}/${year}`;
-  await timed(ctx, `select-month-${label}`, async () => {
-    status(ctx, t('fjSelectMonth', { label }));
-    status(ctx, t('fjStepAction', { step: `selectMonth ${label}` }));
-    const sel = await run(ctx, { type: 'selectMonth', month, year }, T.selectMonth);
-    if (!sel.ok && !sel.selected) {
-      throw new Error(sel.error || t('fjSelectMonthFailed', { label }));
-    }
-
-    await waitForCondition(async () => {
-      const v = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbeShort, true);
-      return v.ok ? v : null;
-    }, waitOpts(ctx, t('fjWaitCalendarHeader', { label }), T.waitCalendarHeader, 400));
-
-    try {
-      await run(ctx, { type: 'closePopups' }, T.closePopups);
-    } catch {
-      // ignore
-    }
-    await gate(ctx, `06-month-${label.replace('/', '-')}`);
-  });
-}
-
-/**
- * Content check once. Optional Berechnen once. No grid-reload fallback.
- */
-async function assertContentReady(ctx: Ctx, month: number, year: number): Promise<void> {
-  const label = `${String(month).padStart(2, '0')}/${year}`;
-  await timed(ctx, `content-${label}`, async () => {
-    status(ctx, t('fjContentGate', { label }));
-    const v1 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbe, true);
-    if (!v1.ok) {
-      throw new Error(t('fjContentGateFail', { label }));
-    }
-    try {
-      status(ctx, t('fjStepAction', { step: 'clickBerechnen' }));
-      await run(ctx, { type: 'clickBerechnen' }, T.clickBerechnen);
-    } catch {
-      // optional
-    }
-    const v2 = await softProbe(ctx, { type: 'verifyCalendarMonth', month, year }, T.softProbe, true);
-    if (!v2.ok) {
-      throw new Error(t('fjContentGateFail', { label }));
-    }
-    status(ctx, t('fjContentGateOk', { label }));
   });
 }
 
@@ -715,6 +631,14 @@ export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult
         await run(ctx, { type: 'closeDialog' }, T.closeDialog);
       } catch {
         // ignore
+      }
+      // Next month still runs — restore Zeitdaten shell (picker often gone after a timeout).
+      try {
+        await ensureZeitdatenPicker(ctx);
+        await assertZeitdatenPickerReady(ctx);
+      } catch (re) {
+        const rem = re instanceof Error ? re.message : String(re);
+        status(ctx, t('fjError', { msg: `shell-restore: ${rem}`, elapsed: ago(monthT0) }));
       }
     }
   }

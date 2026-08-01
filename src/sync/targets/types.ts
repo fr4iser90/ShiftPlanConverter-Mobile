@@ -34,7 +34,7 @@ export type ExportTarget = {
   /** i18n key for settings / labels */
   labelKey: string;
   isConfigured(): Promise<boolean>;
-  /** Prefs flag: should one-tap attempt this oauth sync? */
+  /** Prefs flag: should one-tap attempt this oauth sync? (shared “sync connected calendars” pref). */
   isEnabledInQuickUpdate(): Promise<boolean>;
   sync(entries: ShiftEntry[], opts?: ExportTargetSyncOpts): Promise<ExportTargetResult>;
 };

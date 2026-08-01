@@ -34,12 +34,19 @@ export const LoGa3Timeout = {
   waitZeitprotokollButton: 45_000,
 
   /**
-   * After selectMonth: calendar header must show target month.
-   * Was 40s — too tight on mid-range phones / busy LOGA3.
+   * After selectMonth: picker header MM/YYYY (not full day-grid).
    */
-  waitCalendarHeader: 120_000,
+  waitPickerMonth: 30_000,
   selectMonth: 25_000,
   verifyCalendarAfter: 20_000,
+
+  /**
+   * After arm + month-arrows away/back: day-grid must match.
+   */
+  waitGridAktualisierung: 10_000,
+
+  /** @deprecated use waitPickerMonth — kept so old call sites don't break mid-refactor */
+  waitCalendarHeader: 120_000,
 
   /** Dialog / download / PDF */
   waitDialog: 60_000,

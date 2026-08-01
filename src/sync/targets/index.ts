@@ -1,7 +1,6 @@
 import { googleExportTarget } from './googleTarget';
 import { icsExportTarget } from './icsTarget';
 import type { ExportTarget, ExportTargetResult } from './types';
-import { t } from '../../i18n';
 
 export type { ExportTarget, ExportTargetKind, ExportTargetResult, ExportTargetSyncOpts } from './types';
 
@@ -21,6 +20,17 @@ export async function listConfiguredOauthTargets(): Promise<ExportTarget[]> {
   return out;
 }
 
+/** True when one-tap will actually sync ≥1 connected oauth calendar (Google / Outlook / …). */
+export async function anyOauthTargetWillQuickSync(): Promise<boolean> {
+  for (const target of EXPORT_TARGETS) {
+    if (target.kind !== 'oauth') continue;
+    if (!(await target.isEnabledInQuickUpdate())) continue;
+    if (!(await target.isConfigured())) continue;
+    return true;
+  }
+  return false;
+}
+
 export type TargetRunSummary = ExportTargetResult & { id: string };
 
 /**
@@ -36,14 +46,9 @@ export async function runEnabledOauthTargets(
   const results: TargetRunSummary[] = [];
   for (const target of EXPORT_TARGETS) {
     if (target.kind !== 'oauth') continue;
-    if (!(await target.isEnabledInQuickUpdate())) {
-      results.push({ id: target.id, skipped: true, reason: 'in Einstellungen aus' });
-      continue;
-    }
-    if (!(await target.isConfigured())) {
-      results.push({ id: target.id, skipped: true, reason: t('fjSkipNotConfigured') });
-      continue;
-    }
+    if (!(await target.isEnabledInQuickUpdate())) continue;
+    // Pref on but no calendar → silent skip (don't pretend Sync ran / failed).
+    if (!(await target.isConfigured())) continue;
     opts?.onStatus?.(`${target.id} sync…`);
     const r = await target.sync(entries, opts);
     results.push({ id: target.id, ...r });

@@ -78,7 +78,7 @@ import { resolveConfirmedRosterLabel } from '@/src/sources/ocr/names';
 import { OcrCompareReview } from '@/src/ui/OcrCompareReview';
 import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
-import { runEnabledOauthTargets } from '@/src/sync/targets';
+import { runEnabledOauthTargets, anyOauthTargetWillQuickSync } from '@/src/sync/targets';
 import { disconnectGoogle } from '@/src/sync/google';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { appendDiag } from '@/src/support/diagLog';
@@ -335,6 +335,8 @@ export default function FetchScreen() {
   );
   const [year, setYear] = useState(new Date().getFullYear());
   const [quickPrefs, setQuickPrefs] = useState<QuickUpdatePrefs | null>(null);
+  /** True when ≥1 connected oauth calendar will sync after fetch. */
+  const [oauthWillSync, setOauthWillSync] = useState(false);
   const [activeSourceId, setActiveSourceId] = useState('local-files');
   const [loga3Job, setLoga3Job] = useState<Loga3WebViewJob>('shift');
   const isLoga3Source = activeSourceId === 'loga3-webview';
@@ -461,6 +463,7 @@ export default function FetchScreen() {
     setActiveSourceId(sourceId);
     const prefs = await loadQuickPrefs();
     setQuickPrefs(prefs);
+    setOauthWillSync(await anyOauthTargetWillQuickSync());
     if (!seededWindowRef.current) {
       seededWindowRef.current = true;
       setSelected(buildMonthWindow(prefs.prevMonths, prefs.nextMonths));
@@ -544,8 +547,8 @@ export default function FetchScreen() {
     return getMappingForScope(snap.packId, snap.groupId, snap.areaId);
   }, [snap.packId, snap.groupId, snap.areaId]);
 
-  // Pref: sync configured calendar targets after fetch (Google today; more later).
-  const quickWillSync = !!quickPrefs?.syncGoogle;
+  // Label/action: any connected oauth target (Google / Outlook / …) enabled in prefs.
+  const quickWillSync = oauthWillSync;
 
   const selectionLabel = useMemo(() => formatMonthWindow(selected), [selected]);
 

@@ -55,10 +55,10 @@ export default function SettingsImportWindowScreen() {
             styles={styles}
           />
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>{t('quickPrefsGoogle')}</Text>
+            <Text style={styles.switchLabel}>{t('quickPrefsSyncCalendars')}</Text>
             <Switch
-              value={quick.syncGoogle}
-              onValueChange={(v) => void patchQuick({ syncGoogle: v })}
+              value={quick.syncCalendars}
+              onValueChange={(v) => void patchQuick({ syncCalendars: v })}
               trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
               thumbColor="#fff"
             />

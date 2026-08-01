@@ -18,7 +18,7 @@ export const googleExportTarget: ExportTarget = {
 
   async isEnabledInQuickUpdate() {
     const prefs = await loadQuickPrefs();
-    return prefs.syncGoogle;
+    return prefs.syncCalendars;
   },
 
   async sync(entries, opts: ExportTargetSyncOpts = {}): Promise<ExportTargetResult> {

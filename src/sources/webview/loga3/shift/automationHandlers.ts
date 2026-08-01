@@ -46,6 +46,8 @@ export const AUTOMATION_HANDLERS_SHIFT = `
     }
 
     if (cmd.type === 'armCalendarReload') {
+      // Sidebar control — often CSS-hidden on phone (Mein-Team slab). Desktop uses force:true.
+      // Arming only: after this, chrome month-arrows reload the day-grid.
       var selectors = [
         '[data-uin="ic-zaxisrotation"]',
         '.RefreshWrapper[aria-label="Aktualisieren"]',
@@ -53,11 +55,27 @@ export const AUTOMATION_HANDLERS_SHIFT = `
         '.RefreshIcon'
       ];
       var clicked = false;
+      var note = '';
       for (var s = 0; s < selectors.length; s++) {
-        var el = q(selectors[s]);
-        if (el && visible(el)) { el.click(); clicked = true; break; }
+        var nodes = qa(selectors[s]);
+        for (var n = 0; n < nodes.length; n++) {
+          var el = nodes[n];
+          if (!el) continue;
+          try {
+            el.click();
+            clicked = true;
+            note = selectors[s];
+            break;
+          } catch (e) {}
+        }
+        if (clicked) break;
       }
-      post({ ok: clicked, type: 'armCalendarReload', error: clicked ? undefined : 'aktualisieren_not_found' });
+      post({
+        ok: clicked,
+        type: 'armCalendarReload',
+        note: clicked ? note : undefined,
+        error: clicked ? undefined : 'arm_reload_control_not_found'
+      });
       return true;
     }
 

@@ -125,15 +125,46 @@ export const AUTOMATION_DOM_HELPERS = `
     }
     return false;
   }
+  /**
+   * Chrome arrows next to #ZeitdatenMonthPicker.
+   * After armCalendarReload, these reload the day-grid (popup only flips the title).
+   */
+  function walkToMonthViaArrows(month, year) {
+    var mm = String(month).padStart(2, '0');
+    var yearStr = String(year);
+    var targetNum = Number(yearStr) * 12 + month;
+    var deadline = Date.now() + 14000;
+    function step() {
+      var state = getPickerState();
+      if (state.month === mm && state.year === yearStr) {
+        return Promise.resolve({
+          ok: true, selected: true, month: state.month, year: state.year, label: state.label, note: 'chrome_arrows'
+        });
+      }
+      if (Date.now() >= deadline || !state.month || !state.year) {
+        return Promise.resolve({
+          ok: false, selected: false, month: state.month, year: state.year, label: state.label, error: 'select_month_failed'
+        });
+      }
+      var curNum = Number(state.year) * 12 + Number(state.month);
+      var dir = curNum > targetNum ? 'back' : 'forward';
+      if (!clickArrowNearPicker(dir)) {
+        return Promise.resolve({
+          ok: false, selected: false, month: state.month, year: state.year, label: state.label, error: 'month_arrows_not_found'
+        });
+      }
+      return waitMs(400).then(step);
+    }
+    return step();
+  }
   function selectMonthViaPopup(month, year) {
     var monthLabel = MONTH_LABELS[month - 1];
     var mm = String(month).padStart(2, '0');
     var yearStr = String(year);
     var already = getPickerState();
-    if (already.found && already.month === mm && already.year === yearStr) {
-      return Promise.resolve({
-        ok: true, selected: true, month: already.month, year: already.year, label: already.label, note: 'already'
-      });
+    // Prefer arrows whenever we know the current month — that path reloads the day-grid after arm.
+    if (already.found && already.month && already.year) {
+      return walkToMonthViaArrows(month, year);
     }
     var picker = q('#ZeitdatenMonthPicker');
     if (!picker) return Promise.resolve({ ok: false, error: 'picker_not_found' });
@@ -153,7 +184,9 @@ export const AUTOMATION_DOM_HELPERS = `
     return waitMs(200).then(function() {
       return until(popupDeadline, 150, function() { return markMonthPopup(); });
     }).then(function(popup) {
-      if (!popup) return { ok: false, error: 'popup_not_found' };
+      if (!popup) {
+        return walkToMonthViaArrows(month, year);
+      }
       var sel = readPopupSelector(popup);
       var chain = Promise.resolve();
       if (sel && sel.active && /^\\d{4}$/.test(sel.active)) {
@@ -195,50 +228,29 @@ export const AUTOMATION_DOM_HELPERS = `
         sel = readPopupSelector(popup);
         if (!(sel && sel.active === monthLabel && sel.year === yearStr)) {
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-          return { ok: false, error: 'could_not_reach_month', note: (sel && sel.active) + ' ' + (sel && sel.year) };
+          return walkToMonthViaArrows(month, year);
         }
         var cells = Array.from(popup.querySelectorAll('table.datePickerMonthPicker td')).filter(function(td) {
           return textOf(td) === monthLabel;
         });
-        if (!cells.length) return { ok: false, error: 'month_cell_missing' };
+        if (!cells.length) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+          return walkToMonthViaArrows(month, year);
+        }
         cells[0].click();
         return waitMs(400).then(function() {
           var state = getPickerState();
           if (state.month === mm && state.year === yearStr) {
-            return { ok: true, selected: true, month: state.month, year: state.year, label: state.label };
+            // Popup may only flip title — finish with one arrow away/back via walk from neighbor.
+            var awayM = month === 1 ? 12 : month - 1;
+            var awayY = month === 1 ? Number(yearStr) - 1 : Number(yearStr);
+            return walkToMonthViaArrows(awayM, awayY).then(function(away) {
+              if (!away.ok) return { ok: true, selected: true, month: state.month, year: state.year, label: state.label, note: 'popup_only' };
+              return walkToMonthViaArrows(month, year);
+            });
           }
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-          return waitMs(150).then(function() {
-            var targetNum2 = Number(yearStr) * 12 + month;
-            var chromeDeadline = Date.now() + 10000;
-            function chromeStep() {
-              state = getPickerState();
-              if (state.month === mm && state.year === yearStr) {
-                return Promise.resolve({
-                  ok: true, selected: true, month: state.month, year: state.year, label: state.label, note: 'chrome_arrows'
-                });
-              }
-              if (Date.now() >= chromeDeadline || !state.month || !state.year) {
-                return Promise.resolve({
-                  ok: false,
-                  selected: false,
-                  month: state.month,
-                  year: state.year,
-                  label: state.label,
-                  error: 'select_month_failed'
-                });
-              }
-              var curNum = Number(state.year) * 12 + Number(state.month);
-              var dir = curNum > targetNum2 ? 'back' : 'forward';
-              if (!clickArrowNearPicker(dir)) {
-                return Promise.resolve({
-                  ok: false, selected: false, month: state.month, year: state.year, label: state.label, error: 'select_month_failed'
-                });
-              }
-              return waitMs(300).then(chromeStep);
-            }
-            return chromeStep();
-          });
+          return waitMs(150).then(function() { return walkToMonthViaArrows(month, year); });
         });
       });
     });

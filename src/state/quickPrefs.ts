@@ -10,8 +10,11 @@ export type QuickUpdatePrefs = {
   prevMonths: number;
   /** Months after current (0–6). Default 2. */
   nextMonths: number;
-  /** After fetch, sync to Google if calendar configured. Default true. */
-  syncGoogle: boolean;
+  /**
+   * After fetch, sync every oauth calendar target that is connected
+   * (Google today; Outlook/Apple when wired). Default true.
+   */
+  syncCalendars: boolean;
   /** After fetch, offer ICS share when no oauth sync ran. Default true. */
   offerIcsAfterFetch: boolean;
 };
@@ -19,17 +22,23 @@ export type QuickUpdatePrefs = {
 export const DEFAULT_QUICK_PREFS: QuickUpdatePrefs = {
   prevMonths: 0,
   nextMonths: 2,
-  syncGoogle: true,
+  syncCalendars: true,
   offerIcsAfterFetch: true,
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(6, Math.round(Number(n) || 0)));
 
-export function normalizeQuickPrefs(raw: Partial<QuickUpdatePrefs> | null | undefined): QuickUpdatePrefs {
+type LegacyRaw = Partial<QuickUpdatePrefs> & { syncGoogle?: boolean };
+
+export function normalizeQuickPrefs(raw: LegacyRaw | null | undefined): QuickUpdatePrefs {
+  const syncFlag =
+    raw?.syncCalendars !== undefined
+      ? raw.syncCalendars !== false
+      : raw?.syncGoogle !== false; // migrate pre-rename storage
   return {
     prevMonths: clamp(raw?.prevMonths ?? DEFAULT_QUICK_PREFS.prevMonths),
     nextMonths: clamp(raw?.nextMonths ?? DEFAULT_QUICK_PREFS.nextMonths),
-    syncGoogle: raw?.syncGoogle !== false,
+    syncCalendars: syncFlag,
     offerIcsAfterFetch: raw?.offerIcsAfterFetch !== false,
   };
 }
