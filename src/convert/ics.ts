@@ -1,4 +1,5 @@
 import { buildEventDescription, buildEventSummary } from './eventDescription';
+import { expandEntriesForExport, nextCalendarDay } from './overnightExport';
 import type { ShiftEntry } from './types';
 import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
 
@@ -15,12 +16,6 @@ function escapeICalText(text: string): string {
     .replace(/;/g, '\\;');
 }
 
-function nextDay(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
-}
-
 /**
  * Build a VCALENDAR string from shift entries (mobile-safe, no DOM).
  */
@@ -35,10 +30,12 @@ export function generateIcs(
     'CALSCALE:GREGORIAN',
   ];
 
-  for (const entry of entries) {
+  const exportEntries = expandEntriesForExport(entries, eventFormat.overnightMode);
+
+  for (const entry of exportEntries) {
     let endDate = entry.date;
     if (!entry.allDay && entry.start && entry.end && entry.end < entry.start) {
-      endDate = nextDay(entry.date);
+      endDate = nextCalendarDay(entry.date);
     }
 
     const start = entry.allDay
@@ -53,6 +50,7 @@ export function generateIcs(
       entry.type,
       entry.start || '',
       entry.end || '',
+      entry.calendarPart || '',
       Math.random().toString(36).slice(2, 10),
     ]
       .join('-')

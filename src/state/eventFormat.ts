@@ -2,6 +2,8 @@
  * How ICS / Google calendar events are titled and described.
  * Defaults: Kürzel + times in title; detail lines when data exists.
  */
+export type OvernightMode = 'span' | 'split';
+
 export type EventFormatPrefs = {
   /** Append `06:30–15:06` to the title for timed shifts. */
   titleTimes: boolean;
@@ -9,6 +11,12 @@ export type EventFormatPrefs = {
   descIst: boolean;
   descAzk: boolean;
   descStandby: boolean;
+  /**
+   * Overnight shifts (`end < start`):
+   * - `span` (default): one event from start day into the next morning
+   * - `split`: two events (start→midnight, midnight→end) so both days show a block
+   */
+  overnightMode: OvernightMode;
 };
 
 export const DEFAULT_EVENT_FORMAT: EventFormatPrefs = {
@@ -17,6 +25,7 @@ export const DEFAULT_EVENT_FORMAT: EventFormatPrefs = {
   descIst: true,
   descAzk: true,
   descStandby: true,
+  overnightMode: 'span',
 };
 
 export function parseEventFormat(raw: string | null): EventFormatPrefs | null {
@@ -29,6 +38,7 @@ export function parseEventFormat(raw: string | null): EventFormatPrefs | null {
       descIst: o.descIst !== false,
       descAzk: o.descAzk !== false,
       descStandby: o.descStandby !== false,
+      overnightMode: o.overnightMode === 'split' ? 'split' : 'span',
     };
   } catch {
     return null;

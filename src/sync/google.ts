@@ -4,6 +4,11 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { buildEventDescription, buildEventSummary } from '../convert/eventDescription';
+import {
+  calendarWipeRange,
+  expandEntriesForExport,
+  nextCalendarDay,
+} from '../convert/overnightExport';
 import type { ShiftEntry } from '../convert/types';
 import { t } from '../i18n';
 import { DEFAULT_EVENT_FORMAT, type EventFormatPrefs } from '../state/eventFormat';
@@ -343,13 +348,6 @@ async function deleteEventsInRange(
   return deleted;
 }
 
-function entryRange(entries: ShiftEntry[]): { startDate: string; endDate: string } | null {
-  if (!entries.length) return null;
-  const dates = entries.map((e) => e.date).filter(Boolean).sort();
-  if (!dates.length) return null;
-  return { startDate: dates[0], endDate: dates[dates.length - 1] };
-}
-
 /**
  * Sync like Desktop: wipe date range, then create events.
  * If `calendarId` was deleted in Google, calls `onCalendarMissing` (when provided).
@@ -373,11 +371,12 @@ export async function syncEntriesToGoogle(
 ): Promise<{ created: number; deleted: number }> {
   if (!entries.length) return { created: 0, deleted: 0 };
 
+  const exportEntries = expandEntriesForExport(entries, eventFormat.overnightMode);
   const jobT0 = Date.now();
-  const range = entryRange(entries);
+  const range = calendarWipeRange(entries);
   // eslint-disable-next-line no-console
   console.warn(
-    `TIMING google ${source} start n=${entries.length} range=${range ? `${range.startDate}…${range.endDate}` : '?'}`
+    `TIMING google ${source} start n=${exportEntries.length} (src=${entries.length}) range=${range ? `${range.startDate}…${range.endDate}` : '?'}`
   );
 
   let id = calendarId;
@@ -407,14 +406,12 @@ export async function syncEntriesToGoogle(
 
   let created = 0;
   const createT0 = Date.now();
-  for (const entry of entries) {
+  for (const entry of exportEntries) {
     const summary = buildEventSummary(entry, eventFormat);
     const description = buildEventDescription(entry, eventFormat);
     let endDate = entry.date;
     if (!entry.allDay && entry.start && entry.end && entry.end < entry.start) {
-      const d = new Date(entry.date + 'T12:00:00');
-      d.setDate(d.getDate() + 1);
-      endDate = d.toISOString().split('T')[0];
+      endDate = nextCalendarDay(entry.date);
     }
 
     const colorId = googleColorIdForShiftType(entry.type, packColors);
@@ -439,11 +436,11 @@ export async function syncEntriesToGoogle(
       body: JSON.stringify(body),
     });
     created += 1;
-    if (created % 25 === 0 || created === entries.length) {
+    if (created % 25 === 0 || created === exportEntries.length) {
       const ms = Date.now() - createT0;
       // eslint-disable-next-line no-console
       console.warn(
-        `TIMING google ${source} create ${created}/${entries.length} +${ms}ms (~${Math.round(ms / created)}ms/ev)`
+        `TIMING google ${source} create ${created}/${exportEntries.length} +${ms}ms (~${Math.round(ms / created)}ms/ev)`
       );
     }
   }

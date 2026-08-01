@@ -19,7 +19,7 @@ import {
   type WorkplaceProfile,
 } from './workplaces';
 
-export type { EventFormatPrefs } from './eventFormat';
+export type { EventFormatPrefs, OvernightMode } from './eventFormat';
 export { DEFAULT_EVENT_FORMAT } from './eventFormat';
 export type { WorkplaceProfile } from './workplaces';
 

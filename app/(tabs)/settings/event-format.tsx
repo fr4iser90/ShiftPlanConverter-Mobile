@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, Switch, Text, View } from 'react-native';
 
 import { buildEventDescription, buildEventSummary } from '@/src/convert/eventDescription';
+import { expandEntriesForExport } from '@/src/convert/overnightExport';
 import type { ShiftEntry } from '@/src/convert/types';
 import { t } from '@/src/i18n';
 import {
@@ -27,6 +28,13 @@ const PREVIEW_ENTRY: ShiftEntry = {
   onCallRated: '1:00',
 };
 
+const PREVIEW_OVERNIGHT: ShiftEntry = {
+  type: 'MO',
+  date: '2026-07-15',
+  start: '11:35',
+  end: '07:35',
+};
+
 export default function SettingsEventFormatScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeSettingsStyles(theme), [theme]);
@@ -39,12 +47,14 @@ export default function SettingsEventFormatScreen() {
   );
 
   const fmt = snap.eventFormat;
-  const patch = (key: keyof EventFormatPrefs, value: boolean) => {
+  const patchBool = (key: keyof EventFormatPrefs, value: boolean) => {
     void setEventFormat({ [key]: value });
   };
 
   const previewTitle = buildEventSummary(PREVIEW_ENTRY, fmt);
   const previewBody = buildEventDescription(PREVIEW_ENTRY, fmt);
+  const overnightPieces = expandEntriesForExport([PREVIEW_OVERNIGHT], fmt.overnightMode);
+  const overnightLines = overnightPieces.map((e) => buildEventSummary(e, fmt));
 
   return (
     <Screen>
@@ -56,7 +66,7 @@ export default function SettingsEventFormatScreen() {
             <Text style={styles.switchLabel}>{t('eventFormatTitleTimes')}</Text>
             <Switch
               value={fmt.titleTimes}
-              onValueChange={(v) => patch('titleTimes', v)}
+              onValueChange={(v) => patchBool('titleTimes', v)}
               trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
               thumbColor="#fff"
             />
@@ -78,11 +88,38 @@ export default function SettingsEventFormatScreen() {
               <Text style={styles.switchLabel}>{t(labelKey)}</Text>
               <Switch
                 value={fmt[key]}
-                onValueChange={(v) => patch(key, v)}
+                onValueChange={(v) => patchBool(key, v)}
                 trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
                 thumbColor="#fff"
               />
             </View>
+          ))}
+        </AppCard>
+
+        <AppCard>
+          <SectionTitle>{t('eventFormatOvernightSection')}</SectionTitle>
+          <Meta>{t('eventFormatOvernightHint')}</Meta>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>{t('eventFormatOvernightSplit')}</Text>
+            <Switch
+              value={fmt.overnightMode === 'split'}
+              onValueChange={(v) =>
+                void setEventFormat({ overnightMode: v ? 'split' : 'span' })
+              }
+              trackColor={{ true: theme.color.primaryPressed, false: theme.color.border }}
+              thumbColor="#fff"
+            />
+          </View>
+          <Text style={[styles.switchLabel, { marginTop: 12, fontWeight: '600' }]}>
+            {t('eventFormatPreviewOvernight')}
+          </Text>
+          {overnightLines.map((line, i) => (
+            <Text
+              key={`${line}-${i}`}
+              style={{ color: theme.color.inkSecondary, fontSize: 13, marginTop: 4 }}
+            >
+              {line}
+            </Text>
           ))}
         </AppCard>
 

@@ -20,9 +20,12 @@ export function buildEventSummary(
   format: EventFormatPrefs = DEFAULT_EVENT_FORMAT
 ): string {
   let summary = entry.type || '';
-  if (format.titleTimes && !entry.allDay && entry.start && entry.end) {
-    summary += ` ${entry.start}–${entry.end}`;
+  if (format.titleTimes && !entry.allDay) {
+    const start = entry.overnightWindow?.start ?? entry.start;
+    const end = entry.overnightWindow?.end ?? entry.end;
+    if (start && end) summary += ` ${start}–${end}`;
   }
+  if (entry.calendarPart) summary += ` (${entry.calendarPart})`;
   return summary;
 }
 
@@ -39,11 +42,13 @@ export function buildEventDescription(
   if (entry.allDay) {
     lines.push(t('eventDescOriginalAllDay', { type: entry.type }));
   } else {
+    const start = entry.overnightWindow?.start ?? entry.start ?? '';
+    const end = entry.overnightWindow?.end ?? entry.end ?? '';
     lines.push(
       t('eventDescOriginalTimed', {
         type: entry.type,
-        start: entry.start || '',
-        end: entry.end || '',
+        start,
+        end,
       })
     );
   }

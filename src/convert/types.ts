@@ -17,6 +17,13 @@ export type ShiftEntry = {
   onCallRated?: string;
   /** Employer workplace profile that owns this shift (multi-AG). */
   workplaceId?: string;
+  /**
+   * Export-only: set when overnightMode=split expands one overnight entry
+   * into two calendar events. Not persisted in the store.
+   */
+  calendarPart?: '1/2' | '2/2';
+  /** Export-only: original overnight start/end for titles when split. */
+  overnightWindow?: { start: string; end: string };
 };
 
 export type MonthSummary = {
