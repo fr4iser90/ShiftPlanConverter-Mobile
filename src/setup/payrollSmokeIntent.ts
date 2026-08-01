@@ -28,11 +28,11 @@ export async function applyPayrollSmokeFromUrl(url: string): Promise<{
 
   // Ensure Pflege OP so Prüfung tab + profile match the VNs.
   const snap = getSnapshot();
-  if (snap.groupId !== 'pflege' || snap.areaId !== 'op-bereich') {
+  if (snap.groupId !== 'pflege' || snap.areaId !== 'op-ata') {
     await setWorkplace({
       packId: snap.packId || 'st-elisabeth-leipzig',
       groupId: 'pflege',
-      areaId: 'op-bereich',
+      areaId: 'op-ata',
       preset: snap.preset || 'Anästhesie',
     });
   }

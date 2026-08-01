@@ -72,7 +72,7 @@ export function convertRawText(rawText: string, options: ConvertOptions = {}): C
   const result = parseTimeSheet(
     rawText,
     'pflege',
-    'op-bereich',
+    'op-ata',
     preset,
     mapping,
     parser

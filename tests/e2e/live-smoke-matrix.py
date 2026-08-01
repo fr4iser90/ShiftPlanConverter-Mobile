@@ -222,7 +222,7 @@ def launch_seed(
         "pass": creds["LOGA3_PASSWORD"],
         "pack": "st-elisabeth-leipzig",
         "group": "pflege",
-        "area": "op-bereich",
+        "area": "op-ata",
         "preset": "Anästhesie",
     }
     if months:

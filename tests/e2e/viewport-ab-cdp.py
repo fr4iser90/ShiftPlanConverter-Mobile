@@ -348,7 +348,7 @@ def seed_creds(creds: dict[str, str]) -> None:
             "pass": creds["LOGA3_PASSWORD"],
             "pack": "st-elisabeth-leipzig",
             "group": "pflege",
-            "area": "op-bereich",
+            "area": "op-ata",
             "preset": "Anästhesie",
         }
     )

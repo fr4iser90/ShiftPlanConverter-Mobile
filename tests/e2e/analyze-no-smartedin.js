@@ -185,7 +185,7 @@ async function ensureAppAndCdp() {
       pass: creds.LOGA3_PASSWORD,
       pack: 'st-elisabeth-leipzig',
       group: 'pflege',
-      area: 'op-bereich',
+      area: 'op-ata',
       preset: 'Anästhesie',
     }).toString();
     adb(['shell', `am start -a android.intent.action.VIEW -d ${qsh('shiftplan:///?' + qs)} ${PKG}`]);

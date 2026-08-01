@@ -31,7 +31,7 @@ export const en: { [K in keyof typeof de]: string } = {
   packHintDefaultGeneric:
     'Without an employer: PDF, CSV, ICS, and photo (OCR). PDF layout is detected automatically; review the result when uncertain.',
   packHintStElisabethLeipzig:
-    'Validated: Nursing · OR · Anaesthesia. OR nursing, pain service, wards, service and doctors coming later.',
+    'Validated: Nursing · OR · ATA. OTA, wards, service and doctors coming later.',
   moreEmployersSoon: 'More employer packs coming. Custom request: support.',
   noPacksYet: 'No packs installed yet.',
   soon: 'soon',

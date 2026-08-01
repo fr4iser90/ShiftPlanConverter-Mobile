@@ -8,7 +8,7 @@ import {
 } from '../../src/sources/ocr/monthMatrix';
 import { isPlausiblePersonName } from '../../src/sources/ocr/names';
 import type { MappingValue } from '../../src/convert/types';
-import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
+import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.json';
 import {
   hasPrivateDump,
   loadMonthMatrixDump,

@@ -44,7 +44,7 @@ describe('ingestArtifacts month preserve', () => {
       preset: 'Anästhesie',
       packId: 'st-elisabeth-leipzig',
       groupId: 'pflege',
-      areaId: 'op-bereich',
+      areaId: 'op-ata',
       activeWorkplaceId: 'wp-test',
     });
   });

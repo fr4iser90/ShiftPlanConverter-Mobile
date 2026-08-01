@@ -56,7 +56,7 @@ describe('workplace profiles', () => {
     await setWorkplace({
       packId: 'st-elisabeth-leipzig',
       groupId: 'pflege',
-      areaId: 'op-bereich',
+      areaId: 'op-ata',
       preset: 'Anästhesie',
     });
     const snap = getSnapshot();
@@ -75,7 +75,7 @@ describe('workplace profiles', () => {
     await setWorkplace({
       packId: 'st-elisabeth-leipzig',
       groupId: 'pflege',
-      areaId: 'op-bereich',
+      areaId: 'op-ata',
       preset: 'Anästhesie',
     });
     const second = await addWorkplace({

@@ -14,7 +14,11 @@ describe('payroll calendar (SN)', () => {
 });
 
 describe('Ärzte derive + overrides', () => {
-  const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'arzt', 'op')!;
+  const profile = getPayrollProfileForScope(
+    'st-elisabeth-leipzig',
+    'arzt',
+    'op-anaesthesie'
+  )!;
 
   it('derives ITS Mo–Do and applies base hours', () => {
     expect(deriveArztDienstId('2026-03-19', 'ITS')).toBe('ITS_MO_DO');
@@ -38,8 +42,8 @@ describe('Ärzte derive + overrides', () => {
 });
 
 describe('Pflege night via mapping type (not payroll codes[])', () => {
-  const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')!;
-  const pack = getMappingForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')!;
+  const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')!;
+  const pack = getMappingForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')!;
   const preset = pack.presets!.Anästhesie;
   const opts = { presetMapping: preset, codeAliases: pack.codeAliases };
 

@@ -6,11 +6,12 @@ import {
 } from '../../src/packs';
 
 describe('st-elisabeth pack honesty', () => {
-  it('only OP is supported under Pflege; stations are placeholders', () => {
+  it('only OP · ATA is supported under Pflege; OTA and stations are placeholders', () => {
     const pack = getPackById('st-elisabeth-leipzig');
     expect(pack).toBeTruthy();
     const pflege = pack!.groups.find((g) => g.id === 'pflege');
-    expect(pflege?.areas.find((a) => a.id === 'op-bereich')?.supported).toBe(true);
+    expect(pflege?.areas.find((a) => a.id === 'op-ata')?.supported).toBe(true);
+    expect(pflege?.areas.find((a) => a.id === 'op-ota')?.supported).toBe(false);
     for (let i = 1; i <= 19; i++) {
       const id = `station-${i}`;
       expect(pflege?.areas.some((a) => a.id === id && !a.supported)).toBe(true);
@@ -19,23 +20,22 @@ describe('st-elisabeth pack honesty', () => {
       expect(listPresetsForScope('st-elisabeth-leipzig', 'pflege', id)).toEqual(['Standard']);
       expect(Object.keys(mapping!.presets?.Standard || {})).toEqual([]);
     }
+    expect(pflege?.areas.find((a) => a.id === 'station-16')?.label).toBe('Station 16 (ITS)');
+    expect(pflege?.areas.find((a) => a.id === 'station-16')?.mapping).toBe(
+      'mappings/pflege/station-16.json'
+    );
+    expect(pflege?.areas.find((a) => a.id === 'station-1')?.mapping).toBe(
+      'mappings/pflege/station-standard.json'
+    );
   });
 
-  it('OP roles: Anästhesie ready; OP-Pflege and Schmerzdienst placeholders', () => {
-    expect(listPresetsForScope('st-elisabeth-leipzig', 'pflege', 'op-bereich')).toEqual([
+  it('OP · ATA ready; OP · OTA placeholder', () => {
+    expect(listPresetsForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')).toEqual([
       'Anästhesie',
-      'OP-Pflege',
-      'Schmerzdienst',
     ]);
-    expect(isPresetReady('st-elisabeth-leipzig', 'pflege', 'op-bereich', 'Anästhesie')).toBe(
-      true
-    );
-    expect(isPresetReady('st-elisabeth-leipzig', 'pflege', 'op-bereich', 'OP-Pflege')).toBe(
-      false
-    );
-    expect(isPresetReady('st-elisabeth-leipzig', 'pflege', 'op-bereich', 'Schmerzdienst')).toBe(
-      false
-    );
+    expect(isPresetReady('st-elisabeth-leipzig', 'pflege', 'op-ata', 'Anästhesie')).toBe(true);
+    expect(listPresetsForScope('st-elisabeth-leipzig', 'pflege', 'op-ota')).toEqual(['OTA']);
+    expect(isPresetReady('st-elisabeth-leipzig', 'pflege', 'op-ota', 'OTA')).toBe(false);
   });
 
   it('default-generic Standard is ready even with an empty mapping table', () => {
@@ -45,10 +45,12 @@ describe('st-elisabeth pack honesty', () => {
   it('Service and Ärzte are visible but not supported yet', () => {
     const pack = getPackById('st-elisabeth-leipzig');
     const service = pack!.groups.find((g) => g.id === 'service');
-    expect(service?.areas.some((a) => a.id === 'allgemein' && !a.supported)).toBe(true);
+    expect(service?.areas.some((a) => a.id === 'op' && !a.supported)).toBe(true);
+    expect(service?.areas.some((a) => a.id === 'station-16' && !a.supported)).toBe(true);
+    expect(getMappingForScope('st-elisabeth-leipzig', 'service', 'op')).toBeTruthy();
     const arzt = pack!.groups.find((g) => g.id === 'arzt');
     expect(arzt?.label).toBe('Ärzte');
-    expect(arzt?.areas.some((a) => a.id === 'op' && !a.supported)).toBe(true);
-    expect(getMappingForScope('st-elisabeth-leipzig', 'arzt', 'op')).toBeTruthy();
+    expect(arzt?.areas.some((a) => a.id === 'op-anaesthesie' && !a.supported)).toBe(true);
+    expect(getMappingForScope('st-elisabeth-leipzig', 'arzt', 'op-anaesthesie')).toBeTruthy();
   });
 });

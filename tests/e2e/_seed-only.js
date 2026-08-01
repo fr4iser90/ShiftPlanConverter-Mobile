@@ -17,7 +17,7 @@ const qs = new URLSearchParams({
   pass: vals.LOGA3_PASSWORD,
   pack: 'st-elisabeth-leipzig',
   group: 'pflege',
-  area: 'op-bereich',
+  area: 'op-ata',
   preset: 'Anästhesie',
 }).toString();
 const deep = `shiftplan:///?${qs}`;

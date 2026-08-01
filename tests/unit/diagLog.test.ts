@@ -45,7 +45,7 @@ describe('diagLog', () => {
       error: 'PDF timeout',
       pack: 'st-elisabeth-leipzig',
       group: 'pflege',
-      area: 'op-bereich',
+      area: 'op-ata',
       context: 'Fetch',
     });
     expect(body).toContain('PDF timeout');

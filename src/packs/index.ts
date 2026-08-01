@@ -1,137 +1,107 @@
 import type { PackMapping } from '../convert/types';
-import type { Messages } from '../i18n';
-import type { PackAreaPayroll, PayrollProfile } from '../payroll/types';
-import { DEFAULT_PARSER_ID } from '../convert/parsers';
+import { DEFAULT_PDF_ENGINE_ID } from '../convert/parsers/engines';
 import type { PackPdfConfig } from '../convert/parsers/engines';
 import { DEFAULT_OCR_ENGINE_ID } from '../convert/parsers/ocr';
-import defaultGenericConfig from './builtin/default-generic/config.json';
-import defaultGenericOcr from './builtin/default-generic/parsers/ocr.json';
-import defaultGenericPdf from './builtin/default-generic/parsers/pdf.json';
-import defaultGenericMapping from './builtin/default-generic/mappings/generic.json';
-import stElisabethConfig from './builtin/st-elisabeth-leipzig/config.json';
-import stElisabethOcr from './builtin/st-elisabeth-leipzig/parsers/ocr.json';
-import stElisabethPdf from './builtin/st-elisabeth-leipzig/parsers/pdf.json';
-import opMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/op.json';
-import stationEmptyMapping from './builtin/st-elisabeth-leipzig/mappings/pflege/station-empty.json';
-import serviceAllgemeinMapping from './builtin/st-elisabeth-leipzig/mappings/service/allgemein.json';
-import arztOpMapping from './builtin/st-elisabeth-leipzig/mappings/arzt/op.json';
-import arztOpPayroll from './builtin/st-elisabeth-leipzig/mappings/arzt/op.payroll.json';
-import pflegeOpPayroll from './builtin/st-elisabeth-leipzig/mappings/pflege/op.payroll.json';
+import type { PayrollProfile } from '../payroll/types';
+import {
+  PACK_REGISTRY,
+  SMOKE_DEFAULT_PACK_ID,
+  type PackRegistryEntry,
+} from './registry.generated';
+import type { PackArea, PackConfig, PackOcrConfig } from './types';
+import { expandPackAreas } from './expandAreas';
 
-export type PackArea = {
-  id: string;
-  label: string;
-  mapping: string;
-  supported: boolean;
-  defaultPreset?: string;
-  /** Optional Abrechnungsprüfer — omit or supported:false = feature off. */
-  payroll?: PackAreaPayroll;
-};
-
-export type PackGroup = {
-  id: string;
-  label: string;
-  areas: PackArea[];
-};
-
-/** Pack OCR declaration — JSON only (`parsers/ocr.json`). Engine code lives in convert/. */
-export type PackOcrConfig = {
-  engine: string;
-  preferredLayout?: string;
-  layouts?: string[];
-  usePackMapping?: boolean;
-};
-
+export type {
+  PackArea,
+  PackConfig,
+  PackConfigJson,
+  PackGroup,
+  PackOcrConfig,
+} from './types';
+export type { PackAreaEntry, PackAreaSeries } from './expandAreas';
 export type { PackPdfConfig };
-
-export type PackConfig = {
-  id: string;
-  name: string;
-  hint?: string;
-  hintKey?: keyof Messages;
-  groups: PackGroup[];
-  /** PDF engine + match params from pack `parsers/pdf.json` */
-  pdf?: PackPdfConfig;
-  /** OCR engine + options from pack `parsers/ocr.json` */
-  ocr?: PackOcrConfig;
-  /** Default Fetch source */
-  preferredSourceId?: string;
-  supportedSourceIds?: string[];
-};
 
 export const DEFAULT_GENERIC_PACK_ID = 'default-generic';
 export const DEFAULT_GENERIC_GROUP_ID = 'generic';
 export const DEFAULT_GENERIC_AREA_ID = 'import';
 export const DEFAULT_GENERIC_PRESET = 'Standard';
 
-/** Catalog of employer packs shipped in the app (more will be added). */
-const BUILTIN_PACKS: PackConfig[] = [
-  {
-    id: DEFAULT_GENERIC_PACK_ID,
-    ...(defaultGenericConfig as Omit<PackConfig, 'id' | 'ocr' | 'pdf'>),
-    ocr: defaultGenericOcr as PackOcrConfig,
-    pdf: defaultGenericPdf as PackPdfConfig,
-  },
-  {
-    id: 'st-elisabeth-leipzig',
-    ...(stElisabethConfig as Omit<PackConfig, 'id' | 'ocr' | 'pdf'>),
-    ocr: stElisabethOcr as PackOcrConfig,
-    pdf: stElisabethPdf as PackPdfConfig,
-  },
-];
+function entryById(packId: string): PackRegistryEntry | undefined {
+  return PACK_REGISTRY.find((p) => p.id === packId);
+}
 
-function registerScopeMappings(
-  out: Record<string, PackMapping>,
-  packId: string,
-  groupId: string,
-  areaIds: string[],
-  mapping: PackMapping
-): void {
-  for (const areaId of areaIds) {
-    out[`${packId}/${groupId}/${areaId}`] = mapping;
+function buildPackConfig(entry: PackRegistryEntry): PackConfig {
+  const { isSmokeDefault: _s, smokeWorkplace: _w, groups, ...rest } = entry.config;
+  return {
+    id: entry.id,
+    ...rest,
+    groups: groups.map((g) => ({
+      id: g.id,
+      label: g.label,
+      areas: expandPackAreas(g.areas),
+    })),
+    ocr: entry.ocr,
+    pdf: entry.pdf,
+  };
+}
+
+/** Catalog of employer packs shipped in the app (from builtin pack config.json files). */
+const BUILTIN_PACKS: PackConfig[] = PACK_REGISTRY.map(buildPackConfig);
+
+const MAPPINGS: Record<string, PackMapping> = {};
+const PAYROLL_PROFILES: Record<string, PayrollProfile> = {};
+
+for (const pack of BUILTIN_PACKS) {
+  const entry = entryById(pack.id);
+  if (!entry) continue;
+  for (const group of pack.groups) {
+    for (const area of group.areas) {
+      const scope = `${pack.id}/${group.id}/${area.id}`;
+      const mapping = entry.mappingsByPath[area.mapping];
+      if (mapping) MAPPINGS[scope] = mapping;
+      if (area.payroll?.supported && area.payroll.profile) {
+        const profile = entry.payrollByPath[area.payroll.profile];
+        if (profile) PAYROLL_PROFILES[scope] = profile;
+      }
+    }
   }
 }
 
-const ST_ELISABETH_STATION_AREA_IDS = Array.from({ length: 19 }, (_, i) => `station-${i + 1}`);
+function resolveSmokeWorkplace(): {
+  packId: string;
+  groupId: string;
+  areaId: string;
+  preset: string;
+} {
+  const smokeEntry =
+    (SMOKE_DEFAULT_PACK_ID && entryById(SMOKE_DEFAULT_PACK_ID)) || PACK_REGISTRY[0];
+  const sw = smokeEntry?.config.smokeWorkplace;
+  if (smokeEntry && sw?.groupId && sw?.areaId && sw?.preset) {
+    return {
+      packId: smokeEntry.id,
+      groupId: sw.groupId,
+      areaId: sw.areaId,
+      preset: sw.preset,
+    };
+  }
+  const pack = BUILTIN_PACKS[0];
+  const group = pack?.groups[0];
+  const area = group?.areas[0];
+  return {
+    packId: pack?.id || DEFAULT_GENERIC_PACK_ID,
+    groupId: group?.id || DEFAULT_GENERIC_GROUP_ID,
+    areaId: area?.id || DEFAULT_GENERIC_AREA_ID,
+    preset: area?.defaultPreset || DEFAULT_GENERIC_PRESET,
+  };
+}
 
-const MAPPINGS: Record<string, PackMapping> = {
-  [`${DEFAULT_GENERIC_PACK_ID}/${DEFAULT_GENERIC_GROUP_ID}/${DEFAULT_GENERIC_AREA_ID}`]:
-    defaultGenericMapping as PackMapping,
-  'st-elisabeth-leipzig/pflege/op-bereich': opMapping as PackMapping,
-};
+const smoke = resolveSmokeWorkplace();
 
-registerScopeMappings(
-  MAPPINGS,
-  'st-elisabeth-leipzig',
-  'pflege',
-  ST_ELISABETH_STATION_AREA_IDS,
-  stationEmptyMapping as PackMapping
-);
-registerScopeMappings(
-  MAPPINGS,
-  'st-elisabeth-leipzig',
-  'service',
-  ['allgemein'],
-  serviceAllgemeinMapping as PackMapping
-);
-registerScopeMappings(
-  MAPPINGS,
-  'st-elisabeth-leipzig',
-  'arzt',
-  ['op'],
-  arztOpMapping as PackMapping
-);
-
-const PAYROLL_PROFILES: Record<string, PayrollProfile> = {
-  'st-elisabeth-leipzig/pflege/op-bereich': pflegeOpPayroll as PayrollProfile,
-  'st-elisabeth-leipzig/arzt/op': arztOpPayroll as PayrollProfile,
-};
-
-/** Validated St. Elisabeth · Pflege · OP scope (default smoke / fixture pack). */
-export const BUILTIN_PACK_ID = 'st-elisabeth-leipzig';
-export const BUILTIN_GROUP_ID = 'pflege';
-export const BUILTIN_AREA_ID = 'op-bereich';
-export const BUILTIN_PRESET = 'Anästhesie';
+/** Validated smoke / fixture pack scope (from pack config isSmokeDefault). */
+export const BUILTIN_PACK_ID = smoke.packId;
+export const BUILTIN_GROUP_ID = smoke.groupId;
+export const BUILTIN_AREA_ID = smoke.areaId;
+export const BUILTIN_PRESET = smoke.preset;
 
 export function listBuiltinPacks(): PackConfig[] {
   return BUILTIN_PACKS;
@@ -150,12 +120,15 @@ export function getDefaultGenericPack(): PackConfig {
 }
 
 export function getParserIdForPack(pack: PackConfig | null | undefined): string {
-  return pack?.pdf?.engine?.trim() || DEFAULT_PARSER_ID;
+  return pack?.pdf?.engine?.trim() || DEFAULT_PDF_ENGINE_ID;
 }
 
 export function getPdfConfigForPack(pack: PackConfig | null | undefined): PackPdfConfig {
   if (pack?.pdf) return pack.pdf;
-  return defaultGenericPdf as PackPdfConfig;
+  return (
+    entryById(DEFAULT_GENERIC_PACK_ID)?.pdf ||
+    (PACK_REGISTRY[0]?.pdf as PackPdfConfig)
+  );
 }
 
 export function getOcrEngineIdForPack(pack: PackConfig | null | undefined): string {
@@ -250,8 +223,9 @@ export function getPayrollProfileForScope(
 
 export function getBuiltinMapping(): PackMapping {
   return (
-    getMappingForScope(BUILTIN_PACK_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID) ||
-    (opMapping as PackMapping)
+    getMappingForScope(BUILTIN_PACK_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID) || {
+      presets: {},
+    }
   );
 }
 
@@ -261,7 +235,7 @@ export function getDefaultGenericMapping(): PackMapping {
       DEFAULT_GENERIC_PACK_ID,
       DEFAULT_GENERIC_GROUP_ID,
       DEFAULT_GENERIC_AREA_ID
-    ) || (defaultGenericMapping as PackMapping)
+    ) || { presets: {} }
   );
 }
 

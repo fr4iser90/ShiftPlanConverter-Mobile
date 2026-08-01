@@ -29,7 +29,7 @@ export const de = {
   packHintDefaultGeneric:
     'Ohne Arbeitgeber: PDF, CSV, ICS und Foto (OCR). PDF-Layout wird automatisch erkannt — bei Unsicherheit Ergebnis prüfen.',
   packHintStElisabethLeipzig:
-    'Validiert: Pflege · OP · Anästhesie. OP-Pflege, Schmerzdienst, Stationen, Service und Ärzte folgen.',
+    'Validiert: Pflege · OP · ATA. OTA, Stationen, Service und Ärzte folgen.',
   moreEmployersSoon: 'Mehr Arbeitgeber-Packs folgen. Eigenen Wunsch: Unterstützung anfragen.',
   noPacksYet: 'Noch keine Packs installiert.',
   soon: 'bald',

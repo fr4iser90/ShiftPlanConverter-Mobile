@@ -328,7 +328,7 @@ function launchAndSeed(creds) {
     pass: creds.LOGA3_PASSWORD,
     pack: 'st-elisabeth-leipzig',
     group: 'pflege',
-    area: 'op-bereich',
+    area: 'op-ata',
     preset: 'Anästhesie',
   }).toString();
   const seedDeep = `shiftplan:///?${q}`;

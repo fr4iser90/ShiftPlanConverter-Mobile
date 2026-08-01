@@ -7,154 +7,51 @@
     "local-files",
     "loga3-webview"
   ],
+  "isSmokeDefault": true,
+  "smokeWorkplace": {
+    "groupId": "pflege",
+    "areaId": "op-ata",
+    "preset": "Anästhesie"
+  },
   "groups": [
     {
       "id": "pflege",
       "label": "Pflege",
       "areas": [
         {
-          "id": "op-bereich",
-          "label": "OP",
-          "mapping": "mappings/pflege/op.json",
+          "id": "op-ata",
+          "label": "OP · ATA",
+          "mapping": "mappings/pflege/op-ata.json",
           "supported": true,
           "defaultPreset": "Anästhesie",
           "payroll": {
             "supported": true,
-            "profile": "mappings/pflege/op.payroll.json"
+            "profile": "mappings/pflege/op-ata.payroll.json"
           }
         },
         {
-          "id": "station-1",
-          "label": "Station 1",
-          "mapping": "mappings/pflege/station-empty.json",
+          "id": "op-ota",
+          "label": "OP · OTA",
+          "mapping": "mappings/pflege/op-ota.json",
           "supported": false,
-          "defaultPreset": "Standard"
+          "defaultPreset": "OTA"
         },
         {
-          "id": "station-2",
-          "label": "Station 2",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-3",
-          "label": "Station 3",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-4",
-          "label": "Station 4",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-5",
-          "label": "Station 5",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-6",
-          "label": "Station 6",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-7",
-          "label": "Station 7",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-8",
-          "label": "Station 8",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-9",
-          "label": "Station 9",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-10",
-          "label": "Station 10",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-11",
-          "label": "Station 11",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-12",
-          "label": "Station 12",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-13",
-          "label": "Station 13",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-14",
-          "label": "Station 14",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-15",
-          "label": "Station 15",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-16",
-          "label": "Station 16",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-17",
-          "label": "Station 17",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-18",
-          "label": "Station 18",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
-        },
-        {
-          "id": "station-19",
-          "label": "Station 19",
-          "mapping": "mappings/pflege/station-empty.json",
-          "supported": false,
-          "defaultPreset": "Standard"
+          "expand": {
+            "id": "station-{n}",
+            "label": "Station {n}",
+            "from": 1,
+            "to": 19,
+            "mapping": "mappings/pflege/station-standard.json",
+            "supported": false,
+            "defaultPreset": "Standard",
+            "overrides": {
+              "16": {
+                "label": "Station 16 (ITS)",
+                "mapping": "mappings/pflege/station-16.json"
+              }
+            }
+          }
         }
       ]
     },
@@ -163,11 +60,28 @@
       "label": "Service",
       "areas": [
         {
-          "id": "allgemein",
-          "label": "Allgemein",
-          "mapping": "mappings/service/allgemein.json",
+          "id": "op",
+          "label": "OP",
+          "mapping": "mappings/service/op.json",
           "supported": false,
           "defaultPreset": "Standard"
+        },
+        {
+          "expand": {
+            "id": "station-{n}",
+            "label": "Station {n}",
+            "from": 1,
+            "to": 19,
+            "mapping": "mappings/service/station-standard.json",
+            "supported": false,
+            "defaultPreset": "Standard",
+            "overrides": {
+              "16": {
+                "label": "Station 16 (ITS)",
+                "mapping": "mappings/service/station-16.json"
+              }
+            }
+          }
         }
       ]
     },
@@ -176,14 +90,14 @@
       "label": "Ärzte",
       "areas": [
         {
-          "id": "op",
-          "label": "OP",
-          "mapping": "mappings/arzt/op.json",
+          "id": "op-anaesthesie",
+          "label": "OP · Anästhesie",
+          "mapping": "mappings/arzt/op-anaesthesie.json",
           "supported": false,
           "defaultPreset": "Anästhesie",
           "payroll": {
             "supported": true,
-            "profile": "mappings/arzt/op.payroll.json"
+            "profile": "mappings/arzt/op-anaesthesie.payroll.json"
           }
         }
       ]
