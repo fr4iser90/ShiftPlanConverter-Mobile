@@ -124,7 +124,9 @@ export const de = {
   sourceOcrRegionTapLabel: 'Auf Foto tippen',
   sourceOcrRegionTapNow: 'Jetzt den Bereich antippen',
   sourceOcrRegionNameCol: 'Namen-Spalte',
+  sourceOcrRegionDateCol: 'Datumsspalte',
   sourceOcrRegionDayHeader: 'Tagesköpfe',
+  sourceOcrRegionDutyHeader: 'Dienstköpfe',
   sourceOcrRegionCells: 'Zellenbereich',
   sourceOcrRegionOwnRow: 'Meine Zeile',
   sourceOcrRegionRotateCcw: '↺ 90°',
@@ -143,7 +145,9 @@ export const de = {
   sourceOcrStatusDoneMatrix: 'Fertig — {days} Tage / {rows} Personen',
   sourceOcrStatusDoneMatrixNamed:
     'Fertig — {days} Tage / {rows} Personen (deine Zeile: {name})',
-  sourceOcrMatrixTitleAll: 'Dienstplan (Monatsmatrix) — alle Personen',
+  sourceOcrMatrixTitleAll: 'Dienstplan — alle Personen',
+  sourceOcrMatrixTitleDateDuty: 'Dienstplan (Datum × Dienste) — {people} Personen (deine Zellen: {name})',
+  sourceOcrMatrixTitleDateDutyAll: 'Dienstplan (Datum × Dienste) — alle Personen',
   sourceOcrMatrixTitleMine:
     'Dienstplan (Monatsmatrix) — {people} Personen (deine Zeile: {name})',
   sourceOcrMatrixScrollHint:
@@ -208,6 +212,7 @@ export const de = {
   sourceOcrCompareSnapshots: 'Erkannte Bereiche',
   sourceOcrCompareSnapOwnName: 'Dein Name',
   sourceOcrHighlightOwnRow: 'Deine Zeile',
+  sourceOcrHighlightOwnCells: 'Deine Zellen',
   sourceOcrSettingsName: 'Name: {name}',
   sourceOcrSettingsNameMissing: 'Name fehlt — unter Einstellungen setzen.',
   sourceOcrOpenSettingsName: 'Name bearbeiten…',

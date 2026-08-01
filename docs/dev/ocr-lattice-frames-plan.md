@@ -225,9 +225,9 @@ Do **not** start WP7 until WP1–WP5 pass on frontal private set. Homography wit
 | Concern | Primary files |
 |---------|----------------|
 | H/V detection | `src/sources/ocr/layouts/imageGrid.ts` |
-| Lattice → day/person bounds | `src/sources/ocr/monthMatrix/lattice.ts`, `rowOwnership.ts` |
-| Day labels / gap-fill / nameMaxX | `src/sources/ocr/monthMatrix/dayHeaders.ts` |
-| Orchestration | `src/sources/ocr/monthMatrix/build.ts` |
+| Lattice → day/person bounds | `src/sources/ocr/layouts/month-matrix/lattice.ts`, `rowOwnership.ts` |
+| Day labels / gap-fill / nameMaxX | `src/sources/ocr/layouts/month-matrix/dayHeaders.ts` |
+| Orchestration | `src/sources/ocr/layouts/month-matrix/build.ts` |
 | Overlays | `src/sources/ocr/highlightOverlay.ts` |
 | Prepare / page size | `src/sources/ocr/prepareImage.ts`, `cameraOcr.ts` |
 | Perspective / homography | `src/sources/ocr/homography.ts`, `perspective.ts` |

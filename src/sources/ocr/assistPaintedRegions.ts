@@ -4,9 +4,9 @@
  */
 import type { OcrPaintedRegion, OcrNormBox } from '@/src/ui/OcrRegionAssistModal';
 import type { OcrLine } from './recognize';
-import { formatShiftCell } from './monthMatrix/format';
-import { cleanCell, clusterSorted, looksLikeDayHeader, median, xCenter, yCenter } from './monthMatrix/geometry';
-import type { MonthMatrixGrid } from './monthMatrix/types';
+import { formatShiftCell } from './layouts/month-matrix/format';
+import { cleanCell, clusterSorted, looksLikeDayHeader, median, xCenter, yCenter } from './layouts/month-matrix/geometry';
+import type { MonthMatrixGrid } from './layouts/month-matrix/types';
 
 const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'] as const;
 

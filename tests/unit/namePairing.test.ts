@@ -1,4 +1,4 @@
-import { pairLoneNameFragments } from '../../src/sources/ocr/monthMatrix/nameRows';
+import { pairLoneNameFragments } from '../../src/sources/ocr/layouts/month-matrix/nameRows';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
 function line(text: string, x: number, y: number, w = 40, h = 12): OcrLine {

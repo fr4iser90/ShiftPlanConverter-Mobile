@@ -6,7 +6,7 @@ import {
   refinePersonRowFromOcr,
 } from '../../src/convert/parsers/ocr/applyPackMapping';
 import type { MappingValue } from '../../src/convert/types';
-import type { MonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
 const anaesthesie: Record<string, MappingValue> = {

@@ -2,8 +2,8 @@
  * Day plan (Tagesplan) — one calendar day, many people / rooms / slots.
  * Stub until real photo samples land.
  */
-import type { OcrLayoutProfile } from './types';
-import { trimOcr } from './types';
+import type { OcrLayoutProfile } from '../types';
+import { trimOcr } from '../types';
 
 const DAY_PLAN_TITLE = /\b(tagesplan|tag(?:es)?\s*plan|daily\s*plan|day\s*roster)\b/i;
 const CLOCK = /\b\d{1,2}:\d{2}\b/g;

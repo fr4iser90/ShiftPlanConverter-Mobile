@@ -6,7 +6,8 @@
  *
  * - `auto` = detection meta, not a layout
  * - text-only = fallback/debug when structure is unclear — not a layout (see types)
- * Each concrete layout lives in its own file under this folder.
+ * Each concrete layout lives in its own folder under this directory
+ * (`month-matrix/`, `date-duty/`, …) with score, build, overlays as needed.
  */
 import { DATE_DUTY_LAYOUT } from './date-duty';
 import { DAY_PLAN_LAYOUT } from './day-plan';

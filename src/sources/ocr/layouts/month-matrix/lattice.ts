@@ -2,7 +2,7 @@
  * Printed table lattice → cells = H×V intersections.
  * Professional path: structure first, then drop OCR glyphs into cells.
  */
-import type { RuledLattice } from '../layouts/imageGrid';
+import type { RuledLattice } from '../imageGrid';
 import { median } from './geometry';
 import type { DayFrame, HeaderFrame, LatticeQuality, PersonFrame } from './types';
 

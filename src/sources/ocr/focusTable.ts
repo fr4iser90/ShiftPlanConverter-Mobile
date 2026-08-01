@@ -3,7 +3,7 @@
  * One geometry pass — no second OCR.
  */
 import type { OcrLine } from './recognize';
-import { fitSlope } from './monthMatrix/skew';
+import { fitSlope } from './layouts/month-matrix/skew';
 
 function yCenter(l: OcrLine): number {
   return l.boundingBox.y + l.boundingBox.height / 2;

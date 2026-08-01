@@ -18,6 +18,8 @@ type Props = {
   /** Show color legend under the photo. */
   showLegend?: boolean;
   accessibilityLabel?: string;
+  /** Date×duty boards use date/duty legend labels. */
+  overlayLayout?: 'date-duty' | null;
 };
 
 type NaturalSize = { w: number; h: number };
@@ -56,13 +58,27 @@ function fillFor(kind: OcrHighlightKind, _theme: AppTheme): string {
   return 'rgba(15, 118, 110, 0.20)';
 }
 
-function legendLabel(kind: OcrHighlightKind): string {
-  if (kind === 'own-row') return t('sourceOcrHighlightOwnRow');
-  if (kind === 'day-header') return t('sourceOcrRegionDayHeader');
-  return t('sourceOcrRegionNameCol');
+function legendLabel(
+  kind: OcrHighlightKind,
+  overlayLayout?: 'date-duty' | null
+): string {
+  const dateDuty = overlayLayout === 'date-duty';
+  if (kind === 'own-row') {
+    return dateDuty ? t('sourceOcrHighlightOwnCells') : t('sourceOcrHighlightOwnRow');
+  }
+  if (kind === 'day-header') {
+    return dateDuty ? t('sourceOcrRegionDutyHeader') : t('sourceOcrRegionDayHeader');
+  }
+  return dateDuty ? t('sourceOcrRegionDateCol') : t('sourceOcrRegionNameCol');
 }
 
-export function OcrHighlightLegend({ kinds }: { kinds: OcrHighlightKind[] }) {
+export function OcrHighlightLegend({
+  kinds,
+  overlayLayout = null,
+}: {
+  kinds: OcrHighlightKind[];
+  overlayLayout?: 'date-duty' | null;
+}) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const unique = useMemo(() => {
@@ -86,7 +102,7 @@ export function OcrHighlightLegend({ kinds }: { kinds: OcrHighlightKind[] }) {
               { backgroundColor: fillFor(kind, theme), borderColor: strokeFor(kind, theme) },
             ]}
           />
-          <Text style={styles.legendText}>{legendLabel(kind)}</Text>
+          <Text style={styles.legendText}>{legendLabel(kind, overlayLayout)}</Text>
         </View>
       ))}
     </View>
@@ -100,6 +116,7 @@ export function OcrPhotoHighlight({
   height,
   showLegend = true,
   accessibilityLabel,
+  overlayLayout = null,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -174,7 +191,9 @@ export function OcrPhotoHighlight({
             ))
           : null}
       </View>
-      {showLegend && legendKinds.length ? <OcrHighlightLegend kinds={legendKinds} /> : null}
+      {showLegend && legendKinds.length ? (
+        <OcrHighlightLegend kinds={legendKinds} overlayLayout={overlayLayout} />
+      ) : null}
     </View>
   );
 }

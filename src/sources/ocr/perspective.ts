@@ -19,10 +19,10 @@ import {
   type Pt,
 } from './homography';
 import { detectRosterNames } from './names';
-import { inferNameMaxX } from './monthMatrix/dayHeaders';
-import { cleanCell, looksLikeDayHeader, looksLikeDayNumber, looksLikeShiftCell, median, xCenter, yCenter } from './monthMatrix/geometry';
-import { estimateRowSlopeFromHeaders, fitSlope } from './monthMatrix/skew';
-import type { MonthMatrixGrid } from './monthMatrix/types';
+import { inferNameMaxX } from './layouts/month-matrix/dayHeaders';
+import { cleanCell, looksLikeDayHeader, looksLikeDayNumber, looksLikeShiftCell, median, xCenter, yCenter } from './layouts/month-matrix/geometry';
+import { estimateRowSlopeFromHeaders, fitSlope } from './layouts/month-matrix/skew';
+import type { MonthMatrixGrid } from './layouts/month-matrix/types';
 
 export type PerspectiveRectifier = {
   forward: Homography;

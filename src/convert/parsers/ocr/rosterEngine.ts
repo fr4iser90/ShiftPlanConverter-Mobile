@@ -3,7 +3,7 @@
  * Match targets / codes come from pack mapping JSON, not from this module.
  */
 import type { MappingValue } from '@/src/convert/types';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix/types';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
 import {
   applyPackMappingToCell,

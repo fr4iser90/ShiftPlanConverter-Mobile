@@ -1,4 +1,4 @@
-import { nearestColIndex, owningColIndex } from '../../src/sources/ocr/monthMatrix/geometry';
+import { nearestColIndex, owningColIndex } from '../../src/sources/ocr/layouts/month-matrix/geometry';
 import { applyPackMappingToCell } from '../../src/convert/parsers/ocr/applyPackMapping';
 import type { MappingValue } from '../../src/convert/types';
 import type { OcrLine } from '../../src/sources/ocr/recognize';

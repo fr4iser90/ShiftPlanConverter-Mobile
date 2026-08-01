@@ -1,5 +1,5 @@
 import { estimateRegionBoxes } from '../../src/sources/ocr/regionSnapshots';
-import type { MonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 
 describe('regionSnapshots', () => {
   it('estimates name + header boxes from a good grid', () => {

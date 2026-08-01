@@ -13,7 +13,7 @@ import {
   grayFromRgba,
   scaleLatticeToPage,
 } from '../../src/sources/ocr/layouts/imageGrid';
-import { buildMonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import { buildMonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import { normalizeNameKeyPublic } from '../../src/sources/ocr/names';
 import {
   checkOverlaysAgainstGroundTruth,

@@ -4,8 +4,8 @@ import {
   expectedYAtX,
   fitSlope,
   slopeToDegrees,
-} from '../../src/sources/ocr/monthMatrix/skew';
-import { buildMonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+} from '../../src/sources/ocr/layouts/month-matrix/skew';
+import { buildMonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 import { estimateHighlightOverlays } from '../../src/sources/ocr/highlightOverlay';
 import { deskewDegreesFromOcrLines } from '../../src/sources/ocr/deskew';

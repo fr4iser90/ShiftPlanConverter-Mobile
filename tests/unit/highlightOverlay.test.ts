@@ -3,7 +3,7 @@ import {
   nameColRightAtY,
   headerYAtX,
 } from '../../src/sources/ocr/highlightOverlay';
-import type { MonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import { estimateRegionBoxes } from '../../src/sources/ocr/regionSnapshots';
 
 const baseGrid: MonthMatrixGrid = {

@@ -2,7 +2,7 @@
  * Month-matrix geometry helpers.
  * Calendar weekday shapes and token shapes only — pack codes and duty times stay in pack maps.
  */
-import type { OcrLine } from '../recognize';
+import type { OcrLine } from '../../recognize';
 
 export function yCenter(l: OcrLine): number {
   return l.boundingBox.y + l.boundingBox.height / 2;

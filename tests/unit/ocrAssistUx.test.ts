@@ -3,7 +3,7 @@ import {
   estimateRegionBoxes,
 } from '@/src/sources/ocr/regionSnapshots';
 import { paintDragToNormBox } from '@/src/ui/OcrRegionAssistModal';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix/types';
 
 describe('estimateOwnNameBox', () => {
   const grid: MonthMatrixGrid = {

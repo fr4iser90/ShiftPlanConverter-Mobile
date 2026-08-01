@@ -10,7 +10,7 @@ import {
   loadAllRosterCases,
   rosterCasesDir,
 } from './_ocrRosterCases';
-import { buildMonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import { buildMonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import { normalizeNameKeyPublic } from '../../src/sources/ocr/names';
 import type { MonthMatrixDump } from './_ocrFixtures';
 

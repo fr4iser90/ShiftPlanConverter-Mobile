@@ -2,9 +2,9 @@
  * Single-person calendar (Einzelkalender) — one name, month calendar cells.
  * Stub until real photo samples land.
  */
-import type { OcrLine } from '../recognize';
-import type { OcrLayoutProfile } from './types';
-import { trimOcr } from './types';
+import type { OcrLine } from '../../recognize';
+import type { OcrLayoutProfile } from '../types';
+import { trimOcr } from '../types';
 
 const CALENDAR_TITLE =
   /\b(einzelkalender|mein\s*kalender|personal\s*calendar|my\s*calendar|monatskalender)\b/i;

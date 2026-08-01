@@ -2,8 +2,8 @@
  * Reconstruct a month-matrix duty roster from OCR line boxes.
  * Output mimics the wall plan: name | day1 | day2 | … (never a flat word list).
  */
-import { focusLinesOnMonthTable } from '../focusTable';
-import type { OcrLine } from '../recognize';
+import { focusLinesOnMonthTable } from '../../focusTable';
+import type { OcrLine } from '../../recognize';
 import {
   collectDayColumns,
   daysInMonth,

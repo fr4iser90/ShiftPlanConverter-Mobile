@@ -8,6 +8,7 @@ function scores(partial: Partial<Record<ConcreteOcrLayoutId, number>>): Record<C
   return {
     'month-matrix': 0,
     'week-strip': 0,
+    'date-duty': 0,
     'list-protocol': 0,
     'day-plan': 0,
     'single-calendar': 0,

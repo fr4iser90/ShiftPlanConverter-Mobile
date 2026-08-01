@@ -2,7 +2,7 @@ import {
   buildMonthMatrixGrid,
   formatMonthMatrixTable,
   matrixRowsAsNameCandidates,
-} from '../../src/sources/ocr/monthMatrix';
+} from '../../src/sources/ocr/layouts/month-matrix';
 import { isPlausiblePersonName } from '../../src/sources/ocr/names';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 

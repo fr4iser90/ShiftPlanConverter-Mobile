@@ -2,7 +2,7 @@
  * Page/row skew for month-matrix OCR (mild clockwise/counterclockwise photos).
  * slope = Δy / Δx in page pixels (positive → row drops to the right).
  */
-import type { OcrLine } from '../recognize';
+import type { OcrLine } from '../../recognize';
 import {
   looksLikeDayHeader,
   looksLikeDayNumber,

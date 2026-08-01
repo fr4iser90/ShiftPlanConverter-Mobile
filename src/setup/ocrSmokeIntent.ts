@@ -91,7 +91,16 @@ export async function applyOcrSmokeFromUrl(
   const uriRaw = q.uri;
   const layoutRaw = q.layout;
   const uri = String(Array.isArray(uriRaw) ? uriRaw[0] : uriRaw || '').trim();
-  const layoutId = String(Array.isArray(layoutRaw) ? layoutRaw[0] : layoutRaw || 'month-matrix').trim();
+  // Prefer ?layout=; Android `am start -d` often truncates after the first `&`,
+  // so also allow path form: shiftplan://ocr-smoke/date-duty?uri=…
+  const pathLayout = String(parsed.path || '')
+    .replace(/^\/+|\/+$/g, '')
+    .split('/')
+    .filter(Boolean)
+    .pop();
+  const layoutId = String(
+    Array.isArray(layoutRaw) ? layoutRaw[0] : layoutRaw || pathLayout || 'month-matrix'
+  ).trim();
   if (!uri) throw new Error('ocr-smoke: uri required');
 
   if (isBlockedOcrSmokeUri(uri)) {

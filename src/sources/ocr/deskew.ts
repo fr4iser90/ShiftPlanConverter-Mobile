@@ -7,7 +7,7 @@ import type { GrayImage } from './layouts/imageGrid';
 import {
   estimateRowSlopeFromHeaders,
   slopeToDegrees,
-} from './monthMatrix/skew';
+} from './layouts/month-matrix/skew';
 
 /** Deskew when |degrees| is at least this (noise floor). */
 export const OCR_DESKEW_MIN_DEG = 1.2;

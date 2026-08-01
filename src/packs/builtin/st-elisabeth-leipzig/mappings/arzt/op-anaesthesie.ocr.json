@@ -9,14 +9,14 @@
         "id": "hausdienst-nacht",
         "short": "HDN",
         "label": "HD Nacht",
-        "match": ["hausdienst", "nacht"],
+        "match": ["hd", "nacht"],
         "matchAll": true
       },
       {
         "id": "rufdienst-nacht",
         "short": "RDN",
         "label": "RD Nacht",
-        "match": ["rufdienst", "nacht"],
+        "match": ["rd", "nacht"],
         "matchAll": true
       },
       {
@@ -59,7 +59,7 @@
         "id": "schmerz",
         "short": "SD",
         "label": "Schmerz",
-        "match": ["schmerz"]
+        "match": ["schmerz1", "schmerz2", "schmerz 1", "schmerz 2"]
       }
     ]
   }

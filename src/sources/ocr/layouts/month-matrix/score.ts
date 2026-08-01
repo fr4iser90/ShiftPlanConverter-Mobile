@@ -7,7 +7,10 @@
  * - many short shift/code cells in the body
  * Full `buildMonthMatrixGrid` success boosts the score; hints alone can still pick this layout.
  */
-import { buildMonthMatrixGrid } from '../monthMatrix';
+import type { OcrLine } from '../../recognize';
+import type { OcrLayoutProfile } from '../types';
+import { trimOcr } from '../types';
+import { buildMonthMatrixGrid } from './build';
 import {
   cleanCell,
   looksLikeDayHeader,
@@ -15,10 +18,7 @@ import {
   looksLikeShiftCell,
   looksLikeWeekdayOnly,
   xCenter,
-} from '../monthMatrix/geometry';
-import type { OcrLine } from '../recognize';
-import type { OcrLayoutProfile } from './types';
-import { trimOcr } from './types';
+} from './geometry';
 
 export const MONTH_MATRIX_LAYOUT: OcrLayoutProfile = {
   id: 'month-matrix',
@@ -82,7 +82,6 @@ export function scoreMonthMatrixHints(lines: OcrLine[], pageWidth: number): numb
       shiftCells += 1;
       continue;
     }
-    // Left name column: letters, no digits, not tiny abbreviations.
     if (
       xc < pageWidth * 0.3 &&
       t.length >= 3 &&
@@ -93,8 +92,8 @@ export function scoreMonthMatrixHints(lines: OcrLine[], pageWidth: number): numb
     }
   }
 
-  // Need both “many days” and “several people” signals.
-  const daySignal = dayHeaders + Math.min(weekdays, 7) + (dayNums >= 10 ? Math.min(14, dayNums / 2) : 0);
+  const daySignal =
+    dayHeaders + Math.min(weekdays, 7) + (dayNums >= 10 ? Math.min(14, dayNums / 2) : 0);
   if (daySignal < 7 || leftNames < 2) return 0;
 
   const colScore =
@@ -108,7 +107,6 @@ export function scoreMonthMatrixHints(lines: OcrLine[], pageWidth: number): numb
   const rowScore = leftNames >= 10 ? 1 : leftNames >= 5 ? 0.8 : leftNames >= 2 ? 0.55 : 0;
   const cellScore = Math.min(1, shiftCells / 40);
 
-  // Hint path tops out under a fully built grid so real parses still win.
   return Math.min(0.85, 0.4 * colScore + 0.4 * rowScore + 0.2 * cellScore);
 }
 

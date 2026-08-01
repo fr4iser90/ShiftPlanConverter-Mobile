@@ -1,5 +1,5 @@
-import { isPlausiblePersonName } from '../names';
-import type { OcrLine } from '../recognize';
+import { isPlausiblePersonName } from '../../names';
+import type { OcrLine } from '../../recognize';
 import {
   cleanCell,
   looksLikeDayHeader,

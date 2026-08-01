@@ -1,6 +1,6 @@
 import { mergeOcrPageSizeWithImage } from '../../src/sources/ocr/recognize';
 import { estimateHighlightOverlays } from '../../src/sources/ocr/highlightOverlay';
-import type { MonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 
 describe('mergeOcrPageSizeWithImage', () => {
   it('uses full image size when larger than bbox max (fixes overlay/crop drift)', () => {

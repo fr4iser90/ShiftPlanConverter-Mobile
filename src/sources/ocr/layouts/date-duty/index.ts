@@ -1,16 +1,17 @@
 /**
- * Date × duties — generic structure; pack supplies column vocabulary.
+ * Date × duties — dates as rows, duty columns across, names in cells.
+ * Pack supplies column vocabulary via `dateDuty`.
  */
 import type { PackDateDutyConfig } from '@/src/packs/types';
+import type { OcrLine } from '../../recognize';
+import type { OcrLayoutProfile } from '../types';
+import { trimOcr } from '../types';
+import type { MonthMatrixGrid } from '../month-matrix/types';
 import {
   buildDateDutyFromLines,
   dateDutyToPersonDayGrid,
   scoreDateDuty,
-} from '../dateDuty/build';
-import type { MonthMatrixGrid } from '../monthMatrix/types';
-import type { OcrLine } from '../recognize';
-import type { OcrLayoutProfile } from './types';
-import { trimOcr } from './types';
+} from './build';
 
 export const DATE_DUTY_LAYOUT: OcrLayoutProfile = {
   id: 'date-duty',
@@ -21,6 +22,15 @@ export const DATE_DUTY_LAYOUT: OcrLayoutProfile = {
 };
 
 export { scoreDateDuty };
+export {
+  buildDateDutyFromLines,
+  dateDutyToPersonDayGrid,
+} from './build';
+export { estimateDateDutyHighlightOverlays } from './overlays';
+export {
+  estimateDateDutyOwnNameBox,
+  estimateDateDutyRegionBoxes,
+} from './regionBoxes';
 
 export function buildDateDutyGrid(
   lines: OcrLine[],

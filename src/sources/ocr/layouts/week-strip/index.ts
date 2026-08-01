@@ -2,10 +2,10 @@
  * Week strip — Mon–Sun / ward board (~5–9 day columns).
  * Uses the shared month-matrix grid builder when column count is week-sized.
  */
-import { buildMonthMatrixGrid, type MonthMatrixGrid } from '../monthMatrix';
-import type { OcrLine } from '../recognize';
-import type { OcrLayoutProfile } from './types';
-import { trimOcr } from './types';
+import type { OcrLine } from '../../recognize';
+import type { OcrLayoutProfile } from '../types';
+import { trimOcr } from '../types';
+import { buildMonthMatrixGrid, type MonthMatrixGrid } from '../month-matrix';
 
 const WEEKDAY_TOKEN = /(Mo|Di|Mi|Do|Fr|Sa|So|Mon|Tue|Wed|Thu|Fri|Sat|Sun)(?=[0-9]|\b)/gi;
 
@@ -27,7 +27,6 @@ export function buildWeekStripGrid(lines: OcrLine[], pageWidth: number): MonthMa
   const grid = buildMonthMatrixGrid(lines, pageWidth);
   if (!grid.ok) return grid;
   if (grid.headers.length > 9) {
-    // Likely a month — reject as week strip (one path; caller may ask user).
     return { ...grid, ok: false, reason: 'too-many-day-columns-for-week-strip' };
   }
   return grid;

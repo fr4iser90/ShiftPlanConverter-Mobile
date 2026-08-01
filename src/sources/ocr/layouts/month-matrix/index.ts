@@ -1,6 +1,6 @@
 /**
- * Month-matrix OCR: name × day grid from wall-plan geometry.
- * Split modules — import from `./monthMatrix` (this index) for a stable public API.
+ * Month-matrix layout: person × day wall-plan geometry + score + overlays.
+ * Import from `./layouts/month-matrix` for the public API.
  */
 export type { MatrixCell, MatrixRow, MonthMatrixGrid, MonthMatrixMetrics } from './types';
 export { buildMonthMatrixGrid, type BuildMonthMatrixOpts } from './build';
@@ -43,3 +43,13 @@ export {
   fitSlope,
   slopeToDegrees,
 } from './skew';
+export {
+  MONTH_MATRIX_LAYOUT,
+  scoreMonthMatrix,
+  scoreMonthMatrixHints,
+} from './score';
+export { estimateMonthMatrixHighlightOverlays } from './overlays';
+export {
+  estimateMonthMatrixOwnNameBox,
+  estimateMonthMatrixRegionBoxes,
+} from './regionBoxes';

@@ -1,5 +1,5 @@
 import { focusLinesOnMonthTable } from '../../src/sources/ocr/focusTable';
-import { buildMonthMatrixGrid } from '../../src/sources/ocr/monthMatrix';
+import { buildMonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix';
 import { applyPackMappingToGrid } from '../../src/convert/parsers/ocr/applyPackMapping';
 import { applyKnownSpellingsToGridRows } from '../../src/sources/ocr/names';
 import type { MappingValue } from '../../src/convert/types';

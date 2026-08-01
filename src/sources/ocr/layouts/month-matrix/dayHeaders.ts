@@ -1,4 +1,4 @@
-import type { OcrLine } from '../recognize';
+import type { OcrLine } from '../../recognize';
 import {
   cleanCell,
   clusterSorted,

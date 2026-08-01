@@ -7,7 +7,7 @@ import {
   formatOcrCellForDisplay,
   type OcrCellDisplayMode,
 } from '@/src/sources/ocr/cellDisplay';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 

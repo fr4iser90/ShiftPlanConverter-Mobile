@@ -73,7 +73,7 @@ import {
   packPreferredLayoutId,
 } from '@/src/sources/ocr/packLayouts';
 import { isConcreteOcrLayout } from '@/src/sources/ocr/layouts';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
 import {
   loadOcrPreferredName,
   saveOcrPreferredName,
@@ -747,7 +747,12 @@ export default function FetchScreen() {
     resolve?.(result);
   }, []);
 
-  const onCameraOcr = async (captureMode: OcrCaptureMode, imageUri?: string) => {
+  const onCameraOcr = async (
+    captureMode: OcrCaptureMode,
+    imageUri?: string,
+    /** Smoke/deep-link must pass layout here — setState is async and would keep the old chip. */
+    layoutIdOverride?: string | null
+  ) => {
     // One picker at a time — stacked taps left status stuck on “Galerie öffnen…”.
     if (ocrCaptureInFlightRef.current) return;
     ocrCaptureInFlightRef.current = true;
@@ -800,7 +805,7 @@ export default function FetchScreen() {
         const result = await runCameraOcr({
           captureMode,
           imageUri: captured,
-          layoutId: ocrLayoutId,
+          layoutId: layoutIdOverride || ocrLayoutId,
           pickRosterName: requestOcrName,
           pickOcrLayout: requestOcrLayout,
           assistOcrRegion: requestOcrRegion,
@@ -1420,6 +1425,9 @@ export default function FetchScreen() {
     };
   }, []);
 
+  const onCameraOcrRef = useRef(onCameraOcr);
+  onCameraOcrRef.current = onCameraOcr;
+
   // Dev/e2e: shiftplan://ocr-smoke?uri=file://… — poll only while an intent exists
   useEffect(() => {
     let cancelled = false;
@@ -1449,12 +1457,14 @@ export default function FetchScreen() {
       stopPoll();
       setActiveSourceId('local-files');
       void saveActiveSourceId('local-files');
-      if (intent.layoutId) {
-        setOcrLayoutId(intent.layoutId as OcrLayoutId);
-        void saveOcrLayoutId(intent.layoutId);
+      const smokeLayout = String(intent.layoutId || '').trim() || null;
+      if (smokeLayout) {
+        setOcrLayoutId(smokeLayout as OcrLayoutId);
+        await saveOcrLayoutId(smokeLayout);
       }
       try {
-        await onCameraOcr('gallery', intent.uri);
+        // Ref: this effect is mount-only; always call the latest onCameraOcr.
+        await onCameraOcrRef.current('gallery', intent.uri, smokeLayout);
       } catch (e) {
         // Smoke paths must not spam the user with EACCES alerts on every reload.
         const msg = e instanceof Error ? e.message : String(e);

@@ -6,7 +6,7 @@
  */
 import { expectedYAtX } from './skew';
 import { yCenter, xCenter } from './geometry';
-import type { OcrLine } from '../recognize';
+import type { OcrLine } from '../../recognize';
 import type { MatrixRow } from './types';
 
 export type RowYAnchor = {

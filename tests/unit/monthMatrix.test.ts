@@ -7,7 +7,7 @@ import {
   fillCalendarDayGaps,
   enforceCalendarColumnLabels,
   normalizeHeader,
-} from '../../src/sources/ocr/monthMatrix';
+} from '../../src/sources/ocr/layouts/month-matrix';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
 function L(text: string, x: number, y: number, w = 40, h = 14): OcrLine {

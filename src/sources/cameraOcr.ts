@@ -68,8 +68,8 @@ import {
   matrixRowsAsNameCandidates,
   type MonthMatrixGrid,
   type MonthMatrixMetrics,
-} from './ocr/monthMatrix';
-import { inferNameMaxX } from './ocr/monthMatrix/dayHeaders';
+} from './ocr/layouts/month-matrix';
+import { inferNameMaxX } from './ocr/layouts/month-matrix/dayHeaders';
 import {
   buildPerspectiveRectifier,
   projectGridFromRectified,
@@ -871,11 +871,18 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           );
         }
         await saveOcrPreferredName(selected.label);
+        const titleMine =
+          layoutId === 'date-duty'
+            ? t('sourceOcrMatrixTitleDateDuty', {
+                name: selected.label,
+                people: outGrid.rows.length,
+              })
+            : t('sourceOcrMatrixTitleMine', {
+                name: selected.label,
+                people: outGrid.rows.length,
+              });
         rawText = formatMonthMatrixTable(outGrid, {
-          title: t('sourceOcrMatrixTitleMine', {
-            name: selected.label,
-            people: outGrid.rows.length,
-          }),
+          title: titleMine,
           matchedName: selected.label,
         });
         const metrics = computeMonthMatrixMetrics(outGrid);
@@ -903,7 +910,10 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           );
         }
         rawText = formatMonthMatrixTable(outGrid, {
-          title: t('sourceOcrMatrixTitleAll'),
+          title:
+            layoutId === 'date-duty'
+              ? t('sourceOcrMatrixTitleDateDutyAll')
+              : t('sourceOcrMatrixTitleAll'),
         });
         const metrics = computeMonthMatrixMetrics(outGrid);
         const doneLine = t('sourceOcrStatusDoneMatrix', {

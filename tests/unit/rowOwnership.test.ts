@@ -7,9 +7,9 @@ import {
   nearestRowIndexAt,
   personSeparatorYs,
   rowMidBand,
-} from '@/src/sources/ocr/monthMatrix/rowOwnership';
+} from '@/src/sources/ocr/layouts/month-matrix/rowOwnership';
 import { refinePersonRowFromOcr } from '@/src/convert/parsers/ocr/applyPackMapping';
-import type { MonthMatrixGrid, MatrixRow } from '@/src/sources/ocr/monthMatrix/types';
+import type { MonthMatrixGrid, MatrixRow } from '@/src/sources/ocr/layouts/month-matrix/types';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
 import type { MappingValue } from '@/src/convert/types';
 

@@ -16,7 +16,7 @@ import { t } from '@/src/i18n';
 import type { MappingValue } from '@/src/convert/types';
 import type { OcrCellDisplayMode } from '@/src/sources/ocr/cellDisplay';
 import { estimateHighlightOverlays } from '@/src/sources/ocr/highlightOverlay';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
 import type { OcrRegionSnapshot } from '@/src/sources/ocr/regionSnapshots';
 import { OcrMonthMatrixScrollTable } from '@/src/ui/OcrMonthMatrixScrollTable';
 import { OcrHighlightLegend, OcrPhotoHighlight } from '@/src/ui/OcrPhotoHighlight';
@@ -47,10 +47,19 @@ function modeLabel(mode: OcrCellDisplayMode): string {
   return t('sourceOcrCompareDisplayBoth');
 }
 
-function snapLabel(kind: OcrRegionSnapshot['kind']): string {
+function snapLabel(
+  kind: OcrRegionSnapshot['kind'],
+  overlayLayout?: 'date-duty' | null
+): string {
   if (kind === 'own-name') return t('sourceOcrCompareSnapOwnName');
-  if (kind === 'name-column') return t('sourceOcrRegionNameCol');
-  return t('sourceOcrRegionDayHeader');
+  if (kind === 'name-column') {
+    return overlayLayout === 'date-duty'
+      ? t('sourceOcrRegionDateCol')
+      : t('sourceOcrRegionNameCol');
+  }
+  return overlayLayout === 'date-duty'
+    ? t('sourceOcrRegionDutyHeader')
+    : t('sourceOcrRegionDayHeader');
 }
 
 export function OcrCompareReview({
@@ -70,6 +79,8 @@ export function OcrCompareReview({
   const { width: winW, height: winH } = useWindowDimensions();
   const [fullOpen, setFullOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<OcrCellDisplayMode>('codes');
+
+  const overlayLayout = grid?.overlayLayout === 'date-duty' ? 'date-duty' : null;
 
   const highlights = useMemo(() => {
     if (!grid?.ok || !pageWidth || !pageHeight) return [];
@@ -98,7 +109,7 @@ export function OcrCompareReview({
         {snaps.map((s) => (
           <View key={s.kind} style={styles.snapItem}>
             <Image source={{ uri: s.uri }} style={styles.snapImg} resizeMode="contain" />
-            <Text style={styles.snapLabel}>{snapLabel(s.kind)}</Text>
+            <Text style={styles.snapLabel}>{snapLabel(s.kind, overlayLayout)}</Text>
           </View>
         ))}
       </View>
@@ -147,6 +158,7 @@ export function OcrCompareReview({
             width={thumbW}
             height={thumbH}
             showLegend={highlights.length > 0}
+            overlayLayout={overlayLayout}
             accessibilityLabel={t('sourceOcrComparePhotoA11y')}
           />
           <Text style={styles.tapHint}>{t('sourceOcrCompareTapFull')}</Text>
@@ -169,12 +181,16 @@ export function OcrCompareReview({
                 width={fullW}
                 height={fullH}
                 showLegend={false}
+                overlayLayout={overlayLayout}
                 accessibilityLabel={t('sourceOcrComparePhotoA11y')}
               />
             </OcrZoomablePhoto>
           ) : null}
           {highlights.length ? (
-            <OcrHighlightLegend kinds={highlights.map((h) => h.kind)} />
+            <OcrHighlightLegend
+              kinds={highlights.map((h) => h.kind)}
+              overlayLayout={overlayLayout}
+            />
           ) : null}
           <View style={styles.fullSnaps}>{snapStrip}</View>
         </View>

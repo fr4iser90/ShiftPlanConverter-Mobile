@@ -1,4 +1,4 @@
-import { isPlausiblePersonName } from '../names';
+import { isPlausiblePersonName } from '../../names';
 import { cleanCell } from './geometry';
 import type { MonthMatrixGrid, MonthMatrixMetrics } from './types';
 

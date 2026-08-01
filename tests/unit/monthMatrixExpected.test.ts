@@ -5,7 +5,7 @@ import {
 import {
   buildMonthMatrixGrid,
   matrixRowsAsNameCandidates,
-} from '../../src/sources/ocr/monthMatrix';
+} from '../../src/sources/ocr/layouts/month-matrix';
 import { isPlausiblePersonName } from '../../src/sources/ocr/names';
 import type { MappingValue } from '../../src/convert/types';
 import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.json';

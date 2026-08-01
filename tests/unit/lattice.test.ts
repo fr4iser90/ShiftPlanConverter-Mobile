@@ -5,7 +5,7 @@ import {
   owningColIndexFromBounds,
   scoreLatticeColumns,
   snapDayCentersToLattice,
-} from '@/src/sources/ocr/monthMatrix/lattice';
+} from '@/src/sources/ocr/layouts/month-matrix/lattice';
 
 describe('lattice', () => {
   it('builds day cell bounds from vertical rules', () => {

@@ -4,7 +4,7 @@ import {
   relaxAssistGridOk,
 } from '@/src/sources/ocr/assistPaintedRegions';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix/types';
 
 function ln(text: string, x: number, y: number, w = 40, h = 14): OcrLine {
   return { text, boundingBox: { x, y, width: w, height: h } };

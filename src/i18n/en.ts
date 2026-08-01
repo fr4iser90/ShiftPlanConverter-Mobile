@@ -124,7 +124,9 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrRegionTapLabel: 'Tap on photo',
   sourceOcrRegionTapNow: 'Tap the area now',
   sourceOcrRegionNameCol: 'Name column',
+  sourceOcrRegionDateCol: 'Date column',
   sourceOcrRegionDayHeader: 'Day headers',
+  sourceOcrRegionDutyHeader: 'Duty headers',
   sourceOcrRegionCells: 'Cell area',
   sourceOcrRegionOwnRow: 'My row',
   sourceOcrRegionRotateCcw: '↺ 90°',
@@ -143,7 +145,10 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrStatusDoneMatrix: 'Done — {days} days / {rows} people',
   sourceOcrStatusDoneMatrixNamed:
     'Done — {days} days / {rows} people (your row: {name})',
-  sourceOcrMatrixTitleAll: 'Roster (month matrix) — all people',
+  sourceOcrMatrixTitleAll: 'Roster — all people',
+  sourceOcrMatrixTitleDateDuty:
+    'Roster (date × duties) — {people} people (your cells: {name})',
+  sourceOcrMatrixTitleDateDutyAll: 'Roster (date × duties) — all people',
   sourceOcrMatrixTitleMine:
     'Roster (month matrix) — {people} people (your row: {name})',
   sourceOcrMatrixScrollHint:
@@ -208,6 +213,7 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrCompareSnapshots: 'Detected regions',
   sourceOcrCompareSnapOwnName: 'Your name',
   sourceOcrHighlightOwnRow: 'Your row',
+  sourceOcrHighlightOwnCells: 'Your cells',
   sourceOcrSettingsName: 'Name: {name}',
   sourceOcrSettingsNameMissing: 'Name missing — set it in Settings.',
   sourceOcrOpenSettingsName: 'Edit name…',

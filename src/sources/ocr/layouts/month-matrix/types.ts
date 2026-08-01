@@ -1,3 +1,9 @@
+/**
+ * Shared review/grid DTO for OCR layouts (person × day table projection).
+ * Date-duty and other layouts may project into this shape for the review UI;
+ * overlay geometry uses `overlayLayout` / layout-specific fields when set.
+ */
+
 export type MatrixCell = {
   text: string;
   x: number;
@@ -90,6 +96,21 @@ export type MonthMatrixGrid = {
   contentRight?: number;
   contentTop?: number;
   contentBottom?: number;
+  /**
+   * When `date-duty`, overlays/crops use date-column + duty-header geometry
+   * from the date×duty parse (review table may still be person×day).
+   */
+  overlayLayout?: 'date-duty';
+  /** Date rows (left column) for date-duty overlays — OCR y bands. */
+  dateDutyRows?: { day: number; yLo: number; yHi: number; yCenter: number }[];
+  /** Cell hits for date-duty own-row / own-name crops — OCR centers. */
+  dateDutyAssignments?: {
+    day: number;
+    dutyId: string;
+    personLabel: string;
+    xCenter: number;
+    yCenter: number;
+  }[];
 };
 
 /** Compact quality stats for status UI (one-shot; no second OCR). */

@@ -5,16 +5,16 @@
  */
 import { mappingCode, resolveShiftMapping } from '../../shiftMapping';
 import type { MappingValue } from '@/src/convert/types';
-import { formatShiftCell } from '@/src/sources/ocr/monthMatrix/format';
+import { formatShiftCell } from '@/src/sources/ocr/layouts/month-matrix/format';
 import {
   cleanCell,
   looksLikeDayHeader,
   owningColIndex,
   xCenter,
   yCenter,
-} from '@/src/sources/ocr/monthMatrix/geometry';
-import { lineBelongsToRow } from '@/src/sources/ocr/monthMatrix/rowOwnership';
-import type { MonthMatrixGrid } from '@/src/sources/ocr/monthMatrix/types';
+} from '@/src/sources/ocr/layouts/month-matrix/geometry';
+import { lineBelongsToRow } from '@/src/sources/ocr/layouts/month-matrix/rowOwnership';
+import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix/types';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
 
 const OCR_RESOLVE = { allowInfer: false as const };

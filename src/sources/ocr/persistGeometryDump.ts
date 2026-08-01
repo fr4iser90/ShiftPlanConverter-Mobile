@@ -5,7 +5,7 @@
  */
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
-import { buildMonthMatrixGrid, computeMonthMatrixMetrics } from './monthMatrix';
+import { buildMonthMatrixGrid, computeMonthMatrixMetrics } from './layouts/month-matrix';
 import type { OcrResult } from './recognize';
 import { serializeOcrGeometry } from './geometryDump';
 
