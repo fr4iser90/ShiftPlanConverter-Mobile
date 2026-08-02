@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
+import { useFocusEffect } from 'expo-router';
 
 import { t } from '@/src/i18n';
 import {
@@ -21,6 +22,7 @@ import {
 import type { MonthSummary, ShiftEntry } from '@/src/convert/types';
 import { getMappingForScope } from '@/src/packs';
 import { formatDeDate, highlightKind } from '@/src/calendar/dates';
+import { takeCalendarFocusIntent } from '@/src/setup/calendarFocusIntent';
 import {
   getSnapshot,
   setEntries,
@@ -243,6 +245,8 @@ export default function PreviewScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('week');
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [anchor, setAnchor] = useState(() => new Date());
+  /** After import: prefer this YYYY-MM-DD for list scroll / week anchor. */
+  const [focusIso, setFocusIso] = useState<string | null>(null);
   const listRef = useRef<FlatList<ShiftEntry>>(null);
   const scrolledRef = useRef(false);
 
@@ -253,6 +257,21 @@ export default function PreviewScreen() {
         () => setTick((n) => n + 1)
       ),
     []
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      void takeCalendarFocusIntent().then((intent) => {
+        if (!intent) return;
+        const day = intent.day && intent.day >= 1 && intent.day <= 31 ? intent.day : 1;
+        const d = new Date(intent.year, intent.month - 1, day);
+        setAnchor(d);
+        const mm = String(intent.month).padStart(2, '0');
+        const dd = String(day).padStart(2, '0');
+        setFocusIso(`${intent.year}-${mm}-${dd}`);
+        scrolledRef.current = false;
+      });
+    }, [])
   );
   useEffect(() => {
     setDraftMappings({ ...snap.userMappings });
@@ -310,6 +329,13 @@ export default function PreviewScreen() {
   const missing = useMemo(() => findMissingTimeKeys(entries), [entries]);
 
   const focusIndex = useMemo(() => {
+    if (focusIso && entries.length) {
+      const ym = focusIso.slice(0, 7);
+      let idx = entries.findIndex((e) => e.date === focusIso);
+      if (idx < 0) idx = entries.findIndex((e) => e.date.startsWith(ym));
+      if (idx < 0) idx = entries.findIndex((e) => e.date >= focusIso);
+      if (idx >= 0) return idx;
+    }
     const now = new Date();
     let monthIdx: number | null = null;
     for (let i = 0; i < entries.length; i++) {
@@ -318,11 +344,11 @@ export default function PreviewScreen() {
       if (kind === 'month' && monthIdx == null) monthIdx = i;
     }
     return monthIdx ?? 0;
-  }, [entries]);
+  }, [entries, focusIso]);
 
   useEffect(() => {
     scrolledRef.current = false;
-  }, [entries.length]);
+  }, [entries.length, focusIso]);
 
   useEffect(() => {
     if (viewMode !== 'list' || !entries.length || scrolledRef.current) return;

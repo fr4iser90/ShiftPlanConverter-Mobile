@@ -30,6 +30,8 @@ import {
   isSourceSupportedByPack,
 } from '@/src/packs';
 import { importLocalWithClassify } from '@/src/ingest/importLocalWithClassify';
+import { ingestArtifacts } from '@/src/ingest/ingestArtifacts';
+import { monthMatrixToShiftEntries } from '@/src/convert/parsers/ocr/matrixToEntries';
 import { runPayslipFetchJob } from '@/src/sources/webview/loga3/payslip/fetchPayslipJob';
 import type { Loga3WebViewJob } from '@/src/sources/webview/loga3/shared/Loga3WebView';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
@@ -41,6 +43,11 @@ import {
   setMatrixStatus,
 } from '@/src/setup/smokeFetchIntent';
 import { takeImportMonthIntent } from '@/src/setup/importMonthIntent';
+import {
+  calendarFocusFromEntries,
+  calendarFocusFromYearMonth,
+  setCalendarFocusIntent,
+} from '@/src/setup/calendarFocusIntent';
 import { takeOcrSmokeIntent, peekOcrSmokeIntent } from '@/src/setup/ocrSmokeIntent';
 import { resolveActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
 import { loadOcrLayoutId, saveOcrLayoutId } from '@/src/state/ocrLayout';
@@ -84,7 +91,11 @@ import { resolveConfirmedRosterLabel } from '@/src/sources/ocr/names';
 import { OcrCompareReview } from '@/src/ui/OcrCompareReview';
 import { runSourceAndIngest } from '@/src/sources/runSourceAndIngest';
 import { icsExportTarget } from '@/src/sync/targets/icsTarget';
-import { runEnabledOauthTargets, anyOauthTargetWillQuickSync } from '@/src/sync/targets';
+import {
+  runEnabledOauthTargets,
+  anyOauthTargetWillQuickSync,
+  shouldOfferIcs,
+} from '@/src/sync/targets';
 import { disconnectGoogle } from '@/src/sync/google';
 import { askRecreateGoogleCalendar } from '@/src/sync/askRecreateGoogleCalendar';
 import { appendDiag } from '@/src/support/diagLog';
@@ -632,6 +643,135 @@ export default function FetchScreen() {
     });
   }, []);
 
+  const onOcrImportToCalendar = useCallback(() => {
+    void (async () => {
+      if (!setup?.workplaceReady) {
+        Alert.alert(t('setupTitle'), t('sourceOcrImportNeedWorkplace'));
+        router.push(SETUP_HREF);
+        return;
+      }
+      if (!ocrMatrix?.ok || !ocrMatchedName) {
+        Alert.alert(t('sourceOcrImportCalendar'), t('sourceOcrImportNeedName'));
+        return;
+      }
+      const month = ocrMatrix.rosterMonth;
+      const year = ocrMatrix.rosterYear;
+      if (!month || !year) {
+        Alert.alert(t('sourceOcrImportCalendar'), t('sourceOcrImportEmpty'));
+        return;
+      }
+      const mapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
+      const built = monthMatrixToShiftEntries(ocrMatrix, {
+        matchedName: ocrMatchedName,
+        dateDuty: ocrConfig?.dateDuty ?? null,
+        mapping,
+        presetName: snap.preset,
+      });
+      if (!built.length) {
+        Alert.alert(t('sourceOcrImportCalendar'), t('sourceOcrImportEmpty'));
+        return;
+      }
+      Alert.alert(
+        t('sourceOcrImportConfirmTitle'),
+        t('sourceOcrImportConfirmBody', {
+          count: built.length,
+          name: ocrMatchedName,
+          month: String(month).padStart(2, '0'),
+          year: String(year),
+        }),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('sourceOcrImportCalendar'),
+            onPress: () => {
+              void (async () => {
+                setBusy(true);
+                setStatus(t('sourceOcrImportRunning'));
+                try {
+                  const note = `OCR ${ocrMatchedName} ${String(month).padStart(2, '0')}/${year}`;
+                  const ingest = await ingestArtifacts(
+                    [
+                      {
+                        kind: 'shifts',
+                        month,
+                        year,
+                        entries: built,
+                        note,
+                      },
+                    ],
+                    { preserveOutsideMonths: true, onStatus: setStatus }
+                  );
+                  const prefs = quickPrefs || (await loadQuickPrefs());
+                  const entries = resolveStoredEntries(ingest.entries, {
+                    preset: snap.preset || undefined,
+                    mapping: mapping || undefined,
+                    userMappings: snap.userMappings,
+                  });
+                  const targets = await runEnabledOauthTargets(entries, {
+                    eventFormat: snap.eventFormat,
+                    onCalendarMissing: askRecreateGoogleCalendar,
+                    onStatus: setStatus,
+                  });
+                  const syncLines = targets.map((r) =>
+                    r.failed
+                      ? `${r.id}: ${r.reason || '—'}`
+                      : r.skipped
+                        ? `${r.id}: ${r.reason || '—'}`
+                        : `${r.id}: +${r.created || 0}/−${r.deleted || 0}`
+                  );
+                  const done = t('sourceOcrImportDone', { count: ingest.fetchedCount });
+                  setStatus(
+                    syncLines.length ? `${done} · ${syncLines.join(' · ')}` : done
+                  );
+                  await setCalendarFocusIntent(
+                    calendarFocusFromEntries(built) ||
+                      calendarFocusFromYearMonth(year, month)
+                  );
+                  router.replace(CALENDAR_HREF);
+                  const buttons: {
+                    text: string;
+                    onPress?: () => void;
+                    style?: 'cancel' | 'default';
+                  }[] = [{ text: t('cancel'), style: 'cancel' }];
+                  if (prefs.offerIcsAfterFetch && shouldOfferIcs(targets) && entries.length) {
+                    buttons.push({
+                      text: t('quickUpdateShareIcs'),
+                      onPress: () => shareIcsNow(),
+                    });
+                  }
+                  Alert.alert(
+                    t('sourceOcrImportCalendar'),
+                    syncLines.length ? `${done}\n${syncLines.join('\n')}` : done,
+                    buttons
+                  );
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  setStatus(msg);
+                  Alert.alert(t('sourceOcrImportCalendar'), msg);
+                } finally {
+                  setBusy(false);
+                }
+              })();
+            },
+          },
+        ]
+      );
+    })();
+  }, [
+    setup?.workplaceReady,
+    ocrMatrix,
+    ocrMatchedName,
+    snap.packId,
+    snap.groupId,
+    snap.areaId,
+    snap.preset,
+    snap.userMappings,
+    snap.eventFormat,
+    ocrConfig?.dateDuty,
+    quickPrefs,
+    shareIcsNow,
+  ]);
+
   const onImportFiles = async () => {
     if (!setup?.workplaceReady) {
       Alert.alert(t('setupTitle'), t('setupIncompleteWorkplace'));
@@ -686,6 +826,11 @@ export default function FetchScreen() {
       if (payCount > 0 && payrollSupported) {
         router.replace('/(tabs)/pruefung' as Href);
       } else if (shiftCount > 0) {
+        const focus =
+          (selected[0]
+            ? calendarFocusFromYearMonth(selected[0].year, selected[0].month)
+            : null) || calendarFocusFromEntries(getSnapshot().entries);
+        if (focus) await setCalendarFocusIntent(focus);
         router.replace(CALENDAR_HREF);
       }
       Alert.alert(t('sourceLocalDone'), parts.join('\n') || t('sourceLocalDone'));
@@ -1107,6 +1252,14 @@ export default function FetchScreen() {
         result.fetch.entries.length > 0;
 
       if (result.fetch.entries.length > 0) {
+        const focus =
+          calendarFocusFromEntries(result.fetch.entries) ||
+          (result.window[0]
+            ? calendarFocusFromYearMonth(result.window[0].year, result.window[0].month)
+            : selected[0]
+              ? calendarFocusFromYearMonth(selected[0].year, selected[0].month)
+              : null);
+        if (focus) await setCalendarFocusIntent(focus);
         router.replace(CALENDAR_HREF);
       }
 
@@ -1805,6 +1958,8 @@ export default function FetchScreen() {
                           }
                           colors={packMapping?.colors ?? null}
                           ocrEngineId={getOcrEngineIdForPack(pack)}
+                          dateDuty={ocrConfig?.dateDuty ?? null}
+                          onGridChange={setOcrMatrix}
                           title={
                             ocrMatchedName && ocrMatrix
                               ? ocrMatrix.overlayLayout === 'date-duty'
@@ -1896,6 +2051,13 @@ export default function FetchScreen() {
                               })
                             );
                           }}
+                          disabled={busy}
+                        />
+                      ) : null}
+                      {ocrMatrix?.ok && ocrMatchedName ? (
+                        <AppButton
+                          title={t('sourceOcrImportCalendar')}
+                          onPress={() => onOcrImportToCalendar()}
                           disabled={busy}
                         />
                       ) : null}

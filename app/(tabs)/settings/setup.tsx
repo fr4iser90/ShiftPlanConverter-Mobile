@@ -5,7 +5,7 @@ import { router, type Href } from 'expo-router';
 import { t } from '@/src/i18n';
 import { clearCredentials } from '@/src/sources/webview/loga3/shared/credentials';
 import { formatSetupStatusMeta, getSetupStatus, type SetupStatus } from '@/src/setup/status';
-import { wipeAllLocalData } from '@/src/state/store';
+import { clearLocalShifts, getSnapshot, wipeAllLocalData } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
 import { Screen } from '@/src/ui/Screen';
@@ -40,6 +40,37 @@ export default function SettingsSetupScreen() {
             await clearCredentials();
             setSetup(await getSetupStatus());
             Alert.alert('OK', t('setupCredsCleared'));
+          }}
+        />
+        <AppButton
+          title={t('clearLocalShifts')}
+          variant="danger"
+          onPress={() => {
+            const n = getSnapshot().entries.length;
+            if (!n) {
+              Alert.alert(t('clearLocalShifts'), t('clearLocalShiftsEmpty'));
+              return;
+            }
+            Alert.alert(t('clearLocalShifts'), t('clearLocalShiftsConfirm'), [
+              { text: t('cancel'), style: 'cancel' },
+              {
+                text: t('clearLocalShifts'),
+                style: 'destructive',
+                onPress: () => {
+                  void (async () => {
+                    try {
+                      const removed = await clearLocalShifts();
+                      Alert.alert('OK', t('clearLocalShiftsDone', { count: removed }));
+                    } catch (e) {
+                      Alert.alert(
+                        t('alertError'),
+                        e instanceof Error ? e.message : String(e)
+                      );
+                    }
+                  })();
+                },
+              },
+            ]);
           }}
         />
         <AppButton

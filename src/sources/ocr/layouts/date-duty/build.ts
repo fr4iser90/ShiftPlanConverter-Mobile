@@ -10,7 +10,12 @@ import { isPlausiblePersonName } from '../../names';
 import type { OcrLine } from '../../recognize';
 import { looksLikeDateDutyAxes, measureAxisCues } from '../axisCues';
 import { detectMonthYearFromOcr } from '../month-matrix/dayHeaders';
-import { cleanCell, xCenter, yCenter } from '../month-matrix/geometry';
+import {
+  cleanCell,
+  looksLikeWeekdayOnly,
+  xCenter,
+  yCenter,
+} from '../month-matrix/geometry';
 import type { MonthMatrixGrid, MatrixRow } from '../month-matrix/types';
 
 /** Same tolerance as axisCues — trailing `,` / `.` / glued weekday from ML Kit. */
@@ -19,7 +24,18 @@ const DATE_LINE_RE =
 
 /** Leading honorific / role tokens ML Kit often emits as separate boxes. */
 const TITLE_TOKEN_RE =
-  /^(?:OA|FA|CA|FOA|AA|Prof\.?|Dr\.?|Frau|Herr|Hr\.?|Fr\.?)$/i;
+  /^(?:OÄ|OA|FA|CA|FOA|AA|Prof\.?|Dr\.?|Frau|Herr|Hr\.?|Fr\.?)$/i;
+
+/** Strip OCR junk / confusable accents so "|OA" / "OẢ" still count as titles. */
+function normalizeTitleToken(text: string): string {
+  let t = String(text || '')
+    .replace(/^[^A-Za-zÄÖÜäöüß]+/, '')
+    .replace(/[^A-Za-zÄÖÜäöüß.]+$/, '')
+    .trim();
+  // ML Kit often reads OÄ/OA as OẢ / OÀ / ÓA
+  if (/^O[ẢÀÁÂÃÅĀĄ]/i.test(t) && t.length <= 3) t = `OA${t.slice(2)}`;
+  return t;
+}
 
 type GeomTok = {
   text: string;
@@ -127,9 +143,10 @@ export function mergePersonPhrases(
   maxDyPx = 12
 ): GeomTok[] {
   const isTitle = (text: string) => {
-    if (TITLE_TOKEN_RE.test(text)) return true;
+    const norm = normalizeTitleToken(text);
+    if (TITLE_TOKEN_RE.test(norm)) return true;
     return (roleSuffixes || []).some(
-      (r) => String(r || '').trim().toLowerCase() === text.toLowerCase()
+      (r) => String(r || '').trim().toLowerCase() === norm.toLowerCase()
     );
   };
   // First: tight proximity merge (OA|Dr.|Zeuner).
@@ -240,6 +257,13 @@ export function cleanPersonCell(
   roleSuffixes?: string[] | null
 ): string {
   let t = cleanCell(raw).replace(/\s+/g, ' ').trim();
+  // Board OCR glues date-gutter crumbs / pipes onto the first duty cell.
+  t = t.replace(/^[\|\[\(\/{<•·.]+/, '').trim();
+  t = t
+    .replace(/^(?:\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?\s*[,.]?\s*)+/i, '')
+    .trim();
+  t = t.replace(/^(?:Mo|Di|Mi|Do|Fr|Sa|So)\.?\s+/i, '').trim();
+  t = t.replace(/\bO[ẢÀÁÂÃÅĀĄ]\b/gi, 'OA');
   const suffixes = (roleSuffixes || []).map((s) => String(s || '').trim()).filter(Boolean);
   if (suffixes.length) {
     const re = new RegExp(`\\b(?:${suffixes.map(escapeRe).join('|')})\\s*$`, 'i');
@@ -505,13 +529,17 @@ export function buildDateDutyFromLines(
     const tok = lineToTok(l);
     if (!tok) continue;
     if (parseDateToken(tok.text)) continue;
+    // Bare weekday boxes sit between date gutter and HD — must not glue onto names.
+    if (looksLikeWeekdayOnly(tok.text)) continue;
     if (classifyDutyHeader(tok.text, columns)) continue;
     cellToks.push(tok);
   }
+  // Cap gap vs page width: at 3000px, 2%≈60px still ok for title fragments,
+  // but keep an absolute ceiling so neighboring duty cells never merge.
   const personPhrases = mergePersonPhrases(
     cellToks,
     roleSuffixes,
-    Math.max(22, pageWidth * 0.02),
+    Math.min(48, Math.max(22, pageWidth * 0.014)),
     Math.max(10, h * 0.012)
   );
 
@@ -821,5 +849,7 @@ export function dateDutyToPersonDayGrid(built: DateDutyBuild): MonthMatrixGrid {
       xCenter: a.xCenter,
       yCenter: a.yCenter,
     })),
+    rosterMonth: built.month || undefined,
+    rosterYear: built.year || undefined,
   };
 }

@@ -197,7 +197,31 @@
                     "items": { "type": "string" },
                     "minItems": 1
                   },
-                  "matchAll": { "type": "boolean" }
+                  "matchAll": { "type": "boolean" },
+                  "times": {
+                    "type": "array",
+                    "description": "Duty hours by weekday/weekend (pack-authored)",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["start", "end"],
+                      "properties": {
+                        "start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+                        "end": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+                        "endNextDay": { "type": "boolean" },
+                        "when": {
+                          "type": "string",
+                          "enum": [
+                            "any",
+                            "weekday",
+                            "weekday-mon-thu",
+                            "friday",
+                            "weekend-or-holiday"
+                          ]
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

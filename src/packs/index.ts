@@ -17,10 +17,17 @@ export type {
   PackConfigJson,
   PackDateDutyColumn,
   PackDateDutyConfig,
+  PackDateDutyTimeSlot,
+  PackDateDutyWhen,
   PackGroup,
   PackOcrConfig,
   PackOcrScopeConfig,
 } from './types';
+export {
+  formatDateDutyCellTime,
+  formatDateDutyTimeLabel,
+  resolveDateDutyColumnTime,
+} from './dateDutyTimes';
 export type { PackAreaEntry, PackAreaOcr, PackAreaSeries } from './expandAreas';
 export type { PackPdfConfig };
 

@@ -13,11 +13,14 @@ import {
 } from 'react-native';
 
 import { t } from '@/src/i18n';
+import { patchMonthMatrixCell } from '@/src/convert/parsers/ocr/matrixToEntries';
 import type { MappingValue } from '@/src/convert/types';
+import type { PackDateDutyConfig } from '@/src/packs/types';
 import type { OcrCellDisplayMode } from '@/src/sources/ocr/cellDisplay';
 import { estimateHighlightOverlays } from '@/src/sources/ocr/highlightOverlay';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix';
 import type { OcrRegionSnapshot } from '@/src/sources/ocr/regionSnapshots';
+import { OcrCellEditModal } from '@/src/ui/OcrCellEditModal';
 import { OcrMonthMatrixScrollTable } from '@/src/ui/OcrMonthMatrixScrollTable';
 import { OcrHighlightLegend, OcrPhotoHighlight } from '@/src/ui/OcrPhotoHighlight';
 import { OcrZoomablePhoto } from '@/src/ui/OcrZoomablePhoto';
@@ -32,11 +35,14 @@ type Props = {
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
   ocrEngineId?: string | null;
+  dateDuty?: PackDateDutyConfig | null;
   /** Auto region crops after confident grid (on-device). */
   regionSnapshots?: OcrRegionSnapshot[] | null;
   /** OCR page size for mapping row/column boxes onto the photo. */
   pageWidth?: number | null;
   pageHeight?: number | null;
+  /** Persist cell edits into parent OCR matrix state. */
+  onGridChange?: (grid: MonthMatrixGrid) => void;
 };
 
 const MODES: OcrCellDisplayMode[] = ['codes', 'times', 'both'];
@@ -70,9 +76,11 @@ export function OcrCompareReview({
   presetMapping = null,
   colors = null,
   ocrEngineId = null,
+  dateDuty = null,
   regionSnapshots = null,
   pageWidth = null,
   pageHeight = null,
+  onGridChange,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -80,6 +88,7 @@ export function OcrCompareReview({
   const [fullOpen, setFullOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<OcrCellDisplayMode>('codes');
   const [onlyMine, setOnlyMine] = useState(true);
+  const [edit, setEdit] = useState<{ day: string; cell: string } | null>(null);
 
   const overlayLayout = grid?.overlayLayout === 'date-duty' ? 'date-duty' : null;
 
@@ -121,6 +130,9 @@ export function OcrCompareReview({
     <View style={styles.wrap}>
       <Text style={styles.compareTitle}>{t('sourceOcrCompareTitle')}</Text>
       <Text style={styles.compareHint}>{t('sourceOcrCompareHint')}</Text>
+      {matchedName && onGridChange ? (
+        <Text style={styles.compareHint}>{t('sourceOcrCompareEditHint')}</Text>
+      ) : null}
 
       {grid ? (
         <>
@@ -147,8 +159,35 @@ export function OcrCompareReview({
             presetMapping={presetMapping}
             colors={colors}
             ocrEngineId={ocrEngineId}
+            dateDuty={dateDuty}
             onlyMine={!!matchedName && onlyMine}
             onOnlyMineChange={setOnlyMine}
+            editable={!!matchedName && !!onGridChange}
+            onEditCell={(day, cell) => setEdit({ day, cell })}
+          />
+          <OcrCellEditModal
+            visible={!!edit}
+            dayLabel={edit?.day || ''}
+            initialCell={edit?.cell || ''}
+            dateDuty={dateDuty}
+            date={
+              edit && grid.rosterMonth && grid.rosterYear
+                ? new Date(
+                    grid.rosterYear,
+                    grid.rosterMonth - 1,
+                    Number.parseInt(edit.day, 10) || 1
+                  )
+                : null
+            }
+            onCancel={() => setEdit(null)}
+            onSave={(cell) => {
+              if (!edit || !grid || !matchedName || !onGridChange) {
+                setEdit(null);
+                return;
+              }
+              onGridChange(patchMonthMatrixCell(grid, matchedName, edit.day, cell));
+              setEdit(null);
+            }}
           />
         </>
       ) : null}

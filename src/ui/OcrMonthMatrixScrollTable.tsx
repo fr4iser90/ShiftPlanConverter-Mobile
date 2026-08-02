@@ -2,7 +2,15 @@ import { memo, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '@/src/i18n';
+import { parseOcrDutyCell } from '@/src/convert/parsers/ocr/matrixToEntries';
 import type { MappingValue } from '@/src/convert/types';
+import {
+  findDateDutyColumnByShort,
+  formatDateDutyCellTime,
+  formatDateDutyTimeLabel,
+  resolveDateDutyColumnTime,
+} from '@/src/packs/dateDutyTimes';
+import type { PackDateDutyConfig } from '@/src/packs/types';
 import {
   formatOcrCellForDisplay,
   type OcrCellDisplayMode,
@@ -28,10 +36,26 @@ type Props = {
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
   ocrEngineId?: string | null;
+  /** Pack date×duty times (Anästhesie HD/RD/…). */
+  dateDuty?: PackDateDutyConfig | null;
   /** Default true when matchedName is set — photo below still shows full board. */
   onlyMine?: boolean;
   onOnlyMineChange?: (onlyMine: boolean) => void;
+  /** Tap cell to edit (only matched / visible rows). */
+  editable?: boolean;
+  onEditCell?: (dayHeader: string, currentCell: string) => void;
 };
+
+function rosterDateForHeader(
+  header: string,
+  month?: number,
+  year?: number
+): Date | null {
+  const day = Number.parseInt(String(header || '').trim(), 10);
+  if (!Number.isFinite(day) || day < 1 || day > 31) return null;
+  if (!month || month < 1 || month > 12 || !year || year < 2000) return null;
+  return new Date(year, month - 1, day);
+}
 
 function OcrMonthMatrixScrollTableInner({
   grid,
@@ -41,13 +65,16 @@ function OcrMonthMatrixScrollTableInner({
   presetMapping = null,
   colors = null,
   ocrEngineId = null,
+  dateDuty = null,
   onlyMine = true,
   onOnlyMineChange,
+  editable = false,
+  onEditCell,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const matchName = String(matchedName || '').trim();
-  const colW = displayMode === 'both' ? 72 : COL_W;
+  const colW = displayMode === 'codes' ? COL_W : displayMode === 'times' ? 88 : 96;
   const rowH = displayMode === 'both' ? 40 : ROW_H;
 
   const mineKeys = useMemo(() => {
@@ -74,14 +101,37 @@ function OcrMonthMatrixScrollTableInner({
 
   const daysWidth = grid.headers.length * colW;
 
-  const cellText = (raw: string) => {
+  const cellText = (raw: string, header: string) => {
     // Date×duty cells are pack duty shorts (HD, RDN, …), not LOGA preset codes.
-    // formatOcrCellForDisplay would map them through the time→code allow-list and blank them.
     if (grid.overlayLayout === 'date-duty') {
       const s = String(raw || '').trim();
       if (!s) return '';
-      if (displayMode === 'times') return '';
-      return s;
+      const date = rosterDateForHeader(header, grid.rosterMonth, grid.rosterYear);
+      const parts = parseOcrDutyCell(s);
+      const codeLabel = parts.map((p) => p.short).join('+') || s;
+      const timeParts: string[] = [];
+      for (const p of parts) {
+        if (p.start && p.end) {
+          timeParts.push(
+            formatDateDutyTimeLabel({
+              start: p.start,
+              end: p.end,
+              endNextDay: p.endNextDay || p.end < p.start,
+            })
+          );
+          continue;
+        }
+        if (date && dateDuty) {
+          const col = findDateDutyColumnByShort(dateDuty, p.short);
+          const tSlot = col ? resolveDateDutyColumnTime(col, date) : null;
+          if (tSlot) timeParts.push(formatDateDutyTimeLabel(tSlot));
+        }
+      }
+      const time =
+        timeParts.join('·') || formatDateDutyCellTime(codeLabel, dateDuty, date);
+      if (displayMode === 'times') return time;
+      if (displayMode === 'both') return time ? `${codeLabel}·${time}` : codeLabel;
+      return codeLabel;
     }
     return formatOcrCellForDisplay(
       raw,
@@ -193,21 +243,35 @@ function OcrMonthMatrixScrollTableInner({
                       style={[styles.daysRow, { height: rowH }, mine && styles.matchedRow]}
                     >
                       {r.cells.map((c, i) => {
-                        const shown = cellText(c);
-                        return (
+                        const header = grid.headers[i] || '';
+                        const shown = cellText(c, header);
+                        const canEdit = editable && !!onEditCell && (!matchName || mine);
+                        const inner = (
+                          <Text
+                            style={[
+                              styles.dayText,
+                              (displayMode === 'both' || displayMode === 'times') &&
+                                styles.dayTextBoth,
+                            ]}
+                            numberOfLines={displayMode === 'codes' ? 1 : 2}
+                          >
+                            {shown || '·'}
+                          </Text>
+                        );
+                        return canEdit ? (
+                          <Pressable
+                            key={`${r.name}-${i}`}
+                            onPress={() => onEditCell(header, c || '')}
+                            style={[styles.cell, styles.dayCell, { width: colW }]}
+                          >
+                            {inner}
+                          </Pressable>
+                        ) : (
                           <View
                             key={`${r.name}-${i}`}
                             style={[styles.cell, styles.dayCell, { width: colW }]}
                           >
-                            <Text
-                              style={[
-                                styles.dayText,
-                                displayMode === 'both' && styles.dayTextBoth,
-                              ]}
-                              numberOfLines={displayMode === 'both' ? 2 : 1}
-                            >
-                              {shown || '·'}
-                            </Text>
+                            {inner}
                           </View>
                         );
                       })}

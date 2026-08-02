@@ -147,6 +147,69 @@ describe('date-duty pack vocabulary', () => {
     expect(wiped.rows.some((r) => r.cells.some((c) => /A|B|DN/i.test(c)))).toBe(true);
   });
 
+  it('does not drop HD names when weekday glyphs sit between date and title', () => {
+    // High-res board: separate boxes Do | OA | Dr. | Sample next to the date gutter.
+    const pageW = 3000;
+    const pageH = 2100;
+    const lines: OcrLine[] = [
+      L('Abteilung Plan', 40, 10, 200),
+      L('Duty A', 400, 40, 80),
+      L('Duty B', 900, 40, 80),
+      L('Duty Night', 1400, 40, 90),
+    ];
+    for (let d = 1; d <= 20; d++) {
+      const y = 200 + d * 40;
+      lines.push(L(`${String(d).padStart(2, '0')}.09.`, 80, y, 90, 18));
+      lines.push(L(NAME_A, 1400, y + 2, 100, 18));
+    }
+    // Day 3 — weekday between date and title (must not glue into the person phrase).
+    lines.push(L('Do', 200, 200 + 3 * 40, 36, 18));
+    lines.push(L('OA', 270, 200 + 3 * 40, 30, 18));
+    lines.push(L('Dr.', 318, 200 + 3 * 40, 28, 18));
+    lines.push(L('Sample', 358, 200 + 3 * 40, 80, 18));
+    // Day 7 — OCR pipe / accent junk on title
+    lines.push(L('|OA', 520, 200 + 7 * 40, 34, 18));
+    lines.push(L('Dr.', 570, 200 + 7 * 40, 28, 18));
+    lines.push(L('Sample', 616, 200 + 7 * 40, 80, 18));
+    const built = buildDateDutyFromLines(lines, pageW, {
+      dateDuty: { ...packDateDuty, roleSuffixes: ['OA', 'OÄ'] },
+      pageHeight: pageH,
+    });
+    expect(built.ok).toBe(true);
+    const samples = built.assignments.filter((a) => /sample/i.test(a.personLabel));
+    expect(samples.length).toBeGreaterThanOrEqual(2);
+    expect(samples.some((a) => a.day === 3)).toBe(true);
+    expect(samples.some((a) => a.day === 7)).toBe(true);
+    expect(samples.every((a) => !/^(Do|Sa|Mo)\b/i.test(a.personLabel))).toBe(true);
+  });
+
+  it('keeps OÄ-titled wall names as assignments', () => {
+    const lines: OcrLine[] = [
+      L('Abteilung Plan', 40, 10, 200),
+      L('Duty A', 200, 40, 60),
+      L('Duty B', 400, 40, 60),
+      L('Duty Night', 600, 40, 70),
+    ];
+    for (let d = 1; d <= 16; d++) {
+      lines.push(L(`${String(d).padStart(2, '0')}.09.`, 20, 80 + d * 28, 70));
+      lines.push(L(NAME_A, 600, 84 + d * 28, 90));
+    }
+    // Fragmented like board OCR: OÄ | Dr. | Sample
+    lines.push(L('OÄ', 200, 84 + 3 * 28, 22));
+    lines.push(L('Dr.', 226, 84 + 3 * 28, 20));
+    lines.push(L('Sample', 250, 84 + 3 * 28, 70));
+    lines.push(L('Hr.', 400, 84 + 6 * 28, 22));
+    lines.push(L('Sample', 426, 84 + 6 * 28, 70));
+    const built = buildDateDutyFromLines(lines, 900, {
+      dateDuty: { ...packDateDuty, roleSuffixes: ['OA', 'OÄ'] },
+      pageHeight: 800,
+    });
+    expect(built.ok).toBe(true);
+    const samples = built.assignments.filter((a) => /sample/i.test(a.personLabel));
+    expect(samples.length).toBeGreaterThanOrEqual(2);
+    expect(samples.some((a) => /OÄ/i.test(a.personLabel))).toBe(true);
+  });
+
   it('marks all preferred-name OCR variants as own-row overlays', () => {
     const lines: OcrLine[] = [
       L('Abteilung Plan', 40, 10, 200),

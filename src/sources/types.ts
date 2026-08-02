@@ -1,5 +1,7 @@
 /** Source → Pack/Convert → Sink: raw material from a fetch or file import. */
 
+import type { ShiftEntry } from '../convert/types';
+
 export type SourcePeriod = {
   months: number[];
   year: number;
@@ -21,6 +23,14 @@ export type SourceArtifact =
       savedPath?: string;
     }
   | { kind: 'text'; month?: number; year?: number; text: string }
+  | {
+      /** Pre-parsed shifts (OCR confirm → calendar). Skips text re-parse. */
+      kind: 'shifts';
+      month?: number;
+      year?: number;
+      entries: ShiftEntry[];
+      note?: string;
+    }
   | { kind: 'csv'; text: string }
   | { kind: 'ics'; text: string }
   | { kind: 'skipped'; month: number; year: number; reason: string };

@@ -13,63 +13,108 @@
       "Anaesthesie",
       "Elisabeth"
     ],
-    "roleSuffixes": ["FOA", "CA", "FA", "AA", "OA"],
+    "roleSuffixes": ["FOA", "CA", "FA", "AA", "OA", "OÄ"],
     "columns": [
       {
         "id": "hausdienst-nacht",
         "short": "HDN",
         "label": "HD Nacht",
         "match": ["hd", "nacht"],
-        "matchAll": true
+        "matchAll": true,
+        "times": [
+          { "when": "weekday", "start": "19:30", "end": "08:30", "endNextDay": true },
+          {
+            "when": "weekend-or-holiday",
+            "start": "19:30",
+            "end": "09:00",
+            "endNextDay": true
+          }
+        ]
       },
       {
         "id": "rufdienst-nacht",
         "short": "RDN",
         "label": "RD Nacht",
         "match": ["rd", "nacht"],
-        "matchAll": true
+        "matchAll": true,
+        "times": [
+          { "when": "weekday", "start": "20:00", "end": "08:00", "endNextDay": true },
+          {
+            "when": "weekend-or-holiday",
+            "start": "20:00",
+            "end": "08:00",
+            "endNextDay": true
+          }
+        ]
       },
       {
         "id": "hausdienst",
         "short": "HD",
         "label": "Hausdienst",
-        "match": ["hausdienst"]
+        "match": ["hausdienst"],
+        "times": [
+          {
+            "when": "weekday",
+            "start": "11:30",
+            "end": "08:30",
+            "endNextDay": true
+          }
+        ]
       },
       {
         "id": "rufdienst",
         "short": "RD",
         "label": "Rufdienst",
-        "match": ["rufdienst"]
+        "match": ["rufdienst"],
+        "times": [
+          {
+            "when": "weekday",
+            "start": "11:30",
+            "end": "08:30",
+            "endNextDay": true
+          }
+        ]
       },
       {
         "id": "praemedikation",
         "short": "PD",
         "label": "Prämedikation",
-        "match": ["praemed", "pramed"]
+        "match": ["praemed", "pramed"],
+        "times": [
+          { "when": "weekday-mon-thu", "start": "07:30", "end": "16:00" },
+          { "when": "friday", "start": "09:00", "end": "17:30" }
+        ]
       },
       {
         "id": "zwischendienst-2",
         "short": "ZD2",
         "label": "Zwischendienst 2",
-        "match": ["zwischendienst 2", "zwischen 2", "zd 2"]
+        "match": ["zwischendienst 2", "zwischen 2", "zd 2"],
+        "times": [{ "when": "any", "start": "09:30", "end": "18:00" }]
       },
       {
         "id": "zwischendienst-1",
         "short": "ZD1",
         "label": "Zwischendienst 1",
-        "match": ["zwischendienst", "zd 1", "zd"]
+        "match": ["zwischendienst", "zd 1", "zd"],
+        "times": [{ "when": "any", "start": "09:30", "end": "18:00" }]
       },
       {
         "id": "langdienst",
         "short": "LD",
         "label": "Langdienst",
-        "match": ["langdienst"]
+        "match": ["langdienst"],
+        "times": [{ "when": "any", "start": "11:30", "end": "20:00" }]
       },
       {
         "id": "schmerz",
         "short": "SD",
-        "label": "Schmerz",
-        "match": ["schmerz1", "schmerz2", "schmerz 1", "schmerz 2"]
+        "label": "Schmerz / Dienst",
+        "match": ["schmerz1", "schmerz2", "schmerz 1", "schmerz 2"],
+        "times": [
+          { "when": "weekday", "start": "07:30", "end": "16:00" },
+          { "when": "weekend-or-holiday", "start": "07:30", "end": "16:00" }
+        ]
       }
     ]
   }

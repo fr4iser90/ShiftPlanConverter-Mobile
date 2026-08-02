@@ -3,6 +3,7 @@ import {
   detectRosterNamesFromPlainText,
   extractPersonRowFromPlainText,
   extractPersonRowText,
+  filterPreferredNameMatches,
   isPlausiblePersonName,
   matchPreferredName,
   resolveConfirmedRosterLabel,
@@ -129,6 +130,18 @@ describe('OCR roster name detection', () => {
     const hit = matchPreferredName('PersonA, Alpha', names);
     expect(hit?.candidate.label).toBe('OA Dr. PersonA');
     expect(hit!.score).toBeGreaterThanOrEqual(0.88);
+  });
+
+  it('accepts OÄ / Hr. wall labels (Anästhesie board OCR)', () => {
+    expect(isPlausiblePersonName('OÄ Dr. PersonA')).toBe(true);
+    expect(isPlausiblePersonName('Hr. PersonA')).toBe(true);
+    const names = [
+      { id: 'oa', label: 'OÄ Dr. PersonA', yCenter: 40, height: 14 },
+      { id: 'hr', label: 'Hr. PersonA', yCenter: 80, height: 14 },
+      { id: 'other', label: 'Frau PersonB', yCenter: 120, height: 14 },
+    ];
+    const hits = filterPreferredNameMatches('PersonA, Alpha', names, null, 0.8);
+    expect(hits.map((h) => h.label).sort()).toEqual(['Hr. PersonA', 'OÄ Dr. PersonA']);
   });
 
   it('collapses title OCR variants of the same wall surname', () => {

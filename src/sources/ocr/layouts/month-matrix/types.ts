@@ -111,6 +111,9 @@ export type MonthMatrixGrid = {
     xCenter: number;
     yCenter: number;
   }[];
+  /** Roster calendar month/year from date×duty parse (for pack time slots). */
+  rosterMonth?: number;
+  rosterYear?: number;
 };
 
 /** Compact quality stats for status UI (one-shot; no second OCR). */

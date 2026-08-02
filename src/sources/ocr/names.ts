@@ -72,9 +72,9 @@ export function isPlausiblePersonName(label: string): boolean {
   if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{1,20}\.,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,30}$/.test(t)) {
     return true;
   }
-  // Wall plans: "Dr. Muster", "OA Dr. Muster", "Frau Muster"
+  // Wall plans: "Dr. Muster", "OA/OÄ Dr. Muster", "Frau Muster", "Hr. Muster"
   if (
-    /^(?:(?:OA|FA|CA|Prof\.?|Dr\.?|Frau|Herr|Hr\.?|Fr\.?)\s+)+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,40}$/.test(
+    /^(?:(?:OÄ|OA|FA|CA|FOA|AA|Prof\.?|Dr\.?|Frau|Herr|Hr\.?|Fr\.?)\s+)+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,40}$/i.test(
       t
     )
   ) {
@@ -201,8 +201,11 @@ const NAME_TITLE_TOKENS = new Set([
   'dr',
   'med',
   'oa',
+  'oä', // kept if diacritics survive; NFD usually maps OÄ → oa
   'fa',
   'ca',
+  'foa',
+  'aa',
   'prof',
   'frau',
   'herr',

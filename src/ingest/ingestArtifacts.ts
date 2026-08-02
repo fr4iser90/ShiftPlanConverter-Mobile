@@ -147,6 +147,19 @@ export async function ingestArtifacts(
       continue;
     }
 
+    if (art.kind === 'shifts') {
+      if (art.month && art.year) replaceMonthKeys.add(`${art.year}-${pad(art.month)}`);
+      else {
+        for (const e of art.entries || []) {
+          const ym = String(e.date || '').slice(0, 7);
+          if (/^\d{4}-\d{2}$/.test(ym)) replaceMonthKeys.add(ym);
+        }
+      }
+      if (art.note) result.texts.push(art.note);
+      result.entries.push(...(art.entries || []));
+      continue;
+    }
+
     if (art.kind === 'csv') {
       result.texts.push(art.text);
       result.entries.push(...parseCsvShifts(art.text));

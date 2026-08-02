@@ -747,6 +747,49 @@ export async function getGoogleCalendarId(): Promise<string | null> {
 }
 
 /**
+ * Clear in-app calendar shifts for the active workplace only.
+ * Keeps setup, credentials, mappings, Google connection.
+ * Returns how many shifts were removed.
+ */
+export async function clearLocalShifts(): Promise<number> {
+  if (payloadLocked) {
+    throw new Error(t('storePayloadLocked'));
+  }
+  const wpId = cache.activeWorkplaceId || '';
+  const before = cache.entries;
+  const kept = wpId
+    ? before.filter((e) => e.workplaceId && e.workplaceId !== wpId)
+    : [];
+  const removed = before.length - kept.length;
+  const prevSummaries = cache.summaries || [];
+  const keptSummaries = wpId
+    ? prevSummaries.filter((s) => s.workplaceId && s.workplaceId !== wpId)
+    : [];
+  cache = {
+    ...cache,
+    entries: kept,
+    rawText: '',
+    summary: keptSummaries.length ? keptSummaries[keptSummaries.length - 1]! : null,
+    summaries: keptSummaries,
+  };
+  await AsyncStorage.setItem(KEYS.entries, await encryptUtf8(JSON.stringify(kept)));
+  await AsyncStorage.setItem(KEYS.rawText, await encryptUtf8(''));
+  await AsyncStorage.setItem(KEYS.summary, await encryptUtf8(JSON.stringify(cache.summary)));
+  await AsyncStorage.setItem(
+    KEYS.summaries,
+    await encryptUtf8(JSON.stringify(keptSummaries))
+  );
+  notify();
+  pingHomeWidgets(kept);
+  void import('../schedule/shiftAlarms')
+    .then((m) => m.rescheduleShiftAlarms())
+    .catch(() => {
+      // optional
+    });
+  return removed;
+}
+
+/**
  * Wipe local app data: shifts, raw text, mappings, workplace, summaries,
  * Google calendar id, PDFs, credentials, tenant URL, encryption key.
  * Keeps locale/theme prefs.

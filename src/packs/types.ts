@@ -3,6 +3,23 @@ import type { PackArea, PackAreaEntry } from './expandAreas';
 
 export type { PackArea, PackAreaEntry, PackAreaSeries } from './expandAreas';
 
+/** When a date×duty time slot applies (same vocabulary as composeRules where useful). */
+export type PackDateDutyWhen =
+  | 'any'
+  | 'weekday'
+  | 'weekday-mon-thu'
+  | 'friday'
+  | 'weekend-or-holiday';
+
+/** One start/end window for a duty column (pack-authored, not OCR-guessed). */
+export type PackDateDutyTimeSlot = {
+  start: string;
+  end: string;
+  /** End clock is on the following calendar day (e.g. Hausdienst 11:30→08:30+1). */
+  endNextDay?: boolean;
+  when?: PackDateDutyWhen;
+};
+
 /** Pack column for OCR layout `date-duty` (employer duty headers). */
 export type PackDateDutyColumn = {
   id: string;
@@ -15,6 +32,11 @@ export type PackDateDutyColumn = {
    */
   match: string[];
   matchAll?: boolean;
+  /**
+   * Wall-plan duty hours for display / later calendar.
+   * First best-matching `when` wins for a given date.
+   */
+  times?: PackDateDutyTimeSlot[];
 };
 
 /** Pack config for date × duty-column boards (OCR). */
