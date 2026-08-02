@@ -3,7 +3,7 @@
  * Profiles = employers on this device; pack/group/area/preset edit the active one.
  * Preview merges all profiles; Import/Fetch use the active profile.
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '@/src/i18n';
@@ -13,8 +13,8 @@ import {
   isPresetReady,
   listBuiltinPacks,
   listPresetsForScope,
+  type PackArea,
   type PackConfig,
-  type PackGroup,
 } from '@/src/packs';
 import {
   addWorkplace,
@@ -31,8 +31,12 @@ import type { AppTheme } from '@/src/ui/theme';
 /** Above this, profiles use a switcher sheet instead of pill spam. */
 const PROFILE_INLINE_MAX = 4;
 
-function groupHasReadyArea(g: PackGroup): boolean {
+function groupHasReadyArea(g: { areas: PackArea[] }): boolean {
   return g.areas.some((a) => a.supported);
+}
+
+function departmentKey(a: PackArea): string {
+  return String(a.department || a.label || '').trim();
 }
 
 function makePickerStyles(theme: AppTheme) {
@@ -58,35 +62,80 @@ export function WorkplacePicker() {
       : [];
 
   const isGeneric = pack?.id === DEFAULT_GENERIC_PACK_ID;
-  const readyAreas = group?.areas.filter((a) => a.supported) || [];
-  const soonAreaCount = (group?.areas.length || 0) - readyAreas.length;
-  // Generic pack: hide fake Bereich/Rolle (Import / Standard).
+  const allAreas = group?.areas || [];
+  const readyAreas = allAreas.filter((a) => a.supported);
+  const soonAreaCount = allAreas.length - readyAreas.length;
+  // Generic pack: hide fake department/role chips (Import / Standard).
   const showGroups = !isGeneric && (pack?.groups.length || 0) > 1;
-  const showAreas = !isGeneric && readyAreas.length > 0;
-  const showPresets = !isGeneric && presets.length > 0;
+  const splitDepartmentRole = allAreas.some((a) => !!(a.department || a.role));
+  const showAreas = !isGeneric && allAreas.length > 0 && !!snap.groupId;
+  const showPresets =
+    !isGeneric &&
+    presets.length > 0 &&
+    !!snap.areaId &&
+    !(presets.length === 1 && presets[0] === 'default');
   const showProfiles = snap.workplaces.length > 0;
   const inlineProfiles = snap.workplaces.length <= PROFILE_INLINE_MAX;
   const activeProfile =
     snap.workplaces.find((w) => w.id === snap.activeWorkplaceId) || snap.workplaces[0];
 
+  /** Remember department when multiple roles exist and area is not chosen yet. */
+  const [pickedDepartment, setPickedDepartment] = useState('');
+  const selectedDepartment =
+    (area ? departmentKey(area) : '') ||
+    (pickedDepartment && allAreas.some((a) => departmentKey(a) === pickedDepartment)
+      ? pickedDepartment
+      : '');
+
+  const departmentOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const a of readyAreas) {
+      const key = departmentKey(a);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(key);
+    }
+    return out;
+  }, [readyAreas]);
+
+  const roleAreas = allAreas.filter(
+    (a) => selectedDepartment && departmentKey(a) === selectedDepartment && a.role
+  );
+  const showRoles = splitDepartmentRole && roleAreas.length > 0;
+
   const pickPack = async (p: PackConfig) => {
-    const g = p.groups.find((x) => groupHasReadyArea(x)) || p.groups[0];
-    const a = g?.areas.find((x) => x.supported) || g?.areas[0];
+    const readyGroups = p.groups.filter(groupHasReadyArea);
+    const soleGroup = readyGroups.length === 1 ? readyGroups[0] : null;
+    const readyAreasSole = soleGroup?.areas.filter((a) => a.supported) || [];
+    const soleArea = readyAreasSole.length === 1 ? readyAreasSole[0] : null;
+
+    // Only auto-fill when there is exactly one ready path (e.g. Ohne Arbeitgeber).
+    // Multi-group packs (St. Elisabeth: Pflege / Ärzte / …) stay on employer until the user picks.
+    if (!soleGroup || !soleArea) {
+      await setWorkplace({
+        packId: p.id,
+        groupId: '',
+        areaId: '',
+        preset: '',
+      });
+      return;
+    }
+
+    const g = soleGroup;
+    const a = soleArea;
     const readyPreset =
-      a &&
-      a.defaultPreset &&
-      isPresetReady(p.id, g?.id || '', a.id, a.defaultPreset)
-        ? a.defaultPreset
-        : (a &&
-            listPresetsForScope(p.id, g?.id || '', a.id).find((pr) =>
-              isPresetReady(p.id, g?.id || '', a.id, pr)
-            )) ||
-          a?.defaultPreset ||
+      a.defaultDutyTable && isPresetReady(p.id, g.id, a.id, a.defaultDutyTable)
+        ? a.defaultDutyTable
+        : listPresetsForScope(p.id, g.id, a.id).find((pr) =>
+            isPresetReady(p.id, g.id, a.id, pr)
+          ) ||
+          a.defaultDutyTable ||
           '';
     await setWorkplace({
       packId: p.id,
-      groupId: g?.id || '',
-      areaId: a?.id || '',
+      groupId: g.id,
+      areaId: a.id,
       preset: readyPreset,
     });
   };
@@ -95,12 +144,42 @@ export function WorkplacePicker() {
     if (!pack) return;
     const g = pack.groups.find((x) => x.id === groupId);
     if (!g || !groupHasReadyArea(g)) return;
-    const a = g.areas.find((x) => x.supported) || g.areas[0];
+    setPickedDepartment('');
+    const ready = g.areas.filter((x) => x.supported);
+    // Multiple areas → group only; user picks department next.
+    if (ready.length !== 1) {
+      await setWorkplace({
+        packId: pack.id,
+        groupId,
+        areaId: '',
+        preset: '',
+      });
+      return;
+    }
+    const a = ready[0];
     await setWorkplace({
       packId: pack.id,
       groupId,
-      areaId: a?.id || '',
-      preset: a?.defaultPreset || '',
+      areaId: a.id,
+      preset: a.defaultDutyTable || '',
+    });
+  };
+
+  const pickDepartment = async (b: string) => {
+    if (!pack || !group) return;
+    const inB = group.areas.filter((a) => departmentKey(a) === b);
+    const ready = inB.filter((a) => a.supported);
+    setPickedDepartment(b);
+    if (ready.length === 1) {
+      await pickArea(ready[0].id);
+      return;
+    }
+    if (ready.length === 0) return;
+    await setWorkplace({
+      packId: pack.id,
+      groupId: group.id,
+      areaId: '',
+      preset: '',
     });
   };
 
@@ -108,14 +187,15 @@ export function WorkplacePicker() {
     if (!pack || !group) return;
     const a = group.areas.find((x) => x.id === areaId);
     if (!a?.supported) return;
+    setPickedDepartment(departmentKey(a));
     const readyPreset =
-      a.defaultPreset &&
-      isPresetReady(pack.id, group.id, a.id, a.defaultPreset)
-        ? a.defaultPreset
+      a.defaultDutyTable &&
+      isPresetReady(pack.id, group.id, a.id, a.defaultDutyTable)
+        ? a.defaultDutyTable
         : listPresetsForScope(pack.id, group.id, a.id).find((p) =>
             isPresetReady(pack.id, group.id, a.id, p)
           ) ||
-          a.defaultPreset ||
+          a.defaultDutyTable ||
           '';
     await setWorkplace({
       packId: pack.id,
@@ -256,16 +336,43 @@ export function WorkplacePicker() {
         <>
           <Text style={styles.label}>{t('area')}</Text>
           <View style={styles.rowWrap}>
-            {readyAreas.map((a) => (
-              <AppButton
-                key={a.id}
-                compact
-                title={a.label}
-                variant={snap.areaId === a.id ? 'soft' : 'secondary'}
-                onPress={() => void pickArea(a.id)}
-              />
-            ))}
+            {splitDepartmentRole
+              ? departmentOptions.map((b) => (
+                  <AppButton
+                    key={b}
+                    compact
+                    title={b}
+                    variant={selectedDepartment === b ? 'soft' : 'secondary'}
+                    onPress={() => void pickDepartment(b)}
+                  />
+                ))
+              : readyAreas.map((a) => (
+                  <AppButton
+                    key={a.id}
+                    compact
+                    title={a.label}
+                    variant={snap.areaId === a.id ? 'soft' : 'secondary'}
+                    onPress={() => void pickArea(a.id)}
+                  />
+                ))}
           </View>
+          {showRoles ? (
+            <>
+              <Text style={styles.label}>{t('role')}</Text>
+              <View style={styles.rowWrap}>
+                {roleAreas.map((a) => (
+                  <AppButton
+                    key={a.id}
+                    compact
+                    title={a.supported ? a.role! : `${a.role} (${t('soon')})`}
+                    disabled={!a.supported}
+                    variant={snap.areaId === a.id ? 'soft' : 'secondary'}
+                    onPress={() => void pickArea(a.id)}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
           {soonAreaCount > 0 ? (
             <Text style={styles.meta}>
               {t('workplaceAreasSoon', { count: String(soonAreaCount) })}

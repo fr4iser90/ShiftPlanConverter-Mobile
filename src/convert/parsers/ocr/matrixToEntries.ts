@@ -2,7 +2,7 @@
  * OCR review grid → ShiftEntry[] for calendar ingest (confirm path only).
  */
 import { timeRangeForCode } from '../../codeTimes';
-import type { PackMapping, ShiftEntry } from '../../types';
+import { resolveDutyCodes, type PackMapping, type ShiftEntry } from '../../types';
 import {
   findDateDutyColumnByShort,
   resolveDateDutyColumnTime,
@@ -155,10 +155,7 @@ export function monthMatrixToShiftEntries(
   const cells = mergedCellsForPerson(grid, name);
   if (!cells.length) return [];
 
-  const preset =
-    opts.mapping?.presets?.[opts.presetName || ''] ||
-    (opts.mapping?.presets ? Object.values(opts.mapping.presets)[0] : null) ||
-    null;
+  const preset = resolveDutyCodes(opts.mapping, opts.presetName) || null;
 
   const entries: ShiftEntry[] = [];
   for (let i = 0; i < grid.headers.length; i++) {

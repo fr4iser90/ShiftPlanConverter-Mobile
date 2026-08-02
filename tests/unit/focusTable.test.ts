@@ -3,14 +3,14 @@ import { buildMonthMatrixGrid } from '../../src/sources/ocr/layouts/month-matrix
 import { applyPackMappingToGrid } from '../../src/convert/parsers/ocr/applyPackMapping';
 import { applyKnownSpellingsToGridRows } from '../../src/sources/ocr/names';
 import type { MappingValue } from '../../src/convert/types';
+import { resolveDutyCodes } from '../../src/convert/types';
 import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.json';
 import { hasPrivateDump, loadMonthMatrixDump } from './_ocrFixtures';
 
 describe('focusLinesOnMonthTable (private hires dump)', () => {
   const run = hasPrivateDump('hires');
 
-  const anaesthesie = (op as { presets: Record<string, Record<string, MappingValue>> }).presets
-    .Anästhesie;
+  const anaesthesie = resolveDutyCodes(op as never);
   const colors = (op as { colors: Record<string, string> }).colors;
 
   it('keeps a usable table band', () => {

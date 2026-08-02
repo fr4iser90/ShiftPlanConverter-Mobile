@@ -66,8 +66,8 @@ import { RosterNameFields } from '@/src/ui/RosterNameFields';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 
-/** workplace → optional portal → roster name (optional) → calendars (optional) */
-type Step = 'workplace' | 'portal' | 'name' | 'calendars';
+/** workplace → roster name (OCR) → optional portal → calendars */
+type Step = 'workplace' | 'name' | 'portal' | 'calendars';
 
 async function preferNonLoga3Source(packId: string | null | undefined): Promise<void> {
   const pack = packId ? getPackById(packId) : null;
@@ -109,7 +109,7 @@ export default function SetupScreen() {
 
   const stepOrder = useMemo((): Step[] => {
     return portalAvailable
-      ? ['workplace', 'portal', 'name', 'calendars']
+      ? ['workplace', 'name', 'portal', 'calendars']
       : ['workplace', 'name', 'calendars'];
   }, [portalAvailable]);
 
@@ -184,7 +184,7 @@ export default function SetupScreen() {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    setStep(portalAvailable ? 'portal' : 'name');
+    setStep('name');
   };
 
   const goToStep = (target: Step) => {
@@ -199,7 +199,7 @@ export default function SetupScreen() {
     }
     if (target === 'portal') {
       if (portalAvailable) setStep('portal');
-      else setStep('name');
+      else setStep('calendars');
       return;
     }
     setStep(target);
@@ -223,7 +223,7 @@ export default function SetupScreen() {
     }
     await saveCredentials({ username: username.trim(), password });
     await preferLoga3Source(snap.packId);
-    setStep('name');
+    setStep('calendars');
   };
 
   const skipLoga3 = async () => {
@@ -232,7 +232,7 @@ export default function SetupScreen() {
       return;
     }
     await preferNonLoga3Source(snap.packId);
-    setStep('name');
+    setStep('calendars');
   };
 
   const saveNameAndContinue = async () => {
@@ -242,11 +242,11 @@ export default function SetupScreen() {
       return;
     }
     if (composed) await saveOcrPreferredName(composed);
-    setStep('calendars');
+    setStep(portalAvailable ? 'portal' : 'calendars');
   };
 
   const skipName = () => {
-    setStep('calendars');
+    setStep(portalAvailable ? 'portal' : 'calendars');
   };
 
   /** One tap: ready pack + role, file/photo sources, skip portal & calendar. */
@@ -388,7 +388,7 @@ export default function SetupScreen() {
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep('workplace')}
+              onPress={() => setStep('name')}
               style={styles.flexBtn}
             />
             <AppButton
@@ -416,7 +416,7 @@ export default function SetupScreen() {
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep(portalAvailable ? 'portal' : 'workplace')}
+              onPress={() => setStep('workplace')}
               style={styles.flexBtn}
             />
             <AppButton
@@ -491,7 +491,7 @@ export default function SetupScreen() {
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep('name')}
+              onPress={() => setStep(portalAvailable ? 'portal' : 'name')}
               style={styles.flexBtn}
             />
             <AppButton

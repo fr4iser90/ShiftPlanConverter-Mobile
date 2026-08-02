@@ -1,0 +1,11 @@
+{
+  "department": "OP",
+  "role": "Chirurg/in",
+  "ocr": "mappings/arzt/op-anaesthesie.ocr.json",
+  "payroll": {
+    "supported": true,
+    "profile": "mappings/arzt/krankenhaus.payroll.json"
+  },
+  "colors": {},
+  "dutyCodes": {}
+}

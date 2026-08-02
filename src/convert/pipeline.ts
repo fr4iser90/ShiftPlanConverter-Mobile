@@ -1,7 +1,7 @@
 import { parseTimeSheet } from './convert';
 import { getParser, DEFAULT_PARSER_ID, type PackPdfConfig } from './parsers';
 import { resolveShiftMapping } from './shiftMapping';
-import type { ConvertResult, PackMapping, ShiftEntry } from './types';
+import { resolveDutyCodes, type ConvertResult, type PackMapping, type ShiftEntry } from './types';
 import { getBuiltinMapping } from '../packs';
 
 export type ConvertOptions = {
@@ -44,10 +44,9 @@ export function resolveStoredEntries(
   entries: ShiftEntry[],
   options: ConvertOptions = {}
 ): ShiftEntry[] {
-  const preset = options.preset || 'Anästhesie';
+  const preset = options.preset || 'default';
   const packMapping = options.mapping || getBuiltinMapping();
-  const mapping =
-    (packMapping.presets && packMapping.presets[preset]) || {};
+  const mapping = resolveDutyCodes(packMapping, preset);
 
   const resolved = entries.map((e) => {
     if (e.allDay || !e.start || !e.end) return e;

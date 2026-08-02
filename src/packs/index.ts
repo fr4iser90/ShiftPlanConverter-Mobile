@@ -1,4 +1,5 @@
 import type { PackMapping } from '../convert/types';
+import { DEFAULT_DUTY_TABLE_ID, resolveDutyCodes } from '../convert/types';
 import { DEFAULT_PDF_ENGINE_ID } from '../convert/parsers/engines';
 import type { PackPdfConfig } from '../convert/parsers/engines';
 import { DEFAULT_OCR_ENGINE_ID } from '../convert/parsers/ocr';
@@ -30,14 +31,42 @@ export {
 } from './dateDutyTimes';
 export type { PackAreaEntry, PackAreaOcr, PackAreaSeries } from './expandAreas';
 export type { PackPdfConfig };
+export { DEFAULT_DUTY_TABLE_ID, resolveDutyCodes };
 
 export const DEFAULT_GENERIC_PACK_ID = 'default-generic';
 export const DEFAULT_GENERIC_GROUP_ID = 'generic';
 export const DEFAULT_GENERIC_AREA_ID = 'import';
-export const DEFAULT_GENERIC_PRESET = 'Standard';
+/** @deprecated use DEFAULT_DUTY_TABLE_ID — flat role mappings store this as workplace.preset */
+export const DEFAULT_GENERIC_PRESET = DEFAULT_DUTY_TABLE_ID;
 
 function entryById(packId: string): PackRegistryEntry | undefined {
   return PACK_REGISTRY.find((p) => p.id === packId);
+}
+
+function enrichAreaFromMapping(
+  a: PackArea,
+  mapping: PackMapping | undefined
+): PackArea {
+  const department = mapping?.department?.trim() || undefined;
+  const role = mapping?.role?.trim() || undefined;
+  const fromMapping = [department, role].filter(Boolean).join(' · ');
+  const ocrPath = mapping?.ocr?.trim();
+  const payroll = mapping?.payroll;
+  const defaultDutyTable =
+    mapping?.dutyCodes !== undefined
+      ? DEFAULT_DUTY_TABLE_ID
+      : mapping?.presets
+        ? Object.keys(mapping.presets)[0] || DEFAULT_DUTY_TABLE_ID
+        : DEFAULT_DUTY_TABLE_ID;
+  return {
+    ...a,
+    department,
+    role,
+    label: fromMapping || a.label,
+    defaultDutyTable,
+    ocr: ocrPath ? { profile: ocrPath } : a.ocr,
+    payroll: payroll || a.payroll,
+  };
 }
 
 function buildPackConfig(entry: PackRegistryEntry): PackConfig {
@@ -48,7 +77,9 @@ function buildPackConfig(entry: PackRegistryEntry): PackConfig {
     groups: groups.map((g) => ({
       id: g.id,
       label: g.label,
-      areas: expandPackAreas(g.areas),
+      areas: expandPackAreas(g.areas).map((a) =>
+        enrichAreaFromMapping(a, entry.mappingsByPath[a.mapping])
+      ),
     })),
     ocr: entry.ocr,
     pdf: entry.pdf,
@@ -101,7 +132,7 @@ function resolveSmokeWorkplace(): {
     packId: pack?.id || DEFAULT_GENERIC_PACK_ID,
     groupId: group?.id || DEFAULT_GENERIC_GROUP_ID,
     areaId: area?.id || DEFAULT_GENERIC_AREA_ID,
-    preset: area?.defaultPreset || DEFAULT_GENERIC_PRESET,
+    preset: area?.defaultDutyTable || DEFAULT_GENERIC_PRESET,
   };
 }
 
@@ -350,7 +381,7 @@ export function getPayrollProfileForScope(
 export function getBuiltinMapping(): PackMapping {
   return (
     getMappingForScope(BUILTIN_PACK_ID, BUILTIN_GROUP_ID, BUILTIN_AREA_ID) || {
-      presets: {},
+      dutyCodes: {},
     }
   );
 }
@@ -361,23 +392,26 @@ export function getDefaultGenericMapping(): PackMapping {
       DEFAULT_GENERIC_PACK_ID,
       DEFAULT_GENERIC_GROUP_ID,
       DEFAULT_GENERIC_AREA_ID
-    ) || { presets: {} }
+    ) || { dutyCodes: {} }
   );
 }
 
+/** Duty-table ids for a scope (flat role → `['default']`; legacy → preset keys). */
 export function listPresetsForScope(
   packId: string,
   groupId: string,
   areaId: string
 ): string[] {
   const mapping = getMappingForScope(packId, groupId, areaId);
-  return Object.keys(mapping?.presets || {});
+  if (!mapping) return [];
+  if (mapping.dutyCodes !== undefined) return [DEFAULT_DUTY_TABLE_ID];
+  return Object.keys(mapping.presets || {});
 }
 
 /**
- * Preset usable for setup / import.
+ * Duty table usable for setup / import.
  * Employer packs: needs ≥1 time→code row (empty = placeholder / bald).
- * default-generic: empty Standard is valid (no employer codes).
+ * default-generic: empty dutyCodes is valid (no employer codes).
  */
 export function isPresetReady(
   packId: string,
@@ -386,9 +420,12 @@ export function isPresetReady(
   preset: string
 ): boolean {
   const mapping = getMappingForScope(packId, groupId, areaId);
-  const table = mapping?.presets?.[preset];
-  if (!table) return false;
+  if (!mapping) return false;
+  const table = resolveDutyCodes(mapping, preset);
   if (Object.keys(table).length > 0) return true;
+  if (mapping.dutyCodes === undefined && mapping.presets && !mapping.presets[preset]) {
+    return false;
+  }
   const pack = getPackById(packId);
   const area = pack?.groups
     .find((g) => g.id === groupId)
@@ -396,7 +433,7 @@ export function isPresetReady(
   return packId === DEFAULT_GENERIC_PACK_ID && !!area?.supported;
 }
 
-/** First supported area + ready preset across builtin packs (files-only default). */
+/** First supported area + ready duty table across builtin packs (files-only default). */
 export function firstReadyWorkplaceScope(): {
   packId: string;
   groupId: string;
@@ -407,12 +444,12 @@ export function firstReadyWorkplaceScope(): {
     for (const g of p.groups) {
       for (const a of g.areas) {
         if (!a.supported) continue;
-        const presets = listPresetsForScope(p.id, g.id, a.id);
+        const tables = listPresetsForScope(p.id, g.id, a.id);
         const ready =
-          (a.defaultPreset && isPresetReady(p.id, g.id, a.id, a.defaultPreset)
-            ? a.defaultPreset
+          (a.defaultDutyTable && isPresetReady(p.id, g.id, a.id, a.defaultDutyTable)
+            ? a.defaultDutyTable
             : null) ||
-          presets.find((pr) => isPresetReady(p.id, g.id, a.id, pr));
+          tables.find((pr) => isPresetReady(p.id, g.id, a.id, pr));
         if (ready) {
           return { packId: p.id, groupId: g.id, areaId: a.id, preset: ready };
         }

@@ -62,3 +62,5 @@ tests/fixtures/ocr/**/sample.json
 tests/fixtures/ocr/**/expected.json
 tests/fixtures/ocr/month-matrix-feb-*
 tests/fixtures/ocr/month-matrix/wallplan.*
+artifacts/
+__pycache__/

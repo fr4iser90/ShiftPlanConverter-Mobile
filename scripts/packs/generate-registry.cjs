@@ -109,15 +109,20 @@ for (const packId of packDirs) {
     for (const area of collectAreaRefs(group.areas)) {
       const mappingRel = String(area.mapping || '').trim();
       if (!mappingRel) die(`${packId}: area ${group.id}/${area.id} missing mapping`);
+      const mappingAbs = path.join(packRoot, mappingRel);
       if (!mappingPaths.has(mappingRel)) {
-        if (!exists(path.join(packRoot, mappingRel))) {
+        if (!exists(mappingAbs)) {
           die(`${packId}: mapping not found: ${mappingRel}`);
         }
         const ident = toIdent('map', packId, mappingRel);
         mappingPaths.set(mappingRel, ident);
         imports.push(`import ${ident} from './builtin/${packId}/${mappingRel}';`);
       }
-      const payRel = area.payroll?.profile ? String(area.payroll.profile).trim() : '';
+      const mappingJson = readJson(mappingAbs);
+      // Role file may declare ocr / payroll (preferred over legacy config fields).
+      const payRel = String(
+        mappingJson.payroll?.profile || area.payroll?.profile || ''
+      ).trim();
       if (payRel && !payrollPaths.has(payRel)) {
         if (!exists(path.join(packRoot, payRel))) {
           die(`${packId}: payroll profile not found: ${payRel}`);
@@ -126,14 +131,14 @@ for (const packId of packDirs) {
         payrollPaths.set(payRel, ident);
         imports.push(`import ${ident} from './builtin/${packId}/${payRel}';`);
       }
-      const ocrRel = area.ocr?.profile ? String(area.ocr.profile).trim() : '';
-      if (ocrRel && !ocrProfilePaths.has(ocrRel)) {
-        if (!exists(path.join(packRoot, ocrRel))) {
-          die(`${packId}: OCR profile not found: ${ocrRel}`);
+      const ocrProf = String(mappingJson.ocr || area.ocr?.profile || '').trim();
+      if (ocrProf && !ocrProfilePaths.has(ocrProf)) {
+        if (!exists(path.join(packRoot, ocrProf))) {
+          die(`${packId}: OCR profile not found: ${ocrProf}`);
         }
-        const ident = toIdent('ocrp', packId, ocrRel);
-        ocrProfilePaths.set(ocrRel, ident);
-        imports.push(`import ${ident} from './builtin/${packId}/${ocrRel}';`);
+        const ident = toIdent('ocrp', packId, ocrProf);
+        ocrProfilePaths.set(ocrProf, ident);
+        imports.push(`import ${ident} from './builtin/${packId}/${ocrProf}';`);
       }
     }
   }

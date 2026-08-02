@@ -17,6 +17,7 @@ import {
   collectPackCodes,
 } from '../ocr/applyPackMapping';
 import type { MappingValue, PackComposeRule, PackComposeWhen, PackMapping, ShiftEntry } from '../../types';
+import { resolveDutyCodes } from '../../types';
 import { emptyParseResult, finishParseResult, toIsoDate } from './shared';
 import type { PackPdfCodeGrid, PackPdfConfig } from './types';
 
@@ -26,9 +27,7 @@ function packCodeSet(
   mapping: PackMapping | null | undefined,
   presetName?: string
 ): Set<string> {
-  const preset =
-    mapping?.presets?.[presetName || ''] ||
-    (mapping?.presets ? mapping.presets[Object.keys(mapping.presets)[0]] : null);
+  const preset = resolveDutyCodes(mapping, presetName);
   const codes = collectPackCodes(preset, null, mapping?.codeAliases);
   for (const rule of composeRulesForMapping(mapping)) {
     for (const c of [...(rule.codes || []), ...(rule.nextDayCodes || [])]) {
@@ -109,7 +108,7 @@ export function looksLikeCodeGrid(
   if (!allMatch(t, cg.requirePatterns, cg.requireFlags)) return false;
   // Person rows: Lastname, …
   if (!/[A-Za-zÄÖÜäöüß]{2,},\s*[A-Za-zÄÖÜäöüß]/.test(t)) return false;
-  if (!mapping?.presets) return false;
+  if (!mapping?.dutyCodes && !mapping?.presets) return false;
   const codes = packCodeSet(mapping, preset);
   const aliases = mapping.codeAliases;
   let hits = 0;
@@ -488,7 +487,7 @@ function entriesForPerson(
   mapping: PackMapping,
   presetName: string
 ): ShiftEntry[] {
-  const preset = mapping.presets?.[presetName] || {};
+  const preset = resolveDutyCodes(mapping, presetName);
   const rules = composeRulesForMapping(mapping);
   const holidays = holidayCodeSet(preset);
   const out: ShiftEntry[] = [];
@@ -575,8 +574,8 @@ export function parsePdfCodeGrid(
   if (!looksLikeCodeGrid(text, config, mapping, opts.preset)) return emptyParseResult();
   const cg = config?.codeGrid;
   const ym = scanMonthYear(text, cg);
-  if (!ym || !mapping?.presets) return emptyParseResult();
-  const presetName = opts.preset || Object.keys(mapping.presets)[0];
+  if (!ym || (!mapping?.dutyCodes && !mapping?.presets)) return emptyParseResult();
+  const presetName = opts.preset || 'default';
   if (!presetName) return emptyParseResult();
 
   const codes = packCodeSet(mapping, presetName);

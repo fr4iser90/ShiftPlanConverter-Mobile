@@ -1,0 +1,27 @@
+---
+description: Never use pkill -f in a command that itself contains the match pattern (self-kill)
+alwaysApply: true
+---
+
+# No `pkill -f` self-kill
+
+This has killed demo/recording shells **multiple times**. Violating it is a regression.
+
+## Forbidden
+
+- `pkill -f 'demo-record'` / `pkill -f 'scrcpy'` / any `pkill -f PATTERN` in the **same** shell command / script line that also **starts** or **mentions** that PATTERN.
+- `pkill -f` whose PATTERN appears in the launcher cmdline (`nix-shell -p scrcpy …`, `python3 …demo-record.py…`).
+
+`pkill -f` matches the **full argv** of every process — including the zsh/bash that is currently running your one-liner. The shell kills itself → exit unknown / Terminated / empty log.
+
+## Required instead
+
+1. **Leave the run alone** unless the user asks to stop it.
+2. To stop: `kill <PID>` from `ps`/`pgrep` output for the **python/scrcpy child only** — never match the parent wrapper cmdline.
+3. Prefer PID file: `artifacts/demo-rec/demo-record.pid` written by `demo-record.py`; stop with `kill "$(cat …pid)"` only if that PID is still the recorder.
+4. If unsure: **do not kill**. Check `/tmp/demo-rec/both-run.log` and wait.
+
+## Never
+
+- Combine `pkill -f '…demo-record…'` and `python3 …demo-record.py` in one command.
+- Combine `pkill -f 'scrcpy…'` with `nix-shell -p scrcpy` or any scrcpy start in the same cmdline.

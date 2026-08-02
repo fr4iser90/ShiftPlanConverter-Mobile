@@ -88,6 +88,6 @@ describe('dateDuty times', () => {
     );
     expect(byShort.ZD1?.times?.[0]).toMatchObject({ start: '09:30', end: '18:00' });
     expect(byShort.LD?.times?.[0]).toMatchObject({ start: '11:30', end: '20:00' });
-    expect(byShort.SD?.times?.length).toBeGreaterThanOrEqual(1);
+    expect(byShort.SD1?.times?.length).toBeGreaterThanOrEqual(1);
   });
 });

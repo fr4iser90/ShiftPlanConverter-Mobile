@@ -54,38 +54,15 @@
                   "additionalProperties": false,
                   "properties": {
                     "id": { "type": "string" },
-                    "label": { "type": "string" },
+                    "label": {
+                      "type": "string",
+                      "description": "Fallback label; UI prefers mapping.department · mapping.role when set"
+                    },
                     "mapping": {
                       "type": "string",
-                      "description": "Relative path to mapping JSON under this pack"
+                      "description": "Relative path to role mapping JSON (dutyCodes, department, role, ocr, payroll)"
                     },
-                    "supported": { "type": "boolean" },
-                    "defaultPreset": { "type": "string" },
-                    "ocr": {
-                      "type": "object",
-                      "description": "Optional area OCR extras (layouts / dateDuty), like payroll.profile",
-                      "additionalProperties": false,
-                      "required": ["profile"],
-                      "properties": {
-                        "profile": {
-                          "type": "string",
-                          "description": "Relative path to *.ocr.json under this pack (e.g. mappings/arzt/…)"
-                        }
-                      }
-                    },
-                    "payroll": {
-                      "type": "object",
-                      "description": "Optional Abrechnungsprüfer profile (omit = feature off for this area)",
-                      "additionalProperties": false,
-                      "required": ["supported", "profile"],
-                      "properties": {
-                        "supported": { "type": "boolean" },
-                        "profile": {
-                          "type": "string",
-                          "description": "Relative path to *.payroll.json under this pack"
-                        }
-                      }
-                    }
+                    "supported": { "type": "boolean" }
                   }
                 },
                 {
@@ -105,24 +82,6 @@
                         "to": { "type": "integer" },
                         "mapping": { "type": "string" },
                         "supported": { "type": "boolean" },
-                        "defaultPreset": { "type": "string" },
-                        "ocr": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["profile"],
-                          "properties": {
-                            "profile": { "type": "string" }
-                          }
-                        },
-                        "payroll": {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": ["supported", "profile"],
-                          "properties": {
-                            "supported": { "type": "boolean" },
-                            "profile": { "type": "string" }
-                          }
-                        },
                         "overrides": {
                           "type": "object",
                           "additionalProperties": {
@@ -132,10 +91,7 @@
                               "id": { "type": "string" },
                               "label": { "type": "string" },
                               "mapping": { "type": "string" },
-                              "supported": { "type": "boolean" },
-                              "defaultPreset": { "type": "string" },
-                              "ocr": { "type": "object" },
-                              "payroll": { "type": "object" }
+                              "supported": { "type": "boolean" }
                             }
                           }
                         }

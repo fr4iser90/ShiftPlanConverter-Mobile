@@ -2,6 +2,7 @@ import { calendarInfo, saxonyHolidayMap } from '../../src/payroll/calendar';
 import { deriveArztDienstId, hoursForEntry, sumHoursForEntries } from '../../src/payroll/resolveHours';
 import { getPayrollProfileForScope, getMappingForScope } from '../../src/packs';
 import type { ShiftEntry } from '../../src/convert/types';
+import { resolveDutyCodes } from '../../src/convert/types';
 
 describe('payroll calendar (SN)', () => {
   it('marks 2026-05-01 as holiday', () => {
@@ -44,7 +45,7 @@ describe('Ärzte derive + overrides', () => {
 describe('Pflege night via mapping type (not payroll codes[])', () => {
   const profile = getPayrollProfileForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')!;
   const pack = getMappingForScope('st-elisabeth-leipzig', 'pflege', 'op-ata')!;
-  const preset = pack.presets!.Anästhesie;
+  const preset = resolveDutyCodes(pack);
   const opts = { presetMapping: preset, codeAliases: pack.codeAliases };
 
   it('sums one B39 like Mai 2026 gold (19:50–07:35)', () => {

@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import type { PackComposeRule, PackMapping } from '../../src/convert/types';
+import { resolveDutyCodes } from '../../src/convert/types';
 import { getMappingForScope, getPackArea } from '../../src/packs';
 
 const PACK = 'st-elisabeth-leipzig';
@@ -12,7 +13,7 @@ const MAPPING_PATH = join(
 
 describe('Arzt Anästhesie pack mapping (LOGA)', () => {
   const raw = JSON.parse(readFileSync(MAPPING_PATH, 'utf8')) as PackMapping;
-  const preset = raw.presets?.Anästhesie || {};
+  const preset = resolveDutyCodes(raw);
 
   it('marks op-anaesthesie supported, chirurgie not', () => {
     expect(getPackArea(PACK, 'arzt', 'op-anaesthesie')?.supported).toBe(true);
@@ -21,7 +22,7 @@ describe('Arzt Anästhesie pack mapping (LOGA)', () => {
 
   it('loads via getMappingForScope with composeRules', () => {
     const m = getMappingForScope(PACK, 'arzt', 'op-anaesthesie');
-    expect(m?.presets?.Anästhesie).toBeTruthy();
+    expect(Object.keys(resolveDutyCodes(m) || {}).length).toBeGreaterThan(0);
     expect(m?.composeRules?.length).toBeGreaterThanOrEqual(10);
   });
 

@@ -1,4 +1,9 @@
-import type { MappingValue, PackComposeRule, PackMapping } from './types';
+import {
+  resolveDutyCodes,
+  type MappingValue,
+  type PackComposeRule,
+  type PackMapping,
+} from './types';
 import { mappingAlso, mappingCode } from './shiftMapping';
 
 export type CodeTimeRange = {
@@ -74,8 +79,8 @@ export function isKnownPackCode(
       if (from.toUpperCase() === u || String(to || '').toUpperCase() === u) return true;
     }
   }
-  const preset = mapping.presets?.[presetName];
-  if (!preset) return false;
+  const preset = resolveDutyCodes(mapping, presetName);
+  if (!Object.keys(preset).length) return false;
   if (isSpecialPackCode(u, preset)) return true;
   return timeRangeForCode(u, preset) != null;
 }

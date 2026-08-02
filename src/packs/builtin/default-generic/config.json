@@ -13,8 +13,7 @@
           "id": "import",
           "label": "Import",
           "mapping": "mappings/generic.json",
-          "supported": true,
-          "defaultPreset": "Standard"
+          "supported": true
         }
       ]
     }

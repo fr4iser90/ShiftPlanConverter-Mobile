@@ -1,6 +1,10 @@
 {
+  "department": "OP",
+  "role": "Service",
+  "payroll": {
+    "supported": true,
+    "profile": "mappings/service/krankenhaus.payroll.json"
+  },
   "colors": {},
-  "presets": {
-    "Standard": {}
-  }
+  "dutyCodes": {}
 }

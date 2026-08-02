@@ -29,6 +29,7 @@ import {
   getPreferredSourceId,
   isPayrollSupportedForScope,
   isSourceSupportedByPack,
+  resolveDutyCodes,
 } from '@/src/packs';
 import { importLocalWithClassify } from '@/src/ingest/importLocalWithClassify';
 import { ingestArtifacts } from '@/src/ingest/ingestArtifacts';
@@ -58,7 +59,7 @@ import {
   isSyncOverdue,
   loadSchedulePrefs,
 } from '@/src/schedule/prefs';
-import { buildMonthWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
+import { buildMonthWindow, buildClosedPayslipWindow, formatMonthWindow, ymKey, type YearMonth } from '@/src/sync/monthWindow';
 import { runQuickUpdate } from '@/src/sync/quickUpdate';
 import { listSourcesForPack } from '@/src/sources';
 import { isLocalImportSourceId } from '@/src/sources/ids';
@@ -1119,13 +1120,27 @@ export default function FetchScreen() {
   const monthSelected = (m: number) =>
     selected.some((x) => x.month === m && x.year === year);
 
+  /**
+   * Shift default window is often current+future — all locked for Verdienst.
+   * Drop locked months; if nothing left, seed ≥1 last closed month (or prevMonths).
+   */
   useEffect(() => {
     if (loga3Job !== 'payslip') return;
+    const count = Math.max(1, quickPrefs?.prevMonths ?? 0);
+    const seededAll = buildClosedPayslipWindow(count);
+    const focusYear = seededAll[seededAll.length - 1]?.year;
+    if (focusYear != null && focusYear !== year) {
+      setYear(focusYear);
+      return;
+    }
     setSelected((prev) => {
-      const next = prev.filter((x) => !payslipMonthLocked(x.month, x.year));
-      return next.length === prev.length ? prev : next;
+      const unlocked = prev.filter((x) => !payslipMonthLocked(x.month, x.year));
+      if (unlocked.length > 0) {
+        return unlocked.length === prev.length ? prev : unlocked;
+      }
+      return seededAll.filter((s) => s.year === year);
     });
-  }, [loga3Job, year, payslipMonthLocked]);
+  }, [loga3Job, year, payslipMonthLocked, quickPrefs?.prevMonths]);
 
   const onPayslipFetch = async () => {
     if (!setup?.complete || !creds) {
@@ -1981,7 +1996,7 @@ export default function FetchScreen() {
                           pageWidth={ocrPageSize?.w ?? null}
                           pageHeight={ocrPageSize?.h ?? null}
                           presetMapping={
-                            packMapping?.presets?.[snap.preset || ''] ?? null
+                            resolveDutyCodes(packMapping, snap.preset || '') || null
                           }
                           colors={packMapping?.colors ?? null}
                           ocrEngineId={getOcrEngineIdForPack(pack)}

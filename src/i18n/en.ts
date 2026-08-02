@@ -25,13 +25,14 @@ export const en: { [K in keyof typeof de]: string } = {
   workplaceAreasSoon: '{count} more areas coming (no mapping yet)',
   group: 'Profession',
   area: 'Area',
-  preset: 'Role',
+  role: 'Role',
+  preset: 'Specialty',
   workplaceHint:
-    'Pick an employer, then your role. More employers ship as packs — or request support.',
+    'Pick an employer, then area and role. More employers ship as packs — or request support.',
   packHintDefaultGeneric:
     'Without an employer: PDF, CSV, ICS, and photo (OCR). PDF layout is detected automatically; review the result when uncertain.',
   packHintStElisabethLeipzig:
-    'Validated: Nursing · OR · ATA. OTA, wards, service and doctors coming later.',
+    'File, photo, and optional LOGA3 portal. Not fully unlocked yet: OTA, wards, service, doctors.',
   moreEmployersSoon: 'More employer packs coming. Custom request: support.',
   noPacksYet: 'No packs installed yet.',
   soon: 'soon',
@@ -291,7 +292,8 @@ export const en: { [K in keyof typeof de]: string } = {
   setupWorkplace: 'Employer & role',
   saveUrl: 'Save URL',
   setupTitle: 'Setup',
-  setupIntro: 'Pick employer and role. Portal and calendar connect are optional.',
+  setupIntro:
+    'Pick employer and role. Name (OCR) and calendar are optional — portal only for LOGA3.',
   setupStepUrl: 'URL',
   setupStepLogin: 'Login',
   setupStepWorkplace: 'Employer',
@@ -322,8 +324,9 @@ export const en: { [K in keyof typeof de]: string } = {
   setupWorkplaceRequired: 'Pick employer and role.',
   setupRequired: 'Setup required',
   setupRequiredHint: 'Pick employer and role once. Portal login only for web fetch.',
-  setupFilesOnly: 'Done without sync',
-  setupFilesOnlyHint: 'Save as “No employer” and finish setup — skip portal and calendar connect.',
+  setupFilesOnly: 'Finish setup',
+  setupFilesOnlyHint:
+    'Keep employer/role and finish — add name, portal, and calendar later under Settings.',
   openSetup: 'Open setup',
   editSetup: 'Setup',
   setupComplete: 'Setup OK',
@@ -448,7 +451,7 @@ export const en: { [K in keyof typeof de]: string } = {
   clearCreds: 'Clear credentials',
   wipeAllData: 'Wipe all local data',
   wipeAllDataConfirm:
-    'Deletes credentials, portal address, shifts, PDFs, mappings, and Google calendar ID on this device. Language and theme stay.',
+    'Deletes credentials, portal address, shifts, PDFs, mappings, roster name (OCR), tarif prefs, and Google calendar ID on this device. Language and theme stay.',
   wipeAllDataCancel: 'Cancel',
   wipeAllDataDone: 'Local data wiped — run setup again.',
   missingMappings: 'Unknown times (not in mapping)',

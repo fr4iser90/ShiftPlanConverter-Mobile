@@ -7,13 +7,23 @@ export type PackAreaOcr = {
 
 export type PackArea = {
   id: string;
+  /** Summary fallback; overwritten from mapping `department` · `role` when present. */
   label: string;
+  /** From role mapping JSON (`department`) — not pack config. */
+  department?: string;
+  /** From role mapping JSON (`role`) — not pack config. */
+  role?: string;
   mapping: string;
   supported: boolean;
-  defaultPreset?: string;
-  /** Optional OCR scope JSON (e.g. mappings/arzt/*.ocr.json). */
+  /**
+   * Duty-table id stored on the workplace (`preset` field).
+   * Flat role files use `default`; derived from mapping at pack load.
+   */
+  /** Key of the duty-code table (`default` when mapping uses flat `dutyCodes`). */
+  defaultDutyTable?: string;
+  /** From role mapping `ocr` path — optional OCR scope file. */
   ocr?: PackAreaOcr;
-  /** Optional Abrechnungsprüfer — omit or supported:false = feature off. */
+  /** From role mapping `payroll` — optional Abrechnungsprüfer. */
   payroll?: PackAreaPayroll;
 };
 
@@ -30,7 +40,6 @@ export type PackAreaSeries = {
     to: number;
     mapping: string;
     supported: boolean;
-    defaultPreset?: string;
     ocr?: PackAreaOcr;
     payroll?: PackAreaPayroll;
     /** Per-index overrides (`"16": { label, mapping, … }`). */
@@ -68,7 +77,6 @@ export function expandPackAreas(entries: PackAreaEntry[]): PackArea[] {
         label: ovr.label || applyTemplate(e.label, n),
         mapping: ovr.mapping || e.mapping,
         supported: ovr.supported ?? e.supported,
-        defaultPreset: ovr.defaultPreset ?? e.defaultPreset,
         ocr: ovr.ocr ?? e.ocr,
         payroll: ovr.payroll ?? e.payroll,
       });

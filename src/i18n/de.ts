@@ -23,13 +23,14 @@ export const de = {
   workplaceAreasSoon: '{count} weitere Bereiche folgen (noch ohne Mapping)',
   group: 'Berufsgruppe',
   area: 'Bereich',
-  preset: 'Rolle',
+  role: 'Rolle',
+  preset: 'Fachbereich',
   workplaceHint:
-    'Arbeitgeber wählen, dann Rolle. Weitere Arbeitgeber kommen als Packs — oder Unterstützung anfragen.',
+    'Arbeitgeber wählen, dann Bereich und Rolle. Weitere Arbeitgeber kommen als Packs — oder Unterstützung anfragen.',
   packHintDefaultGeneric:
     'Ohne Arbeitgeber: PDF, CSV, ICS und Foto (Bilderkennung). PDF-Layout wird automatisch erkannt — bei Unsicherheit Ergebnis prüfen.',
   packHintStElisabethLeipzig:
-    'Validiert: Pflege · OP · ATA. OTA, Stationen, Service und Ärzte folgen.',
+    'Datei, Foto und optional LOGA3-Portal. Noch nicht überall freigeschaltet: OTA, Stationen, Service, Ärzte.',
   moreEmployersSoon: 'Mehr Arbeitgeber-Packs folgen. Eigenen Wunsch: Unterstützung anfragen.',
   noPacksYet: 'Noch keine Packs installiert.',
   soon: 'bald',
@@ -291,7 +292,8 @@ export const de = {
   setupWorkplace: 'Arbeitgeber & Rolle',
   saveUrl: 'URL speichern',
   setupTitle: 'Einrichtung',
-  setupIntro: 'Arbeitgeber und Rolle wählen. Portal und Kalender-Anbindung sind optional.',
+  setupIntro:
+    'Arbeitgeber und Rolle wählen. Name (Bilderkennung) und Kalender sind optional — Portal nur bei LOGA3.',
   setupStepUrl: 'URL',
   setupStepLogin: 'Login',
   setupStepWorkplace: 'Arbeitgeber',
@@ -322,8 +324,9 @@ export const de = {
   setupWorkplaceRequired: 'Bitte Arbeitgeber und Rolle wählen.',
   setupRequired: 'Einrichtung erforderlich',
   setupRequiredHint: 'Einmal Arbeitgeber und Rolle wählen. Portal-Login nur für Web-Abruf.',
-  setupFilesOnly: 'Fertig ohne Sync',
-  setupFilesOnlyHint: 'Als „Ohne Arbeitgeber“ speichern und Einrichtung beenden — Portal und Kalender-Anbindung überspringen.',
+  setupFilesOnly: 'Einrichtung beenden',
+  setupFilesOnlyHint:
+    'Arbeitgeber/Rolle behalten und fertig — Name, Portal und Kalender später unter Einstellungen nachtragen.',
   openSetup: 'Einrichtung öffnen',
   editSetup: 'Einrichtung',
   setupComplete: 'Einrichtung ok',
@@ -449,7 +452,7 @@ export const de = {
   clearCreds: 'Zugangsdaten löschen',
   wipeAllData: 'Alle lokalen Daten löschen',
   wipeAllDataConfirm:
-    'Löscht Zugangsdaten, Portal-Adresse, Schichten, PDFs, Mappings und Google-Kalender-ID auf diesem Gerät. Sprache und Design bleiben.',
+    'Löscht Zugangsdaten, Portal-Adresse, Schichten, PDFs, Mappings, Dienstplan-Name (OCR), Tarif-Einstellungen und Google-Kalender-ID auf diesem Gerät. Sprache und Design bleiben.',
   wipeAllDataCancel: 'Abbrechen',
   wipeAllDataDone: 'Lokale Daten gelöscht — Setup erneut nötig.',
   missingMappings: 'Unbekannte Zeiten (nicht im Mapping)',

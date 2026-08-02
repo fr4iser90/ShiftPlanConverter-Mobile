@@ -16,6 +16,17 @@ builtin/<packId>/
 2. Fill JSON. Folder name = `packId`.
 3. `npm run packs:generate`
 
+## Role mapping JSON
+
+Catalog in `config.json` is ids + `mapping` path only. Per-role file owns:
+
+- `department` / `role` (setup UI)
+- flat `dutyCodes` (no nested `presets`)
+- optional `ocr` / `payroll` paths (Ärzte date-duty ≠ Pflege month-matrix)
+- OCR column hints / `roleSuffixes` live in the referenced `*.ocr.json`
+
+Runtime `defaultDutyTable` is always `"default"` for flat `dutyCodes` (store field still named `preset`).
+
 ## Compact station lists
 
 Do **not** paste Station 1…19 by hand. Use `expand`:
@@ -29,7 +40,6 @@ Do **not** paste Station 1…19 by hand. Use `expand`:
     "to": 19,
     "mapping": "mappings/pflege/station-standard.json",
     "supported": false,
-    "defaultPreset": "Standard",
     "overrides": {
       "16": {
         "label": "Station 16 (ITS)",

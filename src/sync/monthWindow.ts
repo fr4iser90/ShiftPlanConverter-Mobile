@@ -16,6 +16,20 @@ export function buildMonthWindow(
   return out;
 }
 
+/**
+ * Verdienst: only closed months (before the current calendar month).
+ * `count` = how many past months (at least 1). Newest last.
+ */
+export function buildClosedPayslipWindow(count: number, now = new Date()): YearMonth[] {
+  const n = Math.max(1, Math.floor(count));
+  const out: YearMonth[] = [];
+  for (let i = n; i >= 1; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push({ month: d.getMonth() + 1, year: d.getFullYear() });
+  }
+  return out;
+}
+
 export function formatMonthWindow(items: YearMonth[]): string {
   return items.map((x) => `${String(x.month).padStart(2, '0')}/${x.year}`).join(', ');
 }

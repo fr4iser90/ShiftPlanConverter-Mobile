@@ -6,6 +6,7 @@ import { getParser } from '../../src/convert/parsers';
 import { convertPdfText } from '../../src/convert/pipeline';
 import { resolveShiftMapping } from '../../src/convert/shiftMapping';
 import { getBuiltinMapping, getPackById, getPdfConfigForPack } from '../../src/packs';
+import { resolveDutyCodes } from '../../src/convert/types';
 
 const fixturePath = path.join(__dirname, '..', '..', 'fixtures', 'sample-zeitprotokoll-snippet.txt');
 const fixture = fs.readFileSync(fixturePath, 'utf8');
@@ -47,7 +48,7 @@ describe('St. Elisabeth parser (pdf-payroll + pack pdf.json)', () => {
   });
 
   it('infers nearest same-start code when leaving early (FK102 closer than F)', () => {
-    const mapping = getBuiltinMapping().presets!.Anästhesie;
+    const mapping = resolveDutyCodes(getBuiltinMapping());
     const early = resolveShiftMapping('07:35', '14:00', mapping);
     expect(early.code).toBe('FK102');
     expect(early.inferred).toBe(true);

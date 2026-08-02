@@ -12,6 +12,7 @@ import {
   getPayrollProfileForScope,
   getMappingForScope,
   isPayrollSupportedForScope,
+  resolveDutyCodes,
 } from '@/src/packs';
 import { getSnapshot, subscribeKeys } from '@/src/state/store';
 import { AppButton } from '@/src/ui/AppButton';
@@ -117,7 +118,7 @@ export default function PayrollScreen() {
   const check = useMemo(() => {
     if (!profile || !payslip) return null;
     const packMapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
-    const presetMapping = packMapping?.presets?.[snap.preset] || null;
+    const presetMapping = resolveDutyCodes(packMapping, snap.preset) || null;
     return runPayrollCheck({
       profile,
       payslip,

@@ -41,14 +41,19 @@ export function AppButton({
       borderWidth: 1,
       borderColor: theme.color.borderStrong,
     },
-    soft: { backgroundColor: theme.color.primarySoft },
+    // Selected chips: tint + border — avoid green-on-green (unreadable labels).
+    soft: {
+      backgroundColor: theme.color.primaryTint,
+      borderWidth: 1,
+      borderColor: theme.color.primary,
+    },
     ghost: { backgroundColor: 'transparent' },
     danger: { backgroundColor: theme.color.danger },
   };
   const variantLabel: Record<AppButtonVariant, TextStyle> = {
     primary: { color: theme.color.primaryText },
     secondary: { color: theme.color.ink },
-    soft: { color: theme.color.primary },
+    soft: { color: theme.color.ink },
     ghost: { color: theme.color.primary },
     danger: { color: '#fff' },
   };

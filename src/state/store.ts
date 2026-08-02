@@ -579,7 +579,15 @@ export async function setWorkplace(scope: {
   const area = group?.areas.find((a) => a.id === scope.areaId);
   const label =
     scope.label?.trim() ||
-    defaultLabelForPack(scope.packId, pack?.name, area?.label, scope.preset, group?.label);
+    defaultLabelForPack(
+      scope.packId,
+      pack?.name,
+      area?.label,
+      scope.preset,
+      group?.label,
+      area?.department,
+      area?.role
+    );
 
   let workplaces = [...cache.workplaces];
   let activeId = cache.activeWorkplaceId;
@@ -644,7 +652,7 @@ export async function addWorkplace(scope?: {
     group?.areas.find((a) => a.supported) ||
     group?.areas[0];
   const areaId = scope?.areaId || area?.id || '';
-  const preset = scope?.preset || area?.defaultPreset || '';
+  const preset = scope?.preset || area?.defaultDutyTable || '';
   const label =
     scope?.label?.trim() ||
     defaultLabelForPack(packId, pack?.name, area?.label, preset, group?.label);
@@ -791,7 +799,8 @@ export async function clearLocalShifts(): Promise<number> {
 
 /**
  * Wipe local app data: shifts, raw text, mappings, workplace, summaries,
- * Google calendar id, PDFs, credentials, tenant URL, encryption key.
+ * Google calendar id, PDFs, credentials, tenant URL, encryption key,
+ * OCR preferred name / aliases / layout, payroll tarif prefs, shift alarms.
  * Keeps locale/theme prefs.
  */
 export async function wipeAllLocalData(): Promise<void> {
@@ -801,6 +810,9 @@ export async function wipeAllLocalData(): Promise<void> {
   const { disconnectGoogle } = await import('../sync/google');
   const { setSmokeFetchIntent, clearMatrixStatus } = await import('../setup/smokeFetchIntent');
   const { clearBiometricSession, setBiometricLockEnabled } = await import('../security/biometric');
+  const { clearOcrPreferredName } = await import('./ocrPreferredName');
+  const { clearOcrNameAliases } = await import('./ocrNameAliases');
+  const { clearOcrLayoutId } = await import('./ocrLayout');
 
   const ids = cache.workplaces.map((w) => w.id);
 
@@ -813,6 +825,9 @@ export async function wipeAllLocalData(): Promise<void> {
     clearMatrixStatus(),
     setBiometricLockEnabled(false),
     clearDataEncryptionKey(),
+    clearOcrPreferredName(),
+    clearOcrNameAliases(),
+    clearOcrLayoutId(),
     AsyncStorage.multiRemove([
       KEYS.entries,
       KEYS.rawText,
@@ -827,6 +842,9 @@ export async function wipeAllLocalData(): Promise<void> {
       KEYS.summary,
       KEYS.summaries,
       KEYS.payslips,
+      'loga3.shiftAlarmPrefs',
+      ...ids.map((id) => `loga3.payrollTarif.${id || 'default'}`),
+      'loga3.payrollTarif.default',
     ]),
   ]);
   const { clearActiveSourceId } = await import('./activeSource');

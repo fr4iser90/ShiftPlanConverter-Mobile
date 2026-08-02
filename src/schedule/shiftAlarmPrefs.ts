@@ -5,6 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { PackMapping, MappingValue } from '../convert/types';
+import { resolveDutyCodes } from '../convert/types';
 import { mappingCode } from '../convert/shiftMapping';
 
 const KEY = 'loga3.shiftAlarmPrefs';
@@ -200,7 +201,7 @@ export function listMappingShiftOptions(
   mapping: PackMapping | null | undefined,
   preset: string | null | undefined
 ): MappingShiftOption[] {
-  const table = mapping?.presets?.[preset || ''] || {};
+  const table = resolveDutyCodes(mapping, preset);
   const colors = mapping?.colors || {};
   const seen = new Set<string>();
   const out: MappingShiftOption[] = [];

@@ -1,6 +1,10 @@
 {
+  "department": "OP",
+  "role": "OTA",
+  "payroll": {
+    "supported": true,
+    "profile": "mappings/pflege/krankenhaus.payroll.json"
+  },
   "colors": {},
-  "presets": {
-    "OTA": {}
-  }
+  "dutyCodes": {}
 }

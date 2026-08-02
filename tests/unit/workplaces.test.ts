@@ -48,16 +48,18 @@ import {
 import { defaultLabelForPack } from '../../src/state/workplaces';
 
 describe('workplace profiles', () => {
-  it('labels Ärzte · Anästhesie without repeating the preset', () => {
+  it('labels Ärzte · OP · Anästhesist/in without repeating Fachbereich', () => {
     expect(
       defaultLabelForPack(
         'st-elisabeth-leipzig',
         'St. Elisabeth Leipzig',
+        'OP · Anästhesist/in',
         'Anästhesie',
-        'Anästhesie',
-        'Ärzte'
+        'Ärzte',
+        'OP',
+        'Anästhesist/in'
       )
-    ).toBe('St. Elisabeth Leipzig · Ärzte · Anästhesie');
+    ).toBe('St. Elisabeth Leipzig · Ärzte · OP · Anästhesist/in');
   });
 
   it('creates a profile via setWorkplace and mirrors pack fields', async () => {

@@ -66,27 +66,38 @@ export function defaultLabelForPack(
   packName?: string,
   areaLabel?: string,
   preset?: string,
-  groupLabel?: string
+  groupLabel?: string,
+  department?: string,
+  role?: string
 ): string {
   if (!packId || packId === DEFAULT_GENERIC_PACK_ID) {
     return noEmployerLabel();
   }
   const name = packDisplayName(packId, packName);
   const group = String(groupLabel || '').trim();
-  const area = String(areaLabel || '').trim();
-  const role = String(preset || '').trim();
+  const b = String(department || '').trim();
+  const r = String(role || '').trim();
+  const area =
+    b || r ? [b, r].filter(Boolean).join(' · ') : String(areaLabel || '').trim();
+  const fach = String(preset || '').trim();
   const parts = [name];
   if (group) parts.push(group);
   if (area) parts.push(area);
-  // Avoid "… · OP · Anästhesie · Anästhesie" when preset repeats the area.
+  // Flat role files store preset as `default` — never show in the chip.
+  if (!fach || fach === 'default') {
+    return parts.join(' · ');
+  }
   const areaNorm = area.toLowerCase();
-  const roleNorm = role.toLowerCase();
-  const roleAlreadyInArea =
-    !!roleNorm &&
-    (areaNorm === roleNorm ||
-      areaNorm.endsWith(` · ${roleNorm}`) ||
-      areaNorm.endsWith(` ${roleNorm}`));
-  if (role && !roleAlreadyInArea) parts.push(role);
+  const fachNorm = fach.toLowerCase();
+  const roleNorm = r.toLowerCase();
+  const fachStem = fachNorm.slice(0, Math.min(8, fachNorm.length));
+  const fachAlreadyShown =
+    areaNorm === fachNorm ||
+    roleNorm === fachNorm ||
+    areaNorm.endsWith(` · ${fachNorm}`) ||
+    areaNorm.endsWith(` ${fachNorm}`) ||
+    (!!fachStem && fachStem.length >= 5 && roleNorm.includes(fachStem));
+  if (!fachAlreadyShown) parts.push(fach);
   return parts.join(' · ');
 }
 
@@ -97,7 +108,15 @@ export function relabelWorkplace(p: WorkplaceProfile): WorkplaceProfile {
   const area = group?.areas.find((a) => a.id === p.areaId);
   return {
     ...p,
-    label: defaultLabelForPack(p.packId, pack?.name, area?.label, p.preset, group?.label),
+    label: defaultLabelForPack(
+      p.packId,
+      pack?.name,
+      area?.label,
+      p.preset,
+      group?.label,
+      area?.department,
+      area?.role
+    ),
   };
 }
 

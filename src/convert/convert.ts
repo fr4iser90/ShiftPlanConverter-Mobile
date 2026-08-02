@@ -1,9 +1,10 @@
 import { isKnownPackCode } from './codeTimes';
-import type {
-  ConvertResult,
-  PackMapping,
-  ParseResult,
-  ShiftEntry,
+import {
+  resolveDutyCodes,
+  type ConvertResult,
+  type PackMapping,
+  type ParseResult,
+  type ShiftEntry,
 } from './types';
 import { mappingCode, resolveShiftMapping } from './shiftMapping';
 
@@ -59,8 +60,7 @@ export function parseTimeSheet(
     return { entries: [], year: null, month: null, summary: null, summaries: [] };
   }
 
-  const mapping =
-    (packMapping && packMapping.presets && packMapping.presets[preset]) || {};
+  const mapping = resolveDutyCodes(packMapping, preset);
 
   const specialCodes: Record<string, boolean> = {};
   Object.entries(mapping).forEach(([key, value]) => {

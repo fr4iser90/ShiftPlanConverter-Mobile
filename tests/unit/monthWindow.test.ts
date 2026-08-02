@@ -1,4 +1,9 @@
-import { buildMonthWindow, groupMonthsByYear, ymKey } from '../../src/sync/monthWindow';
+import {
+  buildClosedPayslipWindow,
+  buildMonthWindow,
+  groupMonthsByYear,
+  ymKey,
+} from '../../src/sync/monthWindow';
 
 describe('monthWindow', () => {
   it('builds current + next 2 (default-style)', () => {
@@ -23,6 +28,24 @@ describe('monthWindow', () => {
     expect(groups).toEqual([
       { year: 2026, months: [11, 12] },
       { year: 2027, months: [1] },
+    ]);
+  });
+
+  it('payslip window is last closed month(s) only', () => {
+    const now = new Date(2026, 7, 2); // Aug 2026
+    expect(buildClosedPayslipWindow(1, now).map((x) => ymKey(x.month, x.year))).toEqual([
+      '2026-07',
+    ]);
+    expect(buildClosedPayslipWindow(2, now).map((x) => ymKey(x.month, x.year))).toEqual([
+      '2026-06',
+      '2026-07',
+    ]);
+  });
+
+  it('payslip window crosses year in January', () => {
+    const now = new Date(2026, 0, 10); // Jan 2026
+    expect(buildClosedPayslipWindow(1, now).map((x) => ymKey(x.month, x.year))).toEqual([
+      '2025-12',
     ]);
   });
 });

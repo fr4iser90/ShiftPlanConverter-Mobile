@@ -19,10 +19,10 @@ import map_st_elisabeth_leipzig_mappings_pflege_station_16_json from './builtin/
 import map_st_elisabeth_leipzig_mappings_service_op_json from './builtin/st-elisabeth-leipzig/mappings/service/op.json';
 import pay_st_elisabeth_leipzig_mappings_service_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/service/krankenhaus.payroll.json';
 import map_st_elisabeth_leipzig_mappings_service_station_standard_json from './builtin/st-elisabeth-leipzig/mappings/service/station-standard.json';
-import map_st_elisabeth_leipzig_mappings_service_station_16_json from './builtin/st-elisabeth-leipzig/mappings/service/station-16.json';
 import map_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.json';
 import pay_st_elisabeth_leipzig_mappings_arzt_krankenhaus_payroll_json from './builtin/st-elisabeth-leipzig/mappings/arzt/krankenhaus.payroll.json';
 import ocrp_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_ocr_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-anaesthesie.ocr.json';
+import map_st_elisabeth_leipzig_mappings_arzt_op_chirurgie_json from './builtin/st-elisabeth-leipzig/mappings/arzt/op-chirurgie.json';
 
 export type PackRegistryEntry = {
   id: string;
@@ -62,8 +62,8 @@ export const PACK_REGISTRY: PackRegistryEntry[] = [
     "mappings/pflege/station-16.json": map_st_elisabeth_leipzig_mappings_pflege_station_16_json as PackMapping,
     "mappings/service/op.json": map_st_elisabeth_leipzig_mappings_service_op_json as PackMapping,
     "mappings/service/station-standard.json": map_st_elisabeth_leipzig_mappings_service_station_standard_json as PackMapping,
-    "mappings/service/station-16.json": map_st_elisabeth_leipzig_mappings_service_station_16_json as PackMapping,
     "mappings/arzt/op-anaesthesie.json": map_st_elisabeth_leipzig_mappings_arzt_op_anaesthesie_json as PackMapping,
+    "mappings/arzt/op-chirurgie.json": map_st_elisabeth_leipzig_mappings_arzt_op_chirurgie_json as PackMapping,
     },
     payrollByPath: {
     "mappings/pflege/krankenhaus.payroll.json": pay_st_elisabeth_leipzig_mappings_pflege_krankenhaus_payroll_json as PayrollProfile,

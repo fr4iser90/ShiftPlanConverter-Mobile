@@ -11,7 +11,7 @@
   "smokeWorkplace": {
     "groupId": "pflege",
     "areaId": "op-ata",
-    "preset": "Anästhesie"
+    "preset": "default"
   },
   "groups": [
     {
@@ -22,45 +22,25 @@
           "id": "op-ata",
           "label": "OP · ATA",
           "mapping": "mappings/pflege/op-ata.json",
-          "supported": true,
-          "defaultPreset": "Anästhesie",
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/pflege/krankenhaus.payroll.json"
-          }
+          "supported": true
         },
         {
           "id": "op-ota",
           "label": "OP · OTA",
           "mapping": "mappings/pflege/op-ota.json",
-          "supported": false,
-          "defaultPreset": "OTA",
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/pflege/krankenhaus.payroll.json"
-          }
+          "supported": false
         },
         {
           "id": "stationsleitung",
           "label": "Stationsleitung",
           "mapping": "mappings/pflege/station-standard.json",
-          "supported": false,
-          "defaultPreset": "Standard",
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/pflege/krankenhaus.payroll.json"
-          }
+          "supported": false
         },
         {
           "id": "wundmanagement",
           "label": "Wundmanagement",
           "mapping": "mappings/pflege/station-standard.json",
-          "supported": false,
-          "defaultPreset": "Standard",
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/pflege/krankenhaus.payroll.json"
-          }
+          "supported": false
         },
         {
           "expand": {
@@ -70,11 +50,6 @@
             "to": 19,
             "mapping": "mappings/pflege/station-standard.json",
             "supported": false,
-            "defaultPreset": "Standard",
-            "payroll": {
-              "supported": true,
-              "profile": "mappings/pflege/krankenhaus.payroll.json"
-            },
             "overrides": {
               "16": {
                 "label": "Station 16 (ITS)",
@@ -93,12 +68,7 @@
           "id": "op",
           "label": "OP",
           "mapping": "mappings/service/op.json",
-          "supported": false,
-          "defaultPreset": "Standard",
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/service/krankenhaus.payroll.json"
-          }
+          "supported": false
         },
         {
           "expand": {
@@ -108,15 +78,9 @@
             "to": 19,
             "mapping": "mappings/service/station-standard.json",
             "supported": false,
-            "defaultPreset": "Standard",
-            "payroll": {
-              "supported": true,
-              "profile": "mappings/service/krankenhaus.payroll.json"
-            },
             "overrides": {
               "16": {
-                "label": "Station 16 (ITS)",
-                "mapping": "mappings/service/station-16.json"
+                "label": "Station 16 (ITS)"
               }
             }
           }
@@ -129,31 +93,15 @@
       "areas": [
         {
           "id": "op-anaesthesie",
-          "label": "Anästhesie",
+          "label": "OP · Anästhesist/in",
           "mapping": "mappings/arzt/op-anaesthesie.json",
-          "supported": true,
-          "defaultPreset": "Anästhesie",
-          "ocr": {
-            "profile": "mappings/arzt/op-anaesthesie.ocr.json"
-          },
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/arzt/krankenhaus.payroll.json"
-          }
+          "supported": true
         },
         {
           "id": "op-chirurgie",
-          "label": "OP · Chirurgie",
-          "mapping": "mappings/arzt/op-anaesthesie.json",
-          "supported": false,
-          "defaultPreset": "Anästhesie",
-          "ocr": {
-            "profile": "mappings/arzt/op-anaesthesie.ocr.json"
-          },
-          "payroll": {
-            "supported": true,
-            "profile": "mappings/arzt/krankenhaus.payroll.json"
-          }
+          "label": "OP · Chirurg/in",
+          "mapping": "mappings/arzt/op-chirurgie.json",
+          "supported": false
         }
       ]
     }

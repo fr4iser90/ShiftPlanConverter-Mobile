@@ -8,6 +8,7 @@ import {
 } from '../../src/sources/ocr/layouts/month-matrix';
 import { isPlausiblePersonName } from '../../src/sources/ocr/names';
 import type { MappingValue } from '../../src/convert/types';
+import { resolveDutyCodes } from '../../src/convert/types';
 import op from '../../src/packs/builtin/st-elisabeth-leipzig/mappings/pflege/op-ata.json';
 import {
   hasPrivateDump,
@@ -17,8 +18,7 @@ import {
 } from './_ocrFixtures';
 
 const packExpected = loadPublicPackExpected();
-const anaesthesie = (op as { presets: Record<string, Record<string, MappingValue>> }).presets
-  .Anästhesie;
+const anaesthesie = resolveDutyCodes(op as never);
 const colors = (op as { colors: Record<string, string> }).colors;
 
 function normalizeToken(s: string): string {

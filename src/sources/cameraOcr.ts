@@ -14,6 +14,7 @@ import {
   getPackById,
   getOcrEngineIdForPack,
   getOcrConfigForScope,
+  resolveDutyCodes,
 } from '../packs';
 import { loadOcrLayoutId } from '../state/ocrLayout';
 import {
@@ -1003,7 +1004,7 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       const ocrConfig = getOcrConfigForScope(pack, snap.groupId, snap.areaId);
       const ocrEngine = getOcrEngine(getOcrEngineIdForPack(pack));
       const packMapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
-      const presetMap = packMapping?.presets?.[snap.preset] ?? null;
+      const presetMap = resolveDutyCodes(packMapping, snap.preset);
       const useMapping = ocrConfig.usePackMapping !== false;
       outGrid = useMapping
         ? ocrEngine.mapGrid(
