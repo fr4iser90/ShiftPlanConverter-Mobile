@@ -78,8 +78,18 @@ export function OcrLayoutPickerModal({
             return (
               <Pressable
                 onPress={() => setSelectedId(item.id)}
-                style={[styles.row, on && styles.rowOn]}
+                android_ripple={{ color: theme.color.primarySoft }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                style={({ pressed }) => [
+                  styles.row,
+                  on && styles.rowOn,
+                  pressed && !on && { opacity: 0.85, backgroundColor: theme.color.primaryTint },
+                ]}
               >
+                <View style={[styles.radio, on && styles.radioOn]}>
+                  {on ? <View style={styles.radioDot} /> : null}
+                </View>
                 <View style={styles.rowText}>
                   <Text style={[styles.rowTitle, on && styles.rowTitleOn]}>{labelFor(item.id)}</Text>
                   <Text style={styles.rowHint} numberOfLines={2}>
@@ -141,14 +151,32 @@ function makeStyles(theme: AppTheme) {
       paddingVertical: 12,
       paddingHorizontal: 12,
       borderRadius: 10,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: theme.color.border,
       marginBottom: 8,
       backgroundColor: theme.color.surface,
+      gap: 10,
+      overflow: 'hidden',
     },
     rowOn: {
       borderColor: theme.color.primary,
       backgroundColor: theme.color.primarySoft,
+    },
+    radio: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: theme.color.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioOn: { borderColor: theme.color.primary },
+    radioDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: theme.color.primary,
     },
     rowText: { flex: 1, paddingRight: 8 },
     rowTitle: { fontSize: 16, fontWeight: '600', color: theme.color.ink },

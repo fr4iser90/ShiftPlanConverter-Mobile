@@ -103,18 +103,33 @@ export function OcrNamePickerModal({
             return (
               <Pressable
                 onPress={() => setSelectedId(item.id)}
-                style={[styles.row, on && styles.rowOn]}
+                android_ripple={{ color: theme.color.primarySoft }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+                style={({ pressed }) => [
+                  styles.row,
+                  on && styles.rowOn,
+                  pressed && !on && styles.rowPressed,
+                ]}
               >
+                <View
+                  style={[styles.radio, on && styles.radioOn]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                >
+                  {on ? <View style={styles.radioDot} /> : null}
+                </View>
                 <View style={styles.rowMain}>
-                  <Text style={styles.rowText} numberOfLines={2}>
+                  <Text style={[styles.rowText, on && styles.rowTextOn]} numberOfLines={2}>
                     {label}
                   </Text>
                   {edited ? <Text style={styles.editedTag}>{t('sourceOcrNameEdited')}</Text> : null}
                 </View>
                 <Pressable
                   onPress={() => openEdit(item)}
-                  hitSlop={10}
-                  style={styles.editBtn}
+                  hitSlop={12}
+                  style={({ pressed }) => [styles.editBtn, pressed && styles.editBtnPressed]}
+                  accessibilityRole="button"
                   accessibilityLabel={t('sourceOcrNameEditA11y')}
                 >
                   <FontAwesome name="pencil" size={16} color={theme.color.primary} />
@@ -124,6 +139,9 @@ export function OcrNamePickerModal({
           }}
         />
         <View style={styles.actions}>
+          {!selectedId ? (
+            <Text style={styles.needPick}>{t('sourceOcrNameNeedPick')}</Text>
+          ) : null}
           <AppButton
             title={t('sourceOcrNameConfirm')}
             disabled={!selectedId}
@@ -207,19 +225,42 @@ function makeStyles(theme: AppTheme) {
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 12,
+      paddingVertical: 14,
       paddingLeft: 12,
       paddingRight: 8,
       borderRadius: 10,
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: theme.color.border,
       marginBottom: 8,
       backgroundColor: theme.color.surface,
-      gap: 8,
+      gap: 10,
+      overflow: 'hidden',
     },
     rowOn: {
       borderColor: theme.color.primary,
       backgroundColor: theme.color.primarySoft,
+    },
+    rowPressed: {
+      backgroundColor: theme.color.primaryTint,
+      opacity: 0.92,
+    },
+    radio: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: theme.color.borderStrong,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioOn: {
+      borderColor: theme.color.primary,
+    },
+    radioDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      backgroundColor: theme.color.primary,
     },
     rowMain: { flex: 1, gap: 2 },
     rowText: {
@@ -227,17 +268,29 @@ function makeStyles(theme: AppTheme) {
       fontSize: 16,
       fontWeight: '600',
     },
+    rowTextOn: {
+      color: theme.color.primary,
+    },
     editedTag: {
       color: theme.color.primary,
       fontSize: 11,
       fontWeight: '600',
     },
     editBtn: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 8,
+    },
+    editBtnPressed: {
+      backgroundColor: theme.color.primarySoft,
+    },
+    needPick: {
+      color: theme.color.inkMuted,
+      fontSize: 13,
+      textAlign: 'center',
+      marginBottom: 2,
     },
     actions: { gap: 8, marginTop: 12 },
     editBackdrop: {

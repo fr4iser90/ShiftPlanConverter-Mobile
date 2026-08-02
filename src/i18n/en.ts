@@ -36,6 +36,7 @@ export const en: { [K in keyof typeof de]: string } = {
   noPacksYet: 'No packs installed yet.',
   soon: 'soon',
   cancel: 'Cancel',
+  ok: 'OK',
   setupAddEmployerSoon: '+ New (soon)',
   setupIncomplete: 'Setup incomplete: pick employer first. LOGA3 login is optional (only for portal fetch).',
   setupIncompleteWorkplace: 'Setup incomplete: pick employer and role first.',
@@ -81,6 +82,7 @@ export const en: { [K in keyof typeof de]: string } = {
     'Documents via file picker; photos via camera/gallery → OCR. PDF/CSV/ICS go to the parser.',
   sourceCameraOcrResult: 'OCR result',
   sourceCameraOcrClear: 'Clear OCR result',
+  sourceCameraOcrCleared: 'OCR result cleared.',
   sourceCameraOcrLayout: 'OCR layout',
   sourceCameraOcrLayoutAutoOnly:
     'Layout: Auto (detect from photo). If unsure, the app asks — override under Settings → OCR.',
@@ -195,6 +197,7 @@ export const en: { [K in keyof typeof de]: string } = {
     'Tap your row on this photo. Pencil = fix OCR typos. Permanent name: Settings → My name.',
   sourceOcrNamePreferred: 'From Settings: {name}',
   sourceOcrNameConfirm: 'That’s me',
+  sourceOcrNameNeedPick: 'Tap a row first — then “That’s me”.',
   sourceOcrNameSkip: 'Continue without marking',
   sourceOcrNameCancel: 'Cancel',
   sourceOcrNameEdited: 'edited',
@@ -227,6 +230,7 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrImportConfirmTitle: 'Add to calendar?',
   sourceOcrImportConfirmBody:
     '{count} shifts for {name} ({month}/{year}) — replaces local entries for that month, then syncs like LOGA.',
+  sourceOcrImportPreparing: 'Preparing shifts…',
   sourceOcrImportRunning: 'OCR → calendar…',
   sourceOcrImportDone: 'Calendar updated — {count} shifts.',
   sourceOcrCompareTapFull: 'Tap = full · pinch / pan',
@@ -792,6 +796,8 @@ export const en: { [K in keyof typeof de]: string } = {
   payrollLoga3Imported: 'Payslip {month} saved.',
   payrollTarifTitle: 'Tariff / employment',
   payrollTarifFromPayslip: 'From payslip',
+  payrollTarifEgMissing:
+    'Pay grade not read from the payslip — pick one (needed for expected amounts):',
   payrollTarifNeedPayslip:
     'Pay grade, step and hours come from the payslip — import a PDF (or LOGA3) first.',
   payrollTarifEg: 'Pay grade',

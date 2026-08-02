@@ -660,6 +660,11 @@ export default function FetchScreen() {
         Alert.alert(t('sourceOcrImportCalendar'), t('sourceOcrImportEmpty'));
         return;
       }
+      // Paint status before mapping work — otherwise the button feels dead.
+      setStatus(t('sourceOcrImportPreparing'));
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
       const mapping = getMappingForScope(snap.packId, snap.groupId, snap.areaId);
       const built = monthMatrixToShiftEntries(ocrMatrix, {
         matchedName: ocrMatchedName,
@@ -732,7 +737,7 @@ export default function FetchScreen() {
                     text: string;
                     onPress?: () => void;
                     style?: 'cancel' | 'default';
-                  }[] = [{ text: t('cancel'), style: 'cancel' }];
+                  }[] = [{ text: t('ok'), style: 'cancel' }];
                   if (prefs.offerIcsAfterFetch && shouldOfferIcs(targets) && entries.length) {
                     buttons.push({
                       text: t('quickUpdateShareIcs'),
@@ -1323,7 +1328,7 @@ export default function FetchScreen() {
         text: string;
         style?: 'cancel' | 'default';
         onPress?: () => void;
-      }[] = [{ text: 'OK', style: 'cancel' }];
+      }[] = [{ text: t('ok'), style: 'cancel' }];
       if (hasErrors) {
         const errText = [
           ...result.fetch.errors,
@@ -2073,6 +2078,7 @@ export default function FetchScreen() {
                           setOcrRowCandidates([]);
                           setOcrRegionSnapshots(null);
                           setOcrPageSize(null);
+                          setStatus(t('sourceCameraOcrCleared'));
                         }}
                         disabled={busy}
                       />

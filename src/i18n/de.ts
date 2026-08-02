@@ -34,6 +34,7 @@ export const de = {
   noPacksYet: 'Noch keine Packs installiert.',
   soon: 'bald',
   cancel: 'Abbrechen',
+  ok: 'OK',
   setupAddEmployerSoon: '+ Neu (bald)',
   setupIncomplete: 'Einrichtung unvollständig: zuerst Arbeitgeber wählen. LOGA3-Login ist optional (nur für Portal-Abruf).',
   setupIncompleteWorkplace: 'Einrichtung unvollständig: zuerst Arbeitgeber und Rolle wählen.',
@@ -81,6 +82,7 @@ export const de = {
     'Dokumente per Datei-Picker; Fotos per Kamera/Galerie → OCR. PDF/CSV/ICS gehen an den Parser.',
   sourceCameraOcrResult: 'OCR-Ergebnis',
   sourceCameraOcrClear: 'OCR-Ergebnis löschen',
+  sourceCameraOcrCleared: 'OCR-Ergebnis gelöscht.',
   sourceCameraOcrLayout: 'OCR-Layout',
   sourceCameraOcrLayoutAutoOnly:
     'Layout: Auto (Erkennung am Foto). Bei Unsicherheit fragt die App nach — manuell unter Einstellungen → OCR.',
@@ -194,6 +196,7 @@ export const de = {
     'Tippe deine Zeile auf diesem Foto. Stift = OCR-Tippfehler. Dauerhafter Name: Einstellungen → Mein Name.',
   sourceOcrNamePreferred: 'Aus Einstellungen: {name}',
   sourceOcrNameConfirm: 'Das bin ich',
+  sourceOcrNameNeedPick: 'Zuerst eine Zeile antippen — dann „Das bin ich“.',
   sourceOcrNameSkip: 'Ohne Markierung weiter',
   sourceOcrNameCancel: 'Abbrechen',
   sourceOcrNameEdited: 'korrigiert',
@@ -226,6 +229,7 @@ export const de = {
   sourceOcrImportConfirmTitle: 'In Kalender übernehmen?',
   sourceOcrImportConfirmBody:
     '{count} Schichten für {name} ({month}/{year}) — ersetzt lokale Einträge dieses Monats, dann Sync wie nach LOGA.',
+  sourceOcrImportPreparing: 'Schichten vorbereiten…',
   sourceOcrImportRunning: 'OCR → Kalender…',
   sourceOcrImportDone: 'Kalender aktualisiert — {count} Schichten.',
   sourceOcrCompareTapFull: 'Tippen = groß · zoomen / verschieben',
@@ -796,6 +800,8 @@ export const de = {
   payrollTarifFromPayslip: 'Aus Verdienstnachweis',
   payrollTarifNeedPayslip:
     'Gruppe, Stufe und Stunden kommen aus dem Verdienstnachweis — bitte zuerst PDF importieren (oder LOGA3).',
+  payrollTarifEgMissing:
+    'Entgeltgruppe nicht aus dem Nachweis gelesen — bitte kurz wählen (für die Soll-Tabelle):',
   payrollTarifEg: 'Entgeltgruppe',
   payrollTarifStage: 'Stufe',
   payrollTarifWorkPct: 'Umfang %',

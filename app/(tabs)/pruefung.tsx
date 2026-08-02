@@ -1,13 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 
 import { t } from '@/src/i18n';
@@ -56,11 +48,6 @@ function num(n: number | null | undefined): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
-}
-
-function parseNum(s: string): number | undefined {
-  const n = Number(String(s).replace(',', '.').trim());
-  return Number.isFinite(n) ? n : undefined;
 }
 
 export default function PayrollScreen() {
@@ -152,12 +139,6 @@ export default function PayrollScreen() {
     tarif,
   ]);
 
-  const onSaveTarif = async () => {
-    await saveTarifPrefs(snap.activeWorkplaceId || 'default', tarif);
-    Alert.alert(t('payrollTarifTitle'), t('payrollTarifSaved'));
-    setTick((n) => n + 1);
-  };
-
   const onOpenImportForServiceMonth = async () => {
     const ym = check?.serviceMonth;
     const m = ym ? /^(\d{4})-(\d{2})$/.exec(ym) : null;
@@ -194,8 +175,6 @@ export default function PayrollScreen() {
   }
 
   const egOptions = profile.egRows || [];
-  const stageCount = egOptions.find((r) => r.eg === tarif.eg)?.salary.filter((x) => x != null)
-    .length || 6;
 
   return (
     <Screen>
@@ -210,111 +189,62 @@ export default function PayrollScreen() {
 
         <AppCard>
           <SectionTitle>{t('payrollTarifTitle')}</SectionTitle>
-          {profile.tarifFamily === 'avr-c-pflege' ? (
-            payslip ? (
-              <>
-                <Meta>{t('payrollTarifFromPayslip')}</Meta>
-                {payslip.tarifLabel ? <Text style={styles.body}>{payslip.tarifLabel}</Text> : null}
-                <Meta>
-                  {[
-                    payslip.eg ? `${t('payrollTarifEg')}: ${payslip.eg}` : null,
-                    payslip.stage != null ? `${t('payrollTarifStage')}: ${payslip.stage}` : null,
-                    payslip.workHoursPerWeek != null
-                      ? `${t('payrollTarifHoursWeek')}: ${num(payslip.workHoursPerWeek)}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Meta>
-              </>
-            ) : (
-              <Meta>{t('payrollTarifNeedPayslip')}</Meta>
-            )
-          ) : (
+          {payslip ? (
             <>
-              {egOptions.length ? (
+              <Meta>{t('payrollTarifFromPayslip')}</Meta>
+              {(payslip.tarifLabel || tarif.eg) ? (
+                <Text style={styles.body}>
+                  {payslip.tarifLabel ||
+                    [
+                      tarif.eg ? `${t('payrollTarifEg')} ${tarif.eg}` : null,
+                      tarif.stage != null ? `${t('payrollTarifStage')} ${tarif.stage}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                </Text>
+              ) : null}
+              <Meta>
+                {[
+                  (payslip.eg || tarif.eg)
+                    ? `${t('payrollTarifEg')}: ${payslip.eg || tarif.eg}`
+                    : null,
+                  (payslip.stage ?? tarif.stage) != null
+                    ? `${t('payrollTarifStage')}: ${payslip.stage ?? tarif.stage}`
+                    : null,
+                  (payslip.workHoursPerWeek ?? tarif.workHoursPerWeek) != null
+                    ? `${t('payrollTarifHoursWeek')}: ${num(
+                        payslip.workHoursPerWeek ?? tarif.workHoursPerWeek
+                      )}`
+                    : null,
+                  tarif.workPct != null ? `${t('payrollTarifWorkPct')}: ${num(tarif.workPct)}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ') || t('payrollTarifNeedPayslip')}
+              </Meta>
+              {/* Fallback only when VN header did not yield EG — needed for Ärzte table lookup. */}
+              {egOptions.length > 0 && !(payslip.eg || tarif.eg) ? (
                 <>
+                  <Meta>{t('payrollTarifEgMissing')}</Meta>
                   <View style={styles.chipRow}>
                     {egOptions.map((r) => (
                       <Pressable
                         key={r.eg}
-                        onPress={() => setTarif((p) => ({ ...p, eg: r.eg }))}
+                        onPress={() => {
+                          const next = { ...tarif, eg: r.eg };
+                          setTarif(next);
+                          void saveTarifPrefs(snap.activeWorkplaceId || 'default', next);
+                        }}
                         style={[styles.chip, tarif.eg === r.eg && styles.chipOn]}
                       >
                         <Text style={styles.chipText}>{r.eg}</Text>
                       </Pressable>
                     ))}
                   </View>
-                  <View style={styles.chipRow}>
-                    {Array.from({ length: stageCount }, (_, i) => i + 1).map((s) => (
-                      <Pressable
-                        key={s}
-                        onPress={() => setTarif((p) => ({ ...p, stage: s }))}
-                        style={[styles.chip, tarif.stage === s && styles.chipOn]}
-                      >
-                        <Text style={styles.chipText}>{`${t('payrollTarifStage')} ${s}`}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
                 </>
-              ) : (
-                <View style={styles.rowFields}>
-                  <Field
-                    label={t('payrollTarifEg')}
-                    value={String(tarif.eg ?? '')}
-                    onChange={(v) => setTarif((p) => ({ ...p, eg: v.trim() || undefined }))}
-                    styles={styles}
-                    flex
-                  />
-                  <Field
-                    label={t('payrollTarifStage')}
-                    value={String(tarif.stage ?? '')}
-                    onChange={(v) => setTarif((p) => ({ ...p, stage: parseNum(v) }))}
-                    styles={styles}
-                    flex
-                  />
-                </View>
-              )}
-              {payslip?.tarifLabel ? <Meta>{payslip.tarifLabel}</Meta> : null}
-              <Field
-                label={t('payrollTarifWorkPct')}
-                value={String(tarif.workPct ?? '')}
-                onChange={(v) => setTarif((p) => ({ ...p, workPct: parseNum(v) }))}
-                styles={styles}
-              />
-              <Pressable
-                onPress={() => setTarif((p) => ({ ...p, shiftAllowance: !p.shiftAllowance }))}
-                style={styles.toggleRow}
-              >
-                <Text style={styles.body}>{t('payrollTarifShift')}</Text>
-                <Text style={styles.body}>
-                  {tarif.shiftAllowance ? t('payrollYes') : t('payrollNo')}
-                </Text>
-              </Pressable>
-              <Field
-                label={t('payrollTarifVl')}
-                value={String(tarif.vlAg ?? '')}
-                onChange={(v) => setTarif((p) => ({ ...p, vlAg: parseNum(v) }))}
-                styles={styles}
-              />
-              <View style={styles.rowFields}>
-                <Field
-                  label={t('payrollTarifUkDays')}
-                  value={String(tarif.ukDays ?? '')}
-                  onChange={(v) => setTarif((p) => ({ ...p, ukDays: parseNum(v) }))}
-                  styles={styles}
-                  flex
-                />
-                <Field
-                  label={t('payrollTarifUkRate')}
-                  value={String(tarif.ukRate ?? '')}
-                  onChange={(v) => setTarif((p) => ({ ...p, ukRate: parseNum(v) }))}
-                  styles={styles}
-                  flex
-                />
-              </View>
-              <AppButton title={t('payrollTarifSave')} onPress={() => void onSaveTarif()} />
+              ) : null}
             </>
+          ) : (
+            <Meta>{t('payrollTarifNeedPayslip')}</Meta>
           )}
         </AppCard>
 
@@ -432,32 +362,6 @@ export default function PayrollScreen() {
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  styles,
-  flex,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  styles: ReturnType<typeof makeStyles>;
-  flex?: boolean;
-}) {
-  return (
-    <View style={flex ? { flex: 1 } : undefined}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        keyboardType="decimal-pad"
-        style={styles.input}
-      />
-    </View>
-  );
-}
-
 function makeStyles(theme: AppTheme) {
   return StyleSheet.create({
     pad: {
@@ -473,10 +377,6 @@ function makeStyles(theme: AppTheme) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: theme.space.sm,
-    },
-    rowFields: {
-      flexDirection: 'row',
       gap: theme.space.sm,
     },
     actions: {
@@ -529,27 +429,6 @@ function makeStyles(theme: AppTheme) {
       ...theme.type.meta,
       color: theme.color.ink,
       fontWeight: '600',
-    },
-    fieldLabel: {
-      ...theme.type.meta,
-      color: theme.color.inkMuted,
-      marginBottom: 4,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: theme.color.border,
-      borderRadius: 8,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      color: theme.color.ink,
-      backgroundColor: theme.color.surface,
-      marginBottom: 8,
-    },
-    toggleRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 8,
     },
   });
 }
