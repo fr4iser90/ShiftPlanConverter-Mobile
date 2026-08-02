@@ -71,6 +71,7 @@ export type ShiftAutomationCommand =
 export type PayslipAutomationCommand =
   | { type: 'clickVerdienstOeffnen' }
   | { type: 'assertVerdienstContext' }
+  | { type: 'clickLeaveZeitdaten' }
   | { type: 'clickGenerierteDokumente' }
   | { type: 'assertGenerierteDokumente' }
   | { type: 'probeVerdienstListing'; month?: number; year?: number }
@@ -111,6 +112,8 @@ export type AutomationMessage = {
   /** Personal Cloud / Verdienstnachweis öffnen visible or opened */
   verdienstFound?: boolean;
   verdienstOpen?: boolean;
+  /** Zeiten/Buchungen mask or calendar still covering the dashboard */
+  zeitenOpen?: boolean;
   /** Generierte Dokumente toolbar (LMAGEDOK) */
   generierteFound?: boolean;
   generierteOpen?: boolean;

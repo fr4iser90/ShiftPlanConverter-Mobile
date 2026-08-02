@@ -15,6 +15,7 @@ import {
 } from '@/src/state/store';
 import {
   connectGoogle,
+  disconnectGoogle,
   getGoogleAccountEmail,
   hasGoogleSession,
   isPrimaryCalendar,
@@ -133,6 +134,23 @@ export function GoogleSyncCard({
     }
   };
 
+  const onGoogleDisconnect = async () => {
+    try {
+      setBusy(true);
+      await disconnectGoogle();
+      await setGoogleCalendarId('');
+      setGoogleEmail(null);
+      setCalendars([]);
+      setCalendarId(null);
+      setPrimaryWarn(false);
+      Alert.alert('Google', t('googleDisconnected'));
+    } catch (e) {
+      Alert.alert('Google', String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSync = async () => {
     if (!calendarId) {
       Alert.alert('Google', t('googleConnectFirst'));
@@ -217,6 +235,14 @@ export function GoogleSyncCard({
         disabled={busy}
         busy={busy}
       />
+      {googleEmail || calendarId ? (
+        <AppButton
+          title={t('googleDisconnect')}
+          variant="ghost"
+          onPress={() => void onGoogleDisconnect()}
+          disabled={busy}
+        />
+      ) : null}
       {showSync ? (
         <AppButton
           title={t('googleSync')}

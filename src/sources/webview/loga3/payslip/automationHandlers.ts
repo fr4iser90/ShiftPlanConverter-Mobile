@@ -27,22 +27,65 @@ export const AUTOMATION_HANDLERS_PAYSLIP = `
       return true;
     }
 
+    if (cmd.type === 'clickLeaveZeitdaten') {
+      var mask = q('[data-uin="mask-LZWZEITD"]') || q('.BewerberMaskLayout');
+      var picker = q('#ZeitdatenMonthPicker');
+      var closeBtn = findZeitdatenCloseControl();
+      if (closeBtn) {
+        try { closeBtn.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch (e) {}
+        try { closeBtn.click(); } catch (e) {}
+        ['pointerdown','mousedown','mouseup','pointerup','click'].forEach(function(type) {
+          try {
+            closeBtn.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+          } catch (e2) {}
+        });
+        post({
+          ok: true,
+          type: 'clickLeaveZeitdaten',
+          maskFound: !!mask,
+          pickerFound: !!picker,
+          note: ((closeBtn.getAttribute && (closeBtn.getAttribute('aria-label') || closeBtn.getAttribute('data-uin'))) || 'schließen').slice(0, 40)
+        });
+      } else {
+        post({
+          ok: false,
+          type: 'clickLeaveZeitdaten',
+          error: 'zeitdaten_close_not_found',
+          code: 'ZEITDATEN_CLOSE_MISSING',
+          maskFound: !!mask,
+          pickerFound: !!picker,
+          sample: (document.body && document.body.innerText || '').slice(0, 280)
+        });
+      }
+      return true;
+    }
+
     if (cmd.type === 'assertVerdienstContext') {
       var bodyV = (document.body && document.body.innerText || '');
       var genBtn = findGenerierteDokumenteControl();
       var myDok = q('[data-id="LMAMYDOK"]');
       var cloudOpen = !!(genBtn || myDok);
       var voBtn = findVerdienstOeffnenControl();
-      var personalCloudDash = !!q('.personal-cloud, .personal-cloud-container');
+      var pickerEl = q('#ZeitdatenMonthPicker');
+      var maskEl = q('[data-uin="mask-LZWZEITD"]') || q('.BewerberMaskLayout');
+      var pickerV = !!(pickerEl && visible(pickerEl));
+      var maskV = !!(maskEl && visible(maskEl));
+      var bookingsOpen = /Buchungen\\s+für/i.test(bodyV) || /ZEITERFASSUNG/i.test(bodyV);
+      var zeitenOpen = !!(pickerV || maskV || bookingsOpen);
+      // Dashboard widgets often stay in DOM under the Zeiten mask — never treat that as ready.
+      var verdienstFound = !!voBtn && !zeitenOpen;
       post({
-        ok: !!cloudOpen || !!voBtn || personalCloudDash,
+        ok: !!cloudOpen || verdienstFound,
         type: 'assertVerdienstContext',
-        verdienstFound: !!voBtn || personalCloudDash,
+        verdienstFound: verdienstFound,
         verdienstOpen: !!cloudOpen,
         generierteFound: !!genBtn,
-        pickerFound: !!q('#ZeitdatenMonthPicker'),
+        pickerFound: !!(pickerEl),
+        maskFound: !!(maskEl),
+        zeitenOpen: zeitenOpen,
+        note: zeitenOpen ? 'zeiten-open' : (verdienstFound ? 'dashboard' : (cloudOpen ? 'cloud-open' : 'unknown')),
         sample: bodyV.slice(0, 240),
-        code: cloudOpen || voBtn || personalCloudDash ? undefined : 'VERDIENST_CONTEXT_MISSING'
+        code: cloudOpen || verdienstFound ? undefined : (zeitenOpen ? 'ZEITEN_STILL_OPEN' : 'VERDIENST_CONTEXT_MISSING')
       });
       return true;
     }

@@ -13,8 +13,9 @@ Stand: 2026-08-01 · Captures: `tmp/verdienstnachweis/*.png`
 ## Ablauf (Live-UI)
 
 ```
-1 Login                          (wie Dienstplan)
+1 Login                          (wie Dienstplan) — wenn schon Session: skip
 2 Shell bereit
+2b Wenn Zeiten/Buchungen offen: einmal „Schließen“ → Dashboard
 3 Private-Cloud-Widget → einmal „öffnen“
 4 Sidebar → Generierte Dokumente (LMAGEDOK / ic-money)
 5 Pro Monat:
@@ -34,7 +35,8 @@ Screenshots: Dashboard-Widget → Sidebar → Ordnergrid → Datei + Herunterlad
 | # | Step | Selektor(en) | Muss danach wahr sein |
 |---|------|--------------|------------------------|
 | **1** | Login | `input[name="Kennung"]` · Passwort · Anmelden | nicht mehr Login |
-| **2** | Shell | `öffnen`-Button sichtbar **oder** Cloud schon offen | nicht Splash |
+| **2** | Shell | `öffnen`-Button sichtbar **oder** Cloud schon offen **oder** Zeiten-Maske | nicht Splash |
+| **2b** | Zeiten verlassen (nur wenn nötig) | **einmal** Schließen: `[data-uin="mask-LZWZEITD"] [aria-label="Schließen"]` / `ic-delete` (`clickLeaveZeitdaten`) | `.personal-cloud` / Private-Cloud-„öffnen“ sichtbar; Picker/Maske weg |
 | **3** | Private Cloud öffnen | **nur** im Widget `.personal-cloud` / `.personal-cloud-container`: `div.LG-Button[aria-label="öffnen"]` (`findVerdienstOeffnenControl`, nie Zeiten) · Titel `#PersonalCloud-*` / Text „Private Cloud“ | Cloud-Ansicht / Toolbar mit Dokument-Icons |
 | **4** | Generierte Dokumente | Sidebar: `[data-id="LMAGEDOK"]` · `aria-label="Generierte Dokumente"` · `.LGAppToolbarIcon.money` · `[data-uin="ic-money"]` (**nicht** `LMAMYDOK` / Meine Dokumente) | Header „Generierte Dokumente“; `.FileContainer` mit Ordnern |
 | **5a** | Jahr (nur ältere) | `.MyCloudDirectoryWidget[aria-label="2025"]` (o.ä. nur Jahreszahl) | Monat-Ordner für dieses Jahr sichtbar + Zurück-Kachel |
@@ -74,5 +76,6 @@ Implementiert 2026-08-01: `clickGenerierteDokumente` · Monats-/Jahres-Ordner ·
 - `LMAMYDOK` (Meine Dokumente) statt Generierte Dokumente
 - Ordner-Download / ZIP / verschlüsselter Download
 - Zweites Öffnen / Retry-Schleifen
+- Zweites „Schließen“ wenn Dashboard nicht kommt → **FAIL** klar
 
 Siehe auch: [`import-and-payroll-ux.md`](./import-and-payroll-ux.md), [`fetch-steps.md`](./fetch-steps.md).

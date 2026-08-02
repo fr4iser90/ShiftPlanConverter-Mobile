@@ -105,6 +105,34 @@ export const AUTOMATION_PORTAL_FINDERS = `
       return findCloudDirectory('Zurück');
     }
 
+    /** Close Zeiten/Buchungen mask → dashboard (Private Cloud visible again). */
+    function findZeitdatenCloseControl() {
+      var roots = [];
+      var m1 = q('[data-uin="mask-LZWZEITD"]');
+      var m2 = q('.BewerberMaskLayout');
+      if (m1) roots.push(m1);
+      if (m2 && m2 !== m1) roots.push(m2);
+      var i, root, cand;
+      for (i = 0; i < roots.length; i++) {
+        root = roots[i];
+        cand =
+          root.querySelector('[aria-label="Schließen"]') ||
+          root.querySelector('[data-uin="ic-delete"]') ||
+          root.querySelector('[title="Schließen"]') ||
+          root.querySelector('[data-uin="ic-close"]') ||
+          root.querySelector('.ic-delete');
+        if (cand) return cand;
+      }
+      return (
+        q('[data-uin="ic-delete"][aria-label="Schließen"]') ||
+        q('[aria-label="Schließen"].ic-delete') ||
+        qa('button, [role="button"], span, div').find(function(el) {
+          return /^Schließen$/i.test(textOf(el)) && visible(el);
+        }) ||
+        null
+      );
+    }
+
     function findZeitenControl() {
       // Desktop does not use this — keep extremely narrow (Zeiten label only).
       return (

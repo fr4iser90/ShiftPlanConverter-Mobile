@@ -115,24 +115,42 @@ async function ensureLoggedIn(ctx: Ctx): Promise<void> {
   status(ctx, t('fjLoginOk'));
 }
 
-/** Dashboard → Private Cloud öffnen (einmal). */
+/** Dashboard → Private Cloud öffnen (einmal). Zeiten schließen falls nötig — kein Retry. */
 async function ensureVerdienstOpen(ctx: Ctx): Promise<void> {
   status(ctx, t('payrollLoga3OpenVerdienst'));
   const already = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeQuick);
   if (already.verdienstOpen) return;
 
+  // Zeiten/Buchungen covers the dashboard — leave once before looking for Private Cloud.
+  const inZeiten =
+    !!already.zeitenOpen ||
+    (!!already.pickerFound || !!already.maskFound) ||
+    /Buchungen\s+für|ZEITERFASSUNG/i.test(String(already.sample || ''));
+  if (inZeiten && !already.verdienstFound) {
+    status(ctx, t('payrollLoga3LeaveZeitdaten'));
+    await run(ctx, { type: 'clickLeaveZeitdaten' }, T.closeDialog);
+    await waitForCondition(async () => {
+      const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeShort);
+      if (v.code === 'PROBE_TIMEOUT') return null;
+      if (v.verdienstOpen) return true;
+      if (v.verdienstFound && !v.zeitenOpen) return true;
+      return null;
+    }, waitOpts(ctx, t('payrollLoga3WaitDashboard'), T.waitShellOpen, 500));
+  }
+
   await waitForCondition(async () => {
-    const sh = await softProbe(ctx, { type: 'assertShellReady' }, T.softProbeShort);
-    if (sh.code === 'PROBE_TIMEOUT') return null;
     const v = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeShort);
+    if (v.code === 'PROBE_TIMEOUT') return null;
     if (v.verdienstOpen) return true;
-    if (v.verdienstFound) return true;
-    if (sh.ok) return true;
+    if (v.verdienstFound && !v.zeitenOpen) return true;
     return null;
   }, waitOpts(ctx, t('payrollLoga3WaitVerdienst'), T.waitShellOpen, 500));
 
   const ctx2 = await softProbe(ctx, { type: 'assertVerdienstContext' }, T.softProbeQuick);
   if (ctx2.verdienstOpen) return;
+  if (ctx2.zeitenOpen || !ctx2.verdienstFound) {
+    throw new Error(t('payrollLoga3DashboardMissing'));
+  }
 
   await run(ctx, { type: 'clickVerdienstOeffnen' }, T.clickOeffnen);
   await waitForCondition(async () => {

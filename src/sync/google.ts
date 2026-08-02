@@ -254,6 +254,11 @@ export async function disconnectGoogle(): Promise<void> {
       // ignore
     }
   }
+  try {
+    await setGoogleCalendarId('');
+  } catch {
+    // ignore
+  }
 }
 
 async function gfetch(path: string, init?: RequestInit) {
