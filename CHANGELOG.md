@@ -4,6 +4,20 @@ Deutsch. Englische Fassung: [CHANGELOG.en.md](./CHANGELOG.en.md)
 
 Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## 0.1.7 — 2026-08-02
+
+### Hinzugefügt
+- Einrichtung: Schritt **Mein Name** vor optionalem Portal; Google **trennen**
+- Pack-Rollen: flache `dutyCodes`, `department`/`role`, OCR-/Payroll-Bezug pro Rolle
+
+### Geändert
+- Berufsgruppe **Ärzte** (kurz); Setup-Hinweis und „Einrichtung beenden“ klarer
+- Arbeitgeber-Auswahl: bei mehreren Bereichen nicht mehr alles vorausfüllen
+
+### Behoben
+- Verdienst-Abruf nach Dienstplan: aus Zeiten zurück zum Dashboard, dann Private Cloud
+- „Alle lokalen Daten löschen“ räumt jetzt auch OCR-Namen / Aliase mit weg
+
 ## 0.1.6 — 2026-08-01
 
 ### Hinzugefügt

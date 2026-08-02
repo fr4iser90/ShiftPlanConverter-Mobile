@@ -4,6 +4,20 @@ English. German version: [CHANGELOG.md](./CHANGELOG.md)
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.1.7 — 2026-08-02
+
+### Added
+- Setup: **My name** step before optional portal; Google **disconnect**
+- Pack roles: flat `dutyCodes`, `department`/`role`, per-role OCR/payroll refs
+
+### Changed
+- Professional group label **Ärzte** (short); clearer setup hint and “Finish setup”
+- Employer picker: no longer auto-fills when multiple areas exist
+
+### Fixed
+- Payslip fetch after shifts: leave Zeiten → dashboard, then Private Cloud
+- Wipe-all local data also clears OCR preferred name / aliases
+
 ## 0.1.6 — 2026-08-01
 
 ### Added
