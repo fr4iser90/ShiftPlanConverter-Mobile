@@ -59,6 +59,26 @@ describe('skewed name / header overlays', () => {
     expect(owns.length).toBeGreaterThanOrEqual(1 + baseGrid.colCenters!.length);
   });
 
+  it('own-row name gutter does not bleed past first day (nameRightCap)', () => {
+    const grid: MonthMatrixGrid = {
+      ...baseGrid,
+      rowSlope: -0.08, // skew that would widen lower rows without a cap
+      dayFrames: baseGrid.colCenters!.map((cx, i, arr) => {
+        const prev = i === 0 ? 280 : (arr[i - 1]! + cx) / 2;
+        const next = i === arr.length - 1 ? cx + 150 : (cx + arr[i + 1]!) / 2;
+        return { dayIndex: i, label: String(i + 1), x0: i === 0 ? 320 : prev, x1: next };
+      }),
+    };
+    const boxes = estimateHighlightOverlays(grid, 3000, 4000, 'Person-C, Three');
+    const owns = boxes.filter((b) => b.kind === 'own-row');
+    const firstDayLeft = 320;
+    // Name gutter pieces sit left of the first day column.
+    const nameGutter = owns.filter((b) => b.box.x + b.box.width < firstDayLeft / 3000 + 0.02);
+    expect(nameGutter.length).toBeGreaterThanOrEqual(1);
+    const maxNameRight = Math.max(...nameGutter.map((b) => (b.box.x + b.box.width) * 3000));
+    expect(maxNameRight).toBeLessThanOrEqual(firstDayLeft + 8);
+  });
+
   it('own-row / name strips follow slope across x (not one flat AABB)', () => {
     const boxes = estimateHighlightOverlays(baseGrid, 3000, 4000, 'Person-B, Two');
     const owns = boxes.filter((b) => b.kind === 'own-row');

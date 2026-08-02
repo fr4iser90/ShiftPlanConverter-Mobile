@@ -39,8 +39,10 @@ import {
   type GlyphExtent,
 } from './rowOwnership';
 import {
+  colBoundsFromCenters,
   dayFramesFromBounds,
   dayFramesFromCenters,
+  glyphInLatticeCell,
   headerBandFromLattice,
   headerFrameFromBand,
   owningColIndexFromBounds,
@@ -61,6 +63,40 @@ export type BuildMonthMatrixOpts = {
   /** @deprecated Prefer lattice.hYs */
   ruledHorizontalYs?: number[];
 };
+
+/**
+ * Translate lattice day intervals so calendar-day centers match OCR header X.
+ * One global shift from median(ocrX − latticeCx) — keeps pitch, fixes left bias
+ * from synthetic name→first-V fill.
+ */
+function alignDayBoundsToOcrHeaders(
+  bounds: LatticeColBound[],
+  ocrDays: { x: number; day: number | null }[]
+): LatticeColBound[] {
+  if (bounds.length < 3) return bounds;
+  const medGap =
+    median(bounds.slice(1).map((b, i) => b.cx - bounds[i]!.cx).filter((g) => g > 0)) || 40;
+  const xLo = bounds[0]!.x0 - medGap * 1.5;
+  const xHi = bounds[bounds.length - 1]!.x1 + medGap * 1.5;
+  const deltas: number[] = [];
+  for (const col of ocrDays) {
+    if (col.day == null || col.day < 1 || col.day > bounds.length) continue;
+    if (!Number.isFinite(col.x)) continue;
+    // Drop calendar-fill / focus ghosts that sit far outside the printed strip.
+    if (col.x < xLo || col.x > xHi) continue;
+    deltas.push(col.x - bounds[col.day - 1]!.cx);
+  }
+  if (deltas.length < 2) return bounds;
+  const shift = median(deltas);
+  if (!Number.isFinite(shift) || Math.abs(shift) < 3) return bounds;
+  // Reject absurd pairing (wrong day labels glued to far columns).
+  if (Math.abs(shift) > medGap * 2.5) return bounds;
+  return bounds.map((b) => ({
+    x0: b.x0 + shift,
+    x1: b.x1 + shift,
+    cx: b.cx + shift,
+  }));
+}
 
 /**
  * Build name×day grid from OCR geometry.
@@ -147,10 +183,35 @@ export function buildMonthMatrixGrid(
     );
   }
   let colBounds: LatticeColBound[] = [];
+  // Pitch from consecutive OCR day centers only when those centers look like a
+  // real date strip. Focus+calendar-fill can invent Mi2@1000+ past pageW and
+  // a ~43px ghost pitch that skews early columns.
+  const ocrPitchSane =
+    colCenters.length >= 3 &&
+    colCenters[0]! < w * 0.55 &&
+    colCenters[colCenters.length - 1]! <= w * 1.05 &&
+    colCenters.every((x) => Number.isFinite(x) && x > 0);
+  const guidePitch = ocrPitchSane
+    ? median(
+        colCenters
+          .slice(1)
+          .map((x, i) => x - colCenters[i]!)
+          .filter((g) => g > 8 && g < w * 0.12)
+      ) || undefined
+    : undefined;
   let latticeQuality =
     lattice != null
-      ? scoreLatticeColumns(lattice.vXs, nameMaxX, w, desiredDayCount, inkRight).quality
+      ? scoreLatticeColumns(
+          lattice.vXs,
+          nameMaxX,
+          w,
+          desiredDayCount,
+          inkRight,
+          guidePitch
+        ).quality
       : undefined;
+  const ocrCentersBackup = colCenters.slice();
+  const ocrHeadersBackup = filledHeaders.slice();
   if (lattice && lattice.vXs.length >= 4 && colCenters.length >= 3) {
     const snapped = snapDayCentersToLattice(
       colCenters,
@@ -158,9 +219,10 @@ export function buildMonthMatrixGrid(
       lattice.vXs,
       nameMaxX,
       w,
-      inkRight
+      inkRight,
+      guidePitch
     );
-    const keepRatio = snapped.centers.length / colCenters.length;
+    const keepRatio = snapped.matched / colCenters.length;
     latticeQuality = {
       ...(latticeQuality || {
         ok: false,
@@ -172,14 +234,28 @@ export function buildMonthMatrixGrid(
       keepRatio,
     };
     if (
-      snapped.centers.length >= 3 &&
+      snapped.matched >= 3 &&
       keepRatio >= 0.85 &&
-      snapped.bounds.length >= snapped.centers.length &&
-      (latticeQuality?.ok ?? true)
+      snapped.bounds.length >= 3
     ) {
+      // keepRatio is the snap quality gate — do not require a prior V-score ok
+      // (sparse early V peaks can fail score while OCR×lattice snap is solid).
       colCenters = snapped.centers;
       filledHeaders = snapped.headers;
       colBounds = snapped.bounds;
+      latticeQuality = {
+        ...(latticeQuality || {
+          ok: true,
+          hLines: lattice.hYs.length,
+          vLines: lattice.vXs.length,
+        }),
+        ok: true,
+        reason: undefined,
+        keepRatio,
+        hLines: lattice.hYs.length,
+        vLines: lattice.vXs.length,
+        inferredCols: snapped.bounds.length,
+      };
     } else if (keepRatio < 0.85) {
       latticeQuality = {
         ...latticeQuality,
@@ -188,36 +264,101 @@ export function buildMonthMatrixGrid(
       };
     }
   }
-  // Only use lattice day frames when snap accepted or lattice scored ok —
-  // never paint photo-frame V-peaks as day columns across the full image.
-  if (!colBounds.length && lattice?.vXs.length && latticeQuality?.ok) {
-    colBounds = scoreLatticeColumns(
+  // Lattice day frames when snap missed but V-bounds still resolve ≥3 columns.
+  if (!colBounds.length && lattice?.vXs.length) {
+    const scored = scoreLatticeColumns(
       lattice.vXs,
       nameMaxX,
       w,
       desiredDayCount,
-      inkRight
-    ).bounds;
+      inkRight,
+      guidePitch
+    );
+    if (scored.bounds.length >= 3) {
+      colBounds = scored.bounds;
+      // Prefer printed V centers over calendar-fill OCR ghosts (often past pageW).
+      colCenters = scored.bounds.map((b) => b.cx);
+      filledHeaders = scored.bounds.map((_, i) => String(i + 1));
+      latticeQuality = {
+        ...scored.quality,
+        hLines: lattice.hYs.length,
+        vLines: lattice.vXs.length,
+      };
+    }
   }
 
-  const parsedOcrDays = colCenters.map((x, i) => ({
+  // Real OCR day anchors (before lattice replaced centers). Used to label /
+  // nudge the printed strip — never trust calendar-fill ghosts past the page.
+  const realOcrDays = ocrCentersBackup.map((x, i) => ({
     x,
-    label: filledHeaders[i] || '',
-    ...parseHeaderDay(filledHeaders[i] || ''),
+    label: ocrHeadersBackup[i] || '',
+    ...parseHeaderDay(ocrHeadersBackup[i] || ''),
   }));
+  const ocrPitch =
+    (ocrPitchSane
+      ? median(
+          ocrCentersBackup
+            .slice(1)
+            .map((x, i) => x - ocrCentersBackup[i]!)
+            .filter((g) => g > 8 && g < w * 0.12)
+        )
+      : undefined) ||
+    guidePitch ||
+    w / 28;
+  const needCols =
+    desiredDayCount != null
+      ? desiredDayCount
+      : Math.min(31, Math.max(ocrCentersBackup.length, colCenters.length, 3));
+  // Reject a mid-month-only lattice: must start near the name divider and cover
+  // most of the calendar month — otherwise keep OCR centers.
+  const latticeCoversDateStrip =
+    colBounds.length >= 3 &&
+    colBounds.length + 2 >= Math.min(needCols, Math.max(colBounds.length, 10)) &&
+    colBounds[0]!.x0 <= nameMaxX + ocrPitch * 2.5;
+
   const frameBounds =
-    colBounds.length >= 3
+    latticeCoversDateStrip
       ? desiredDayCount != null
         ? colBounds.slice(0, desiredDayCount)
         : colBounds.slice(0, Math.min(colBounds.length, 31))
       : [];
+  if (!latticeCoversDateStrip && colBounds.length) {
+    latticeQuality = {
+      ...(latticeQuality || {
+        ok: false,
+        hLines: lattice?.hYs.length || 0,
+        vLines: lattice?.vXs.length || 0,
+      }),
+      ok: false,
+      reason: `truncated-date-strip:${colBounds.length}<${needCols}`,
+      inferredCols: colBounds.length,
+    };
+    colBounds = [];
+    // Snap may have replaced centers with a partial strip — restore OCR.
+    colCenters = ocrCentersBackup;
+    filledHeaders = ocrHeadersBackup;
+  }
   if (frameBounds.length >= 3) {
+    const stripLo = frameBounds[0]!.x0 - ocrPitch * 1.5;
+    const stripHi = frameBounds[frameBounds.length - 1]!.x1 + ocrPitch * 1.5;
+    const ocrOnStrip = realOcrDays.filter(
+      (col) => Number.isFinite(col.x) && col.x >= stripLo && col.x <= stripHi
+    );
     const reconciledHeaders = new Array(frameBounds.length).fill('').map((_, i) => String(i + 1));
-    for (const col of parsedOcrDays) {
-      if (!Number.isFinite(col.x)) continue;
-      if (desiredDayCount != null && col.day != null && col.day >= 1 && col.day <= desiredDayCount) {
-        reconciledHeaders[col.day - 1] = col.wd ? `${col.wd}${col.day}` : String(col.day);
-        continue;
+    for (const col of ocrOnStrip) {
+      if (
+        desiredDayCount != null &&
+        col.day != null &&
+        col.day >= 1 &&
+        col.day <= frameBounds.length
+      ) {
+        const target = frameBounds[col.day - 1]!;
+        // Only trust the day number when X agrees — calendar-fill ghosts reuse
+        // early day labels at late-month X.
+        if (Math.abs(col.x - target.cx) <= ocrPitch * 1.75) {
+          reconciledHeaders[col.day - 1] = col.wd ? `${col.wd}${col.day}` : String(col.day);
+          continue;
+        }
       }
       let best = 0;
       let bestD = Infinity;
@@ -228,11 +369,16 @@ export function buildMonthMatrixGrid(
           best = i;
         }
       }
-      if (!/\d/.test(reconciledHeaders[best]!)) reconciledHeaders[best] = col.label || reconciledHeaders[best]!;
+      if (bestD <= ocrPitch * 1.35 && !/\d/.test(reconciledHeaders[best]!)) {
+        reconciledHeaders[best] = col.label || reconciledHeaders[best]!;
+      }
     }
-    filledHeaders = reconciledHeaders;
-    colCenters = frameBounds.map((b) => b.cx);
-    colBounds = frameBounds;
+    // Shift the whole lattice strip so day centers land on OCR header X
+    // (synthetic left-fill often sits a few dozen px left of the printed strip).
+    const aligned = alignDayBoundsToOcrHeaders(frameBounds, ocrOnStrip);
+    filledHeaders = reconciledHeaders.slice(0, aligned.length);
+    colCenters = aligned.map((b) => b.cx);
+    colBounds = aligned;
   } else if (desiredDayCount != null && colCenters.length > desiredDayCount) {
     colCenters = colCenters.slice(0, desiredDayCount);
     filledHeaders = filledHeaders.slice(0, desiredDayCount);
@@ -431,24 +577,25 @@ export function buildMonthMatrixGrid(
     );
     if (hb) {
       const glyphMid = headerBandY > 0 ? headerBandY : (headerBandTop + headerBandBot) / 2;
+      const haveGlyph = headerBandBot > headerBandTop && headerBandTop > 0;
       const agree =
-        !(headerBandY > 0) || Math.abs(hb.mid - glyphMid) <= Math.max(28, pageH * 0.03);
-      if (agree) {
-        headerBandTop = hb.top;
-        headerBandBot = hb.bot;
-        headerBandY = hb.mid;
-      } else if (headerBandBot > headerBandTop) {
-        // Keep glyph Y. Only snap bottom downward to a rule *under* the glyphs,
-        // never pull bot up into the title / above the date ink.
+        !haveGlyph || Math.abs(hb.mid - glyphMid) <= Math.max(28, pageH * 0.03);
+      if (haveGlyph) {
+        // Keep Mo/Di ink height. Lattice H-spans (title rule → first person) are
+        // often 2–4× taller and painted fat yellow day headers.
+        const room = stubs[0]!.yMid - 2;
         const botRule = hb.bot;
-        if (botRule >= headerBandBot - 2 && botRule < stubs[0]!.yMid - 2) {
-          if (botRule - headerBandTop > 4) {
-            headerBandBot = botRule;
-            headerBandY = (headerBandTop + headerBandBot) / 2;
-          }
+        if (
+          agree &&
+          botRule > headerBandBot &&
+          botRule <= headerBandBot + Math.max(12, pageH * 0.012) &&
+          botRule < room &&
+          botRule - headerBandTop > 4
+        ) {
+          headerBandBot = botRule;
+          headerBandY = (headerBandTop + headerBandBot) / 2;
         }
-      } else {
-        // Glyph band missing — take lattice result.
+      } else if (agree) {
         headerBandTop = hb.top;
         headerBandBot = hb.bot;
         headerBandY = hb.mid;
@@ -477,14 +624,22 @@ export function buildMonthMatrixGrid(
     yBot: r.yNameBot ?? r.yCenter,
   }));
 
+  const scoopCols: LatticeColBound[] =
+    colBounds.length >= 3
+      ? colBounds
+      : colBoundsFromCenters(colCenters, w, colGap);
+  const useLatticeCells =
+    scoopCols.length >= 3 &&
+    rows.some((r) => r.yLo != null && r.yHi != null && r.yHi > r.yLo);
+
   const colOf = (l: (typeof merged)[0]): number => {
-    if (colBounds.length >= 3) {
-      return owningColIndexFromBounds(xCenter(l), colBounds);
+    if (scoopCols.length >= 3) {
+      return owningColIndexFromBounds(xCenter(l), scoopCols);
     }
     return owningColIndex(l, colCenters, nameMaxXFinal, w);
   };
 
-  /** Prefer printed row band; else nearest-name baseline. */
+  /** Degraded path only: band / nearest-name when lattice cell rule unavailable. */
   const belongsToStub = (l: (typeof merged)[0], ownerIdx: number, slope: number): boolean => {
     const row = rows[ownerIdx];
     if (row?.yLo != null && row.yHi != null && row.yHi > row.yLo) {
@@ -499,18 +654,52 @@ export function buildMonthMatrixGrid(
   for (let si = 0; si < stubs.length; si++) {
     const s = stubs[si]!;
     const ownerIdx = stubRowIndex[si]!;
-    const ownedBody = merged.filter((l) => {
+    const row = rows[ownerIdx]!;
+    const stubSlope = s.slope ?? rowSlope;
+    const inDayBody = (l: (typeof merged)[0]): boolean => {
       const xc = xCenter(l);
-      // Keep name-column glyphs out of day-cell scoop (skew-aware divider).
-      // Match overlay logic: divider tapers as xRight(y) = nameMaxX - rowSlope*(y-yFirst).
       const yMid = yCenter(l);
+      // Keep name-column glyphs out of day-cell scoop (skew-aware divider).
       const xRightAtY = Math.max(24, nameMaxXFinal - rowSlope * (yMid - yFirst));
       if (xc < xRightAtY + 6 || l.boundingBox.x < xRightAtY * 0.92) return false;
       const t = cleanCell(l.text);
       if (/^\(?\s*kw/i.test(t)) return false;
-      return belongsToStub(l, ownerIdx, s.slope ?? rowSlope);
+      return true;
+    };
+
+    const cells = scoopCols.map((col, colIndex) => {
+      const candidates = merged.filter((l) => {
+        if (!inDayBody(l)) return false;
+        if (useLatticeCells && row.yLo != null && row.yHi != null) {
+          // Structure first: glyph center ∈ person×day parallelogram.
+          return glyphInLatticeCell(
+            xCenter(l),
+            yCenter(l),
+            row,
+            col,
+            stubSlope,
+            xAnchorRef
+          );
+        }
+        return belongsToStub(l, ownerIdx, stubSlope) && colOf(l) === colIndex;
+      });
+      if (!candidates.length) return '';
+      const texts = candidates
+        .sort((a, b) => a.boundingBox.y - b.boundingBox.y)
+        .map((l) => cleanCell(l.text))
+        .filter((t) => t && !looksLikeDayHeader(t));
+      return formatShiftCell([...new Set(texts)]);
     });
-    for (const l of ownedBody) {
+
+    for (const l of merged) {
+      if (!inDayBody(l)) continue;
+      const inside =
+        useLatticeCells && row.yLo != null
+          ? scoopCols.some((col) =>
+              glyphInLatticeCell(xCenter(l), yCenter(l), row, col, stubSlope, xAnchorRef)
+            )
+          : belongsToStub(l, ownerIdx, stubSlope);
+      if (!inside) continue;
       const top = l.boundingBox.y;
       const bot = l.boundingBox.y + l.boundingBox.height;
       for (let p = 0; p < s.people.length; p++) {
@@ -519,15 +708,7 @@ export function buildMonthMatrixGrid(
         e.yBot = Math.max(e.yBot, bot);
       }
     }
-    const cells = colCenters.map((_cx, colIndex) => {
-      const candidates = ownedBody.filter((l) => colOf(l) === colIndex);
-      if (!candidates.length) return '';
-      const texts = candidates
-        .sort((a, b) => a.boundingBox.y - b.boundingBox.y)
-        .map((l) => cleanCell(l.text))
-        .filter((t) => t && !looksLikeDayHeader(t));
-      return formatShiftCell([...new Set(texts)]);
-    });
+
     for (let p = 0; p < s.people.length; p++) {
       const r = rows[ownerIdx + p]!;
       r.cells = cells.slice();
@@ -569,6 +750,8 @@ export function buildMonthMatrixGrid(
     contentRight: inkRight,
     contentTop: inkTop,
     contentBottom: inkBot,
+    rosterMonth: monthYear?.month,
+    rosterYear: monthYear?.year,
     latticeQuality:
       latticeQuality != null
         ? {

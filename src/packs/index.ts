@@ -160,11 +160,15 @@ function packOcrBase(raw: PackOcrConfig | undefined): PackOcrScopeConfig & { eng
       dateDuty: raw.dateDuty,
       layoutPriors: raw.layoutPriors,
       showLayoutChips: raw.showLayoutChips,
+      invertLightGlyphs: raw.invertLightGlyphs,
     };
   }
   const base: PackOcrScopeConfig = { ...(raw.default || {}) };
   if (raw.usePackMapping !== undefined && base.usePackMapping === undefined) {
     base.usePackMapping = raw.usePackMapping;
+  }
+  if (raw.invertLightGlyphs !== undefined && base.invertLightGlyphs === undefined) {
+    base.invertLightGlyphs = raw.invertLightGlyphs;
   }
   return {
     engine,
@@ -174,6 +178,7 @@ function packOcrBase(raw: PackOcrConfig | undefined): PackOcrScopeConfig & { eng
     dateDuty: base.dateDuty,
     layoutPriors: base.layoutPriors,
     showLayoutChips: base.showLayoutChips,
+    invertLightGlyphs: base.invertLightGlyphs,
   };
 }
 
@@ -206,6 +211,10 @@ export function getOcrConfigForScope(
         g.layoutPriors !== undefined ? g.layoutPriors : merged.layoutPriors,
       showLayoutChips:
         g.showLayoutChips !== undefined ? g.showLayoutChips : merged.showLayoutChips,
+      invertLightGlyphs:
+        g.invertLightGlyphs !== undefined
+          ? g.invertLightGlyphs
+          : merged.invertLightGlyphs,
     };
   }
 
@@ -236,6 +245,10 @@ export function getOcrConfigForScope(
             areaScope.showLayoutChips !== undefined
               ? areaScope.showLayoutChips
               : merged.showLayoutChips,
+          invertLightGlyphs:
+            areaScope.invertLightGlyphs !== undefined
+              ? areaScope.invertLightGlyphs
+              : merged.invertLightGlyphs,
         };
       }
     }
@@ -249,6 +262,7 @@ export function getOcrConfigForScope(
     dateDuty: merged.dateDuty,
     layoutPriors: merged.layoutPriors,
     showLayoutChips: merged.showLayoutChips,
+    invertLightGlyphs: merged.invertLightGlyphs,
   };
 }
 

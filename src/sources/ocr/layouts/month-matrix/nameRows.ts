@@ -50,10 +50,10 @@ function shapeToken(raw: string): string {
 }
 
 /**
- * Pair a lone Nachname with the following Vorname.
+ * Pair a lone surname line with the following given-name line.
  * Gap is measured to the *next token*, not the next group's centroid — otherwise a
- * wrongly glued First|Last below pulls the centroid too far and the real Vorname
- * never attaches to the lone Nachname above.
+ * wrongly glued First|Last below pulls the centroid too far and the real given name
+ * never attaches to the lone surname above.
  *
  * If next is already [First, Last], steal only the First (leave the following Last alone).
  */

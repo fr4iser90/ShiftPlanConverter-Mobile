@@ -48,15 +48,26 @@ import {
   type GoogleCalendar,
 } from '@/src/sync/google';
 import { ensureBiometricUnlocked } from '@/src/security/biometric';
+import {
+  loadOcrPreferredName,
+  saveOcrPreferredName,
+} from '@/src/state/ocrPreferredName';
+import {
+  composeRosterNameParts,
+  emptyRosterNameParts,
+  parseRosterNameParts,
+  type RosterNameParts,
+} from '@/src/state/rosterNameParts';
 import { AppButton } from '@/src/ui/AppButton';
 import { AppCard, Meta, SectionTitle } from '@/src/ui/AppCard';
 import { GoogleCalendarPicker } from '@/src/ui/GoogleCalendarPicker';
 import { ExportTargetSoonSetupBlock } from '@/src/ui/ExportTargetSoonCard';
+import { RosterNameFields } from '@/src/ui/RosterNameFields';
 import { useTheme } from '@/src/ui/useTheme';
 import type { AppTheme } from '@/src/ui/theme';
 
-/** 0 = workplace · 1 = portal (optional, pack-dependent) · 2 = calendars (optional) */
-type Step = 0 | 1 | 2;
+/** workplace → optional portal → roster name (optional) → calendars (optional) */
+type Step = 'workplace' | 'portal' | 'name' | 'calendars';
 
 async function preferNonLoga3Source(packId: string | null | undefined): Promise<void> {
   const pack = packId ? getPackById(packId) : null;
@@ -79,7 +90,7 @@ export default function SetupScreen() {
   const theme = useTheme();
   const styles = useMemo(() => makeSetupStyles(theme), [theme]);
   const [, setTick] = useState(0);
-  const [step, setStep] = useState<Step>(0);
+  const [step, setStep] = useState<Step>('workplace');
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -88,12 +99,19 @@ export default function SetupScreen() {
   const [calendarId, setCalendarId] = useState<string | null>(null);
   const [primaryWarn, setPrimaryWarn] = useState(false);
   const [googleEmail, setGoogleEmail] = useState<string | null>(null);
+  const [nameParts, setNameParts] = useState<RosterNameParts>(emptyRosterNameParts);
   const snap = getSnapshot();
   const pack = useMemo(
     () => (snap.packId ? getPackById(snap.packId) : null),
     [snap.packId]
   );
   const portalAvailable = isSourceSupportedByPack(pack, 'loga3-webview');
+
+  const stepOrder = useMemo((): Step[] => {
+    return portalAvailable
+      ? ['workplace', 'portal', 'name', 'calendars']
+      : ['workplace', 'name', 'calendars'];
+  }, [portalAvailable]);
 
   useEffect(() => subscribe(() => setTick((n) => n + 1)), []);
 
@@ -135,13 +153,14 @@ export default function SetupScreen() {
       setPassword('');
     }
     await hydrateGoogleUi();
+    setNameParts(parseRosterNameParts(await loadOcrPreferredName()));
     const st = await getSetupStatus();
     const snapNow = getSnapshot();
     const packNow = snapNow.packId ? getPackById(snapNow.packId) : null;
     const hasPortal = isSourceSupportedByPack(packNow, 'loga3-webview');
-    if (!st.workplaceOk) setStep(0);
-    else if (hasPortal && !st.loga3Ready) setStep(1);
-    else setStep(2);
+    if (!st.workplaceOk) setStep('workplace');
+    else if (hasPortal && !st.loga3Ready) setStep('portal');
+    else setStep('calendars');
   }, [hydrateGoogleUi]);
 
   useEffect(() => {
@@ -165,26 +184,25 @@ export default function SetupScreen() {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    if (portalAvailable) setStep(1);
-    else setStep(2);
+    setStep(portalAvailable ? 'portal' : 'name');
   };
 
   const goToStep = (target: Step) => {
     if (target === step) return;
-    if (target === 0) {
-      setStep(0);
+    if (target === 'workplace') {
+      setStep('workplace');
       return;
     }
     if (!isWorkplaceConfigured(snap)) {
       Alert.alert(t('setupWorkplace'), t('setupWorkplaceRequired'));
       return;
     }
-    if (target === 1) {
-      if (portalAvailable) setStep(1);
-      else setStep(2);
+    if (target === 'portal') {
+      if (portalAvailable) setStep('portal');
+      else setStep('name');
       return;
     }
-    setStep(2);
+    setStep(target);
   };
 
   const saveLoga3AndContinue = async () => {
@@ -205,7 +223,7 @@ export default function SetupScreen() {
     }
     await saveCredentials({ username: username.trim(), password });
     await preferLoga3Source(snap.packId);
-    setStep(2);
+    setStep('name');
   };
 
   const skipLoga3 = async () => {
@@ -214,7 +232,21 @@ export default function SetupScreen() {
       return;
     }
     await preferNonLoga3Source(snap.packId);
-    setStep(2);
+    setStep('name');
+  };
+
+  const saveNameAndContinue = async () => {
+    const composed = composeRosterNameParts(nameParts);
+    if (!composed && nameParts.first.trim()) {
+      Alert.alert(t('settingsOcrName'), t('settingsOcrNameNeedLast'));
+      return;
+    }
+    if (composed) await saveOcrPreferredName(composed);
+    setStep('calendars');
+  };
+
+  const skipName = () => {
+    setStep('calendars');
   };
 
   /** One tap: ready pack + role, file/photo sources, skip portal & calendar. */
@@ -272,6 +304,16 @@ export default function SetupScreen() {
     else router.replace('/(tabs)');
   };
 
+  const stepIndex = (id: Step) => stepOrder.indexOf(id);
+  const currentIdx = stepIndex(step);
+
+  const stepLabel = (id: Step): string => {
+    if (id === 'workplace') return t('setupStepWorkplace');
+    if (id === 'portal') return t('setupStepLoga3');
+    if (id === 'name') return t('setupStepRosterName');
+    return t('setupStepGoogle');
+  };
+
   return (
     <ScrollView
       style={styles.scroll}
@@ -281,35 +323,20 @@ export default function SetupScreen() {
       <Meta>{t('setupIntro')}</Meta>
 
       <View style={styles.steps}>
-        <StepDot
-          n={1}
-          active={step === 0}
-          done={step > 0}
-          label={t('setupStepWorkplace')}
-          styles={styles}
-          onPress={step !== 0 ? () => goToStep(0) : undefined}
-        />
-        <StepDot
-          n={2}
-          active={step === 1}
-          done={step > 1}
-          label={portalAvailable ? t('setupStepLoga3') : t('setupStepGoogle')}
-          styles={styles}
-          onPress={step !== 1 ? () => goToStep(1) : undefined}
-        />
-        {portalAvailable ? (
+        {stepOrder.map((id, i) => (
           <StepDot
-            n={3}
-            active={step === 2}
-            done={false}
-            label={t('setupStepGoogle')}
+            key={id}
+            n={i + 1}
+            active={step === id}
+            done={currentIdx > i}
+            label={stepLabel(id)}
             styles={styles}
-            onPress={step !== 2 ? () => goToStep(2) : undefined}
+            onPress={step !== id ? () => goToStep(id) : undefined}
           />
-        ) : null}
+        ))}
       </View>
 
-      {step === 0 && (
+      {step === 'workplace' && (
         <AppCard>
           <WorkplacePicker />
           <AppButton title={t('setupNext')} onPress={goAfterWorkplace} />
@@ -322,7 +349,7 @@ export default function SetupScreen() {
         </AppCard>
       )}
 
-      {step === 1 && portalAvailable && (
+      {step === 'portal' && portalAvailable && (
         <AppCard>
           <SectionTitle>{t('setupLoga3OptionalTitle')}</SectionTitle>
           <Text style={styles.optional}>{t('setupLoga3Optional')}</Text>
@@ -361,7 +388,7 @@ export default function SetupScreen() {
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep(0)}
+              onPress={() => setStep('workplace')}
               style={styles.flexBtn}
             />
             <AppButton
@@ -379,7 +406,35 @@ export default function SetupScreen() {
         </AppCard>
       )}
 
-      {step === 2 && (
+      {step === 'name' && (
+        <AppCard>
+          <SectionTitle>{t('setupRosterNameTitle')}</SectionTitle>
+          <Text style={styles.optional}>{t('setupRosterNameOptional')}</Text>
+          <Meta>{t('setupRosterNameHint')}</Meta>
+          <RosterNameFields value={nameParts} onChange={setNameParts} inputStyle={styles.input} />
+          <View style={styles.row}>
+            <AppButton
+              title={t('setupBack')}
+              variant="secondary"
+              onPress={() => setStep(portalAvailable ? 'portal' : 'workplace')}
+              style={styles.flexBtn}
+            />
+            <AppButton
+              title={t('setupSkip')}
+              variant="ghost"
+              onPress={skipName}
+              style={styles.flexBtn}
+            />
+            <AppButton
+              title={t('setupNext')}
+              onPress={() => void saveNameAndContinue()}
+              style={styles.flexBtn}
+            />
+          </View>
+        </AppCard>
+      )}
+
+      {step === 'calendars' && (
         <AppCard>
           <SectionTitle>{t('setupGoogle')}</SectionTitle>
           <Meta>{t('setupGoogleHint')}</Meta>
@@ -436,7 +491,7 @@ export default function SetupScreen() {
             <AppButton
               title={t('setupBack')}
               variant="secondary"
-              onPress={() => setStep(portalAvailable ? 1 : 0)}
+              onPress={() => setStep('name')}
               style={styles.flexBtn}
             />
             <AppButton

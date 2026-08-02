@@ -1,5 +1,5 @@
 /**
- * Remember OCR misspellings → corrected name (Settings “Mein Name”).
+ * Remember OCR misspellings → corrected preferred roster name (Settings).
  * Next scan: same OCR garbage maps back to your spelling automatically.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';

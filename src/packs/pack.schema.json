@@ -168,6 +168,17 @@
           "type": "boolean",
           "default": true
         },
+        "showLayoutChips": {
+          "type": "boolean"
+        },
+        "layoutPriors": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "invertLightGlyphs": {
+          "type": "boolean",
+          "description": "Second OCR on luminance-inverted image; merge short light-on-dark cell glyphs (U/F/…). Not color→duty classification."
+        },
         "dateDuty": {
           "type": "object",
           "description": "Pack vocabulary for OCR layout date-duty (dates × duty columns)",
@@ -251,6 +262,10 @@
         "usePackMapping": {
           "type": "boolean",
           "default": true
+        },
+        "invertLightGlyphs": {
+          "type": "boolean",
+          "description": "Second OCR on luminance-inverted image; merge short light-on-dark cell glyphs."
         },
         "dateDuty": { "$ref": "#/$defs/ocrScope/properties/dateDuty" },
         "default": { "$ref": "#/$defs/ocrScope" },

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, type Href } from 'expo-router';
+import * as Linking from 'expo-linking';
 
 import { t } from '@/src/i18n';
 import { loadCredentials } from '@/src/sources/webview/loga3/shared/credentials';
@@ -48,7 +49,7 @@ import {
   calendarFocusFromYearMonth,
   setCalendarFocusIntent,
 } from '@/src/setup/calendarFocusIntent';
-import { takeOcrSmokeIntent, peekOcrSmokeIntent } from '@/src/setup/ocrSmokeIntent';
+import { takeOcrSmokeIntent, peekOcrSmokeIntent, applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import { resolveActiveSourceId, saveActiveSourceId } from '@/src/state/activeSource';
 import { loadOcrLayoutId, saveOcrLayoutId } from '@/src/state/ocrLayout';
 import { loadQuickPrefs, type QuickUpdatePrefs } from '@/src/state/quickPrefs';
@@ -956,7 +957,13 @@ export default function FetchScreen() {
         const result = await runCameraOcr({
           captureMode,
           imageUri: captured,
-          layoutId: layoutIdOverride || ocrLayoutId,
+          // Pack hides chips + prefers auto (Ärzte): never force a leftover
+          // Settings “Monatsmatrix” onto a date×duty board.
+          layoutId:
+            layoutIdOverride ||
+            (packShowsLayoutChips(ocrConfig)
+              ? ocrLayoutId
+              : packPreferredLayoutId(ocrConfig) || DEFAULT_OCR_LAYOUT_ID),
           pickRosterName: requestOcrName,
           pickOcrLayout: requestOcrLayout,
           assistOcrRegion: requestOcrRegion,
@@ -1000,7 +1007,15 @@ export default function FetchScreen() {
             height: 0,
           }))
         );
-        if (!text && !result.matrix) setStatus(t('sourceOcrEmpty'));
+        if (!result.matrix && text) {
+          const first = text
+            .split('\n')
+            .map((s) => s.trim())
+            .find(Boolean);
+          setStatus(first || t('sourceOcrMatrixFailedTitle'));
+        } else if (!text && !result.matrix) {
+          setStatus(t('sourceOcrEmpty'));
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setStatus(t('fjResultErrorLine', { msg }));
@@ -1649,12 +1664,20 @@ export default function FetchScreen() {
     const discover = setInterval(() => {
       void armIfNeeded();
     }, 1500);
-    const discoverStop = setTimeout(() => clearInterval(discover), 12000);
+    // Warm deep links can arrive well after mount (adb am start → already-running).
+    const discoverStop = setTimeout(() => clearInterval(discover), 120000);
+    const linkSub = Linking.addEventListener('url', (e) => {
+      if (!isOcrSmokeUrl(e.url)) return;
+      void applyOcrSmokeFromUrl(e.url).then(() => {
+        void armIfNeeded();
+      });
+    });
     return () => {
       cancelled = true;
       stopPoll();
       clearInterval(discover);
       clearTimeout(discoverStop);
+      linkSub.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1949,7 +1972,6 @@ export default function FetchScreen() {
                   />
                   {ocrMatrix || ocrText || ocrImageUri ? (
                     <>
-                      <SectionTitle>{t('sourceCameraOcrResult')}</SectionTitle>
                       {ocrMatrix || ocrImageUri ? (
                         <OcrCompareReview
                           imageUri={ocrImageUri}
@@ -1965,33 +1987,20 @@ export default function FetchScreen() {
                           ocrEngineId={getOcrEngineIdForPack(pack)}
                           dateDuty={ocrConfig?.dateDuty ?? null}
                           onGridChange={setOcrMatrix}
-                          title={
-                            ocrMatchedName && ocrMatrix
-                              ? ocrMatrix.overlayLayout === 'date-duty'
-                                ? t('sourceOcrMatrixTitleDateDuty', {
-                                    name: ocrMatchedName,
-                                    people: ocrMatrix.rows.length,
-                                  })
-                                : t('sourceOcrMatrixTitleMine', {
-                                    name: ocrMatchedName,
-                                    people: ocrMatrix.rows.length,
-                                  })
-                              : ocrMatrix
-                                ? ocrMatrix.overlayLayout === 'date-duty'
-                                  ? t('sourceOcrMatrixTitleDateDutyAll')
-                                  : t('sourceOcrMatrixTitleAll')
-                                : undefined
-                          }
+                          failMessage={!ocrMatrix ? ocrText || null : null}
                         />
                       ) : (
-                        <TextInput
-                          style={[styles.input, styles.ocrTextArea]}
-                          multiline
-                          editable={!busy}
-                          value={ocrText}
-                          onChangeText={setOcrText}
-                          textAlignVertical="top"
-                        />
+                        <>
+                          <SectionTitle>{t('sourceCameraOcrResult')}</SectionTitle>
+                          <TextInput
+                            style={[styles.input, styles.ocrTextArea]}
+                            multiline
+                            editable={!busy}
+                            value={ocrText}
+                            onChangeText={setOcrText}
+                            textAlignVertical="top"
+                          />
+                        </>
                       )}
                       {ocrMatrix && ocrRowCandidates.length ? (
                         <AppButton

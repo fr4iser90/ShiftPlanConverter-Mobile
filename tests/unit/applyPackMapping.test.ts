@@ -2,6 +2,9 @@ import {
   applyPackMappingToCell,
   applyPackMappingToGrid,
   collectPackCodes,
+  expandVacationRuns,
+  fillWeekdaySlashGaps,
+  listPackFingerprints,
   matchDigitsToPackCode,
   refinePersonRowFromOcr,
 } from '../../src/convert/parsers/ocr/applyPackMapping';
@@ -265,5 +268,123 @@ describe('applyPackMapping', () => {
     ];
     const out = refinePersonRowFromOcr(grid, 'PersonA, Alpha', lines, anaesthesie, colors);
     expect(out.rows[0].cells[0]).toBe('');
+  });
+
+  it('rejects digit soup that only fuzzy-matches a pack end (37435↛B41/FK102)', () => {
+    const preset: Record<string, MappingValue> = {
+      ...anaesthesie,
+      '18:05-19:35': { code: 'B41', type: 'oncall', isValidated: true },
+      '07:35-14:35': { code: 'FK102', type: 'work', isValidated: true },
+    };
+    const codes = collectPackCodes(preset, colors);
+    expect(matchDigitsToPackCode('37435', listPackFingerprints(preset))).toBeNull();
+    expect(applyPackMappingToCell('37435', preset, codes)).not.toMatch(/^(B41|FK102|B36|F)$/);
+  });
+
+  it('does not invent weekday free-day slashes when OCR saw nothing', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Di1', 'Mi2', 'Do3', 'Sa5'],
+      nameMaxX: 100,
+      colCenters: [150, 200, 250, 300],
+      rows: [{ name: 'X, Y', yCenter: 50, cells: ['', '', '', ''] }],
+    };
+    const out = fillWeekdaySlashGaps(grid, [], null, anaesthesie);
+    expect(out.rows[0]!.cells.slice(0, 3)).toEqual(['', '', '']);
+  });
+
+  it('does not expand vacation across calendar weekends (numeric headers)', () => {
+    // Sep 2026: 4=Fri, 5=Sat, 6=Sun, 7=Mon
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+      rosterMonth: 9,
+      rosterYear: 2026,
+      nameMaxX: 100,
+      colCenters: [110, 120, 130, 140, 150, 160, 170, 180, 190],
+      rows: [
+        {
+          name: 'Böhme, Patrick',
+          yCenter: 50,
+          cells: ['U', 'U', '', 'U', '', '', '', '', 'U'],
+        },
+      ],
+    };
+    const out = expandVacationRuns(grid, [], 'U');
+    expect(out.rows[0]!.cells.slice(0, 9)).toEqual([
+      'U',
+      'U',
+      'U',
+      'U',
+      '',
+      '',
+      'U',
+      'U',
+      'U',
+    ]);
+  });
+
+  it('fills left of the first vacation seed but not past the last', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'],
+      rosterMonth: 9,
+      rosterYear: 2026,
+      nameMaxX: 100,
+      colCenters: [110, 120, 130, 140, 150, 160, 170, 180, 190, 200],
+      rows: [
+        {
+          name: 'Böhme, Patrick',
+          yCenter: 50,
+          cells: ['', 'U', 'U', 'U', '/', '/', 'U', 'U', 'U', ''],
+        },
+      ],
+    };
+    const out = expandVacationRuns(grid, [], 'U');
+    expect(out.rows[0]!.cells.slice(0, 10)).toEqual([
+      'U',
+      'U',
+      'U',
+      'U',
+      '/',
+      '/',
+      'U',
+      'U',
+      'U',
+      '',
+    ]);
+  });
+
+  it('does not bridge distant vacation seeds across later duties', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18'],
+      rosterMonth: 9,
+      rosterYear: 2026,
+      nameMaxX: 100,
+      colCenters: [170, 180, 190, 200, 210, 220, 230, 240, 250, 260, 270, 280],
+      rows: [
+        {
+          name: 'Böhme, Patrick',
+          yCenter: 50,
+          cells: ['U', 'U', 'U', '', '', '', '', '', '', '', '', 'U'],
+        },
+      ],
+    };
+    const out = expandVacationRuns(grid, [], 'U');
+    expect(out.rows[0]!.cells.slice(0, 12)).toEqual([
+      'U',
+      'U',
+      'U',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'U',
+    ]);
   });
 });

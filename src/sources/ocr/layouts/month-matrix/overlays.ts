@@ -94,16 +94,17 @@ export function estimateMonthMatrixHighlightOverlays(
         ? grid.headerBandBot
         : (grid.headerBandY || yFirst - 40) + 12;
   const glyphH = Math.max(10, hBot - hTop);
-  const pad = Math.min(glyphH * 0.2, pageHeight * 0.008);
-  hTop = Math.max(0, hTop - pad * 0.15);
+  const pad = Math.min(Math.max(glyphH * 0.55, pageHeight * 0.01), pageHeight * 0.02);
+  hTop = Math.max(0, hTop - pad);
   hBot = hBot + pad;
   if (grid.rows[0]?.yLo != null) {
     hBot = Math.min(hBot, grid.rows[0]!.yLo! - 1);
   }
   if (!(hBot > hTop + 4)) {
-    hBot = hTop + Math.max(12, glyphH);
+    hBot = hTop + Math.max(18, glyphH);
   }
-  const headerBand = Math.min(hBot - hTop, Math.max(12, pageHeight * 0.04));
+  // Prefer readable day-header chips; do not collapse to a hairline.
+  const headerBand = Math.max(hBot - hTop, Math.max(18, pageHeight * 0.028));
   const yHeaderAtRef =
     grid.headerBandY && grid.headerBandY > 0
       ? Math.min(Math.max(grid.headerBandY, hTop + 2), hBot - 2)
@@ -146,8 +147,10 @@ export function estimateMonthMatrixHighlightOverlays(
 
   const band = rowBandY(grid, idx);
   const yRow = (band.yLo + band.yHi) / 2;
+  // Same right edge as teal name strips — never let skew widen the own-row
+  // name gutter into day columns (looked like "Namensspalte viel zu breit").
   const nameRight = Math.min(
-    tableRight,
+    nameRightCap,
     nameColRightAtY(nameMaxX, yRow, yFirst, slope)
   );
 
@@ -157,7 +160,7 @@ export function estimateMonthMatrixHighlightOverlays(
     band.yLo,
     band.yHi,
     tableLeft,
-    Math.max(tableLeft + 24, nameRight + 4),
+    Math.max(tableLeft + 24, nameRight),
     xRef,
     slope,
     pageWidth,

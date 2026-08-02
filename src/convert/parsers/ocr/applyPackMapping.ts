@@ -13,9 +13,15 @@ import {
   xCenter,
   yCenter,
 } from '@/src/sources/ocr/layouts/month-matrix/geometry';
+import {
+  colBoundsFromCenters,
+  glyphInLatticeCell,
+} from '@/src/sources/ocr/layouts/month-matrix/lattice';
 import { lineBelongsToRow } from '@/src/sources/ocr/layouts/month-matrix/rowOwnership';
 import type { MonthMatrixGrid } from '@/src/sources/ocr/layouts/month-matrix/types';
 import type { OcrLine } from '@/src/sources/ocr/recognize';
+import { isMatrixWeekendColumn } from '@/src/sources/ocr/matrixCalendar';
+import { VACATION_RUN_POLICY } from '@/src/sources/ocr/shortGlyphPolicy';
 
 const OCR_RESOLVE = { allowInfer: false as const };
 const TIME_RANGE_RE = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/;
@@ -364,18 +370,20 @@ function digsLookLikeEnd(digs: string, end: string): boolean {
   if (!digs || !end || end.length < 4) return false;
   if (digs.includes(end) || digs.endsWith(end) || end.endsWith(digs)) return true;
   if (digs === end.slice(1) || digs === end.slice(2)) return true;
-  for (let i = 0; i + 4 <= digs.length; i++) {
-    if (hamming4(digs.slice(i, i + 4), end) <= 1) return true;
+  // Exact 4-digit token: allow one-digit OCR typo / single confusion swap.
+  if (digs.length === 4) {
+    if (hamming4(digs, end) <= 1) return true;
+    for (const v of ocrDigitVariants(end, 1)) {
+      if (v !== end && digs === v) return true;
+    }
   }
-  // Generic OCR digit confusions (1↔5, 5↔6, …) — variants derived from the pack end only.
-  for (const v of ocrDigitVariants(end)) {
-    if (v !== end && digs.includes(v)) return true;
-  }
+  // Longer soup: only the literal pack end — variant `includes` invents duties
+  // from garbage like "37435" → end "1435" via swap "7435".
   return false;
 }
 
 /** Single/double substitutions from common OCR digit confusions. */
-function ocrDigitVariants(hhmm: string): string[] {
+function ocrDigitVariants(hhmm: string, maxSwaps = 2): string[] {
   if (hhmm.length !== 4) return [hhmm];
   const pairs: [string, string][] = [
     ['1', '5'],
@@ -396,6 +404,7 @@ function ocrDigitVariants(hhmm: string): string[] {
       const one = swap(hhmm, i, a, b);
       if (!one) continue;
       out.add(one);
+      if (maxSwaps < 2) continue;
       for (const [a2, b2] of pairs) {
         for (let j = 0; j < 4; j++) {
           if (j === i) continue;
@@ -1172,27 +1181,49 @@ export function expandVacationRuns(
       if (owningColIndex(l, centers, nameMaxX) !== colIndex) return false;
       if (!tok || looksLikeDayHeader(tok) || looksLikeHeaderPollution(tok)) return false;
       if (tok === '/' || tok === '\\') return false;
+      // Digit-only noise (e.g. "37435") must not block vacation expansion.
+      if (cellDigits(tok) && !/[A-Za-zÄÖÜäöüß]/.test(tok)) return false;
       return /[A-Za-zÄÖÜäöüß0-9]/.test(tok);
     });
   };
 
+  const isStopCol = (colIndex: number): boolean => isMatrixWeekendColumn(grid, colIndex);
+
   const rows = grid.rows.map((row) => {
     const cells = row.cells.map((c) => (c || '').trim());
-    const isEmpty = (v: string) => !v || v === '/';
+    // Slash is a real free-day mark — never treat it as empty for vacation fill.
+    const isEmpty = (v: string) => !v;
     const seeds: number[] = [];
     for (let i = 0; i < cells.length; i++) {
       if (cells[i].toUpperCase() === vac) seeds.push(i);
     }
-    for (const s of seeds) {
-      for (let j = s + 1; j < cells.length; j++) {
+    // Fill toward the neighboring seed only (no unbounded outward expand).
+    // Skip long bridges — a late stray U must not paint the days in between.
+    const maxGap = VACATION_RUN_POLICY.maxSeedGap;
+    for (let si = 0; si + 1 < seeds.length; si++) {
+      const a = seeds[si]!;
+      const b = seeds[si + 1]!;
+      if (b - a > maxGap) continue;
+      for (let j = a + 1; j < b; j++) {
         if (!isEmpty(cells[j])) break;
-        if (isWeekendHeader(grid.headers[j] || '')) break;
+        if (isStopCol(j)) break;
         if (hasOcrGlyph(row.yCenter, j)) break;
         cells[j] = vac;
       }
-      for (let j = s - 1; j >= 0; j--) {
+      for (let j = b - 1; j > a; j--) {
         if (!isEmpty(cells[j])) break;
-        if (isWeekendHeader(grid.headers[j] || '')) break;
+        if (isStopCol(j)) break;
+        if (hasOcrGlyph(row.yCenter, j)) break;
+        cells[j] = vac;
+      }
+    }
+    // Vacation often starts before the first OCR/glyph U — fill left only.
+    // Never expand right past the last seed (that invented day-10+ Us).
+    if (seeds.length) {
+      const first = seeds[0]!;
+      for (let j = first - 1; j >= 0; j--) {
+        if (!isEmpty(cells[j])) break;
+        if (isStopCol(j)) break;
         if (hasOcrGlyph(row.yCenter, j)) break;
         cells[j] = vac;
       }
@@ -1412,7 +1443,9 @@ export function fillWeekdaySlashGaps(
         if (digs.length >= 4) return cur;
       }
       if (hasOcrGlyph(row.yCenter, i)) return cur;
-      return '/';
+      // Do not invent weekday free-day slashes when OCR saw nothing — vacation
+      // cells (U) are often glyph-empty and must stay expandable, not marked '/'.
+      return cur;
     });
     return { ...row, cells };
   });
@@ -1711,6 +1744,16 @@ export function refinePersonRowFromOcr(
     yLo: r.yLo,
     yHi: r.yHi,
   }));
+  const scoopCols =
+    grid.dayFrames && grid.dayFrames.length >= 3
+      ? grid.dayFrames.map((f) => ({
+          x0: f.x0,
+          x1: f.x1,
+          cx: (f.x0 + f.x1) / 2,
+        }))
+      : colBoundsFromCenters(centers, Math.max(...centers) * 1.08 + 40, grid.colGap);
+  const useLatticeCells =
+    scoopCols.length >= 3 && row.yLo != null && row.yHi != null && row.yHi > row.yLo;
 
   const nextCells: string[] = [];
   for (let colIndex = 0; colIndex < centers.length; colIndex++) {
@@ -1729,11 +1772,15 @@ export function refinePersonRowFromOcr(
       continue;
     }
 
+    const col = scoopCols[colIndex];
     const candidates = lines
       .filter((l) => {
         const xc = xCenter(l);
         if (nameMaxX > 0 && xc < nameMaxX && l.boundingBox.x < nameMaxX * 0.9) return false;
-        // Nearest person row owns the glyph, so multi-line duties stay in one frame.
+        if (useLatticeCells && col) {
+          return glyphInLatticeCell(xc, yCenter(l), row, col, slope, xAnchor);
+        }
+        // Degraded: nearest person + column center.
         if (!lineBelongsToRow(l, rowIdx, rowAnchors, slope, xAnchor)) return false;
         return owningColIndex(l, centers, nameMaxX) === colIndex;
       })

@@ -520,8 +520,8 @@ export const OCR_AUTO_NAME_MIN_SCORE = 0.88;
 
 /**
  * Confirming a roster row only picks *which* line is yours.
- * If Settings already has Mein Name, keep that spelling — never replace it with
- * OCR garbage just because the user tapped a misread row.
+ * If Settings already has a preferred roster name, keep that spelling — never
+ * replace it with OCR garbage just because the user tapped a misread row.
  * Pencil-edit to a *new* spelling (≠ OCR, ≠ preferred) is an intentional rename.
  */
 export function resolveConfirmedRosterLabel(opts: {

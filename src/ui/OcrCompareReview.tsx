@@ -31,7 +31,6 @@ type Props = {
   imageUri: string | null;
   grid: MonthMatrixGrid | null;
   matchedName?: string | null;
-  title?: string;
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
   ocrEngineId?: string | null;
@@ -43,6 +42,7 @@ type Props = {
   pageHeight?: number | null;
   /** Persist cell edits into parent OCR matrix state. */
   onGridChange?: (grid: MonthMatrixGrid) => void;
+  failMessage?: string | null;
 };
 
 const MODES: OcrCellDisplayMode[] = ['codes', 'times', 'both'];
@@ -72,7 +72,6 @@ export function OcrCompareReview({
   imageUri,
   grid,
   matchedName,
-  title,
   presetMapping = null,
   colors = null,
   ocrEngineId = null,
@@ -81,6 +80,7 @@ export function OcrCompareReview({
   pageWidth = null,
   pageHeight = null,
   onGridChange,
+  failMessage = null,
 }: Props) {
   const theme = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -114,7 +114,6 @@ export function OcrCompareReview({
 
   const snapStrip = snaps.length ? (
     <View style={styles.snapRow}>
-      <Text style={styles.displayLabel}>{t('sourceOcrCompareSnapshots')}</Text>
       <View style={styles.snapThumbs}>
         {snaps.map((s) => (
           <View key={s.kind} style={styles.snapItem}>
@@ -128,15 +127,24 @@ export function OcrCompareReview({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.compareTitle}>{t('sourceOcrCompareTitle')}</Text>
-      <Text style={styles.compareHint}>{t('sourceOcrCompareHint')}</Text>
-      {matchedName && onGridChange ? (
-        <Text style={styles.compareHint}>{t('sourceOcrCompareEditHint')}</Text>
+      {!grid && failMessage ? (
+        <Text style={styles.failMsg}>{failMessage}</Text>
       ) : null}
-
       {grid ? (
         <>
-          <Text style={styles.displayLabel}>{t('sourceOcrCompareDisplayLabel')}</Text>
+          <OcrMonthMatrixScrollTable
+            grid={grid}
+            matchedName={matchedName}
+            displayMode={displayMode}
+            presetMapping={presetMapping}
+            colors={colors}
+            ocrEngineId={ocrEngineId}
+            dateDuty={dateDuty}
+            onlyMine={!!matchedName && onlyMine}
+            onOnlyMineChange={setOnlyMine}
+            editable={!!matchedName && !!onGridChange}
+            onEditCell={(day, cell) => setEdit({ day, cell })}
+          />
           <View style={styles.seg}>
             {MODES.map((mode) => {
               const on = displayMode === mode;
@@ -151,20 +159,6 @@ export function OcrCompareReview({
               );
             })}
           </View>
-          <OcrMonthMatrixScrollTable
-            grid={grid}
-            matchedName={matchedName}
-            title={title}
-            displayMode={displayMode}
-            presetMapping={presetMapping}
-            colors={colors}
-            ocrEngineId={ocrEngineId}
-            dateDuty={dateDuty}
-            onlyMine={!!matchedName && onlyMine}
-            onOnlyMineChange={setOnlyMine}
-            editable={!!matchedName && !!onGridChange}
-            onEditCell={(day, cell) => setEdit({ day, cell })}
-          />
           <OcrCellEditModal
             visible={!!edit}
             dayLabel={edit?.day || ''}
@@ -203,7 +197,6 @@ export function OcrCompareReview({
             overlayLayout={overlayLayout}
             accessibilityLabel={t('sourceOcrComparePhotoA11y')}
           />
-          <Text style={styles.tapHint}>{t('sourceOcrCompareTapFull')}</Text>
         </Pressable>
       ) : null}
 
@@ -244,19 +237,10 @@ export function OcrCompareReview({
 function makeStyles(theme: AppTheme) {
   return StyleSheet.create({
     wrap: { gap: 10, marginTop: 4 },
-    compareTitle: {
+    failMsg: {
       color: theme.color.ink,
-      fontSize: 15,
-      fontWeight: '700',
-    },
-    compareHint: {
-      color: theme.color.inkMuted,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    displayLabel: {
-      color: theme.color.inkSecondary,
-      fontSize: 12,
+      fontSize: 14,
+      lineHeight: 20,
       fontWeight: '600',
     },
     seg: {
@@ -293,12 +277,6 @@ function makeStyles(theme: AppTheme) {
       alignItems: 'center',
       paddingBottom: 8,
       paddingTop: 8,
-    },
-    tapHint: {
-      color: theme.color.primary,
-      fontSize: 12,
-      fontWeight: '600',
-      marginTop: 4,
     },
     snapRow: { gap: 6 },
     snapThumbs: { flexDirection: 'row', gap: 10 },

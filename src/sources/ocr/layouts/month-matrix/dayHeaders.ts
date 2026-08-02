@@ -930,7 +930,7 @@ function inferNameMaxXFromNames(lines: OcrLine[], pageWidth: number): number | n
     if (!t || l.boundingBox.x > leftCap) return false;
     // Skip titles / parentheticals.
     if (/[()]/.test(t)) return false;
-    // "Nachname," — not duty codes / KW.
+    // Surname with trailing comma — not duty codes / calendar week.
     if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{2,24},$/.test(t)) return true;
     if (/^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-']{3,24},/.test(t) && t.length <= 28) return true;
     return false;
@@ -939,12 +939,17 @@ function inferNameMaxXFromNames(lines: OcrLine[], pageWidth: number): number | n
   const rights = candidates
     .map((l) => l.boundingBox.x + l.boundingBox.width)
     .sort((a, b) => a - b);
-  // Median right edge — avoid high-percentile title outliers.
-  const right = median(rights)!;
-  const pad = Math.max(12, pageWidth * 0.01);
+  // Upper quartile of surname rights — first names sit further right of the
+  // median surname (e.g. "Patrick" past "Böhmo,").
+  const right = rights[Math.min(rights.length - 1, Math.floor(rights.length * 0.75))]!;
+  // Soft gutter for given names before the printed name|day rule / first duty.
+  const pad = Math.max(36, pageWidth * 0.025);
   const cap = pageWidth * 0.34;
   const v = right + pad;
-  if (v < pageWidth * 0.1 || v > cap) return null;
+  // Narrow name columns are common on wide wall photos (~6–10% of page width).
+  // A 10% floor rejected real edges and fell back to the first visible day
+  // header mid-month → teal name gutter into the calendar.
+  if (v < pageWidth * 0.045 || v > cap) return null;
   return v;
 }
 

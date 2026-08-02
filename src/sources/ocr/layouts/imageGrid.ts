@@ -189,8 +189,21 @@ export function detectRuledLattice(
   let vXs = peaks(vp, minSepV, thrFrac);
   // One explicit quality relaxation: sparse printed rules on photos often need a
   // slightly lower threshold, but we do it once only, not as retry logic.
-  if (vXs.length < 6 || hYs.length < 3) {
-    const relaxed = Math.max(0.24, thrFrac - 0.06);
+  const bodyStart = Math.floor(w * 0.12);
+  const bodyEnd = Math.floor(w * 0.95);
+  const bodyVs = vXs.filter((x) => x >= bodyStart && x <= bodyEnd).sort((a, b) => a - b);
+  const bodyGaps = bodyVs.slice(1).map((x, i) => x - bodyVs[i]!).filter((g) => g > minSepV);
+  const sortedGaps = [...bodyGaps].sort((a, b) => a - b);
+  const medBodyGap =
+    sortedGaps.length >= 2
+      ? sortedGaps[Math.floor(sortedGaps.length / 2)]!
+      : w / 28;
+  const maxBodyGap = bodyGaps.length ? Math.max(...bodyGaps) : 0;
+  // Mid-month ink can set a high global max and bury early day rules; if the
+  // densest V cluster leaves a multi-day hole, lower the threshold once.
+  const largeHole = maxBodyGap > medBodyGap * 3.2 && medBodyGap > minSepV;
+  if (vXs.length < 6 || hYs.length < 3 || largeHole) {
+    const relaxed = Math.max(0.22, thrFrac - (largeHole ? 0.1 : 0.06));
     hYs = peaks(hp, minSepH, relaxed);
     vXs = peaks(vp, minSepV, relaxed);
   }
@@ -266,9 +279,19 @@ export function rotateGrayCw90(img: GrayImage): GrayImage {
 /**
  * If the table lattice scores clearly better after ±90°, return that rotate.
  * One path before OCR — EXIF bake alone can leave wall plans sideways.
+ *
+ * Important: do NOT maximize month-matrix score alone. Date×duty boards
+ * (many day-rows × few duty-cols) score higher as month-matrix after a wrong
+ * 90° tip (day-rows become fake day-columns). If the photo already has a clear
+ * ruled lattice, leave it.
  */
 export function uprightRotateDegreesFromGray(img: GrayImage): 0 | 90 | -90 {
   const base = measureImageGrid(img);
+  // Already a readable table → never tip (protects landscape date×duty boards).
+  if (base.hLines >= 6 && base.vLines >= 4 && base.monthMatrixScore >= 0.32) {
+    return 0;
+  }
+
   const cw = measureImageGrid(rotateGrayCw90(img));
   const ccw = measureImageGrid(rotateGrayCw90(rotateGrayCw90(rotateGrayCw90(img))));
   const candidates: { deg: 0 | 90 | -90; score: number }[] = [
@@ -281,7 +304,8 @@ export function uprightRotateDegreesFromGray(img: GrayImage): 0 | 90 | -90 {
   const upright = candidates.find((c) => c.deg === 0)!;
   if (best.deg === 0) return 0;
   if (best.score < OCR_IMAGE_LAYOUT_MIN_SCORE_LOCAL) return 0;
-  if (best.score < upright.score + 0.12) return 0;
+  // Strong margin — weak ±0.12 was enough to tip date×duty into fake month-matrix.
+  if (best.score < upright.score + 0.2) return 0;
   return best.deg;
 }
 

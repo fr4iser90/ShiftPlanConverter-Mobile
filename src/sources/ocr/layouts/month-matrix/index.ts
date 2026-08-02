@@ -5,8 +5,10 @@
 export type { MatrixCell, MatrixRow, MonthMatrixGrid, MonthMatrixMetrics } from './types';
 export { buildMonthMatrixGrid, type BuildMonthMatrixOpts } from './build';
 export {
+  colBoundsFromCenters,
   dayColBoundsFromVerticals,
   clipLatticeToContent,
+  glyphInLatticeCell,
   headerBandFromLattice,
   owningColIndexFromBounds,
   snapDayCentersToLattice,

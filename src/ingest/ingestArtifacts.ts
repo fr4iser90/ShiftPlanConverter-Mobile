@@ -107,7 +107,7 @@ export async function ingestArtifacts(
       if (art.savedPath) result.savedPdfs.push(art.savedPath);
       result.texts.push(`### ${label}\n${text}`);
       // Multi-person department code-grid (not LOGA Zeitabrechnung): require
-      // "Mein Name" — otherwise every coworker lands in the calendar.
+      // Preferred roster name filter — otherwise every coworker lands in the calendar.
       const isCodeGrid = looksLikeCodeGrid(text, pdfConfig, mapping, snap.preset || undefined);
       if (isCodeGrid && !preferredName) {
         throw new Error(t('fjCodeGridNeedsName'));

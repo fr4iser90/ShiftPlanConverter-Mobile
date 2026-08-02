@@ -3,6 +3,7 @@ import {
   bandsAreDisjoint,
   bandsFromOwnedGlyphs,
   enforceDisjointBands,
+  estimateRuledPersonPitch,
   lineBelongsToRow,
   nearestRowIndexAt,
   personSeparatorYs,
@@ -184,6 +185,45 @@ describe('rowOwnership', () => {
     }
     // Cap uses neighbor midpoints (~person pitch), not glyph-tight strips.
     expect(out![1]!.yHi! - out![1]!.yLo!).toBeGreaterThan(80);
+  });
+
+  it('estimateRuledPersonPitch prefers person-scale gaps over duty micro-gaps', () => {
+    // Duty micros (~15) plus repeating person borders (~32); sparse name medGap≈96.
+    const ruled: number[] = [];
+    for (let y = 50; y <= 370; y += 32) {
+      ruled.push(y);
+      ruled.push(y + 15); // duty sub-row inside the person cell
+    }
+    const pitch = estimateRuledPersonPitch(ruled, 96);
+    expect(pitch).not.toBeNull();
+    expect(pitch!).toBeGreaterThanOrEqual(28);
+    expect(pitch!).toBeLessThanOrEqual(40);
+  });
+
+  it('assignPersonBandsFromRuledFrames caps sparse-name bands to ruled pitch', () => {
+    // Only 2 OCR names but printed people every ~32px — old code used midpoints (~96).
+    const people: MatrixRow[] = [
+      { name: 'A', yCenter: 100, cells: [], yNameTop: 92, yNameBot: 108 },
+      { name: 'B', yCenter: 292, cells: [], yNameTop: 284, yNameBot: 300 },
+    ];
+    const ruled: number[] = [];
+    for (let y = 68; y <= 340; y += 32) ruled.push(y);
+    const out = assignPersonBandsFromRuledFrames(
+      people,
+      [
+        { yTop: 92, yBot: 108 },
+        { yTop: 284, yBot: 300 },
+      ],
+      ruled,
+      0,
+      400,
+      60
+    );
+    expect(out).not.toBeNull();
+    for (const r of out!) {
+      expect(r.yHi! - r.yLo!).toBeLessThanOrEqual(48);
+      expect(r.yHi! - r.yLo!).toBeGreaterThanOrEqual(24);
+    }
   });
 });
 

@@ -38,12 +38,19 @@ export function estimateMonthMatrixRegionBoxes(
   const xRightBot = Math.max(24, nameMaxX - slope * (yBot - yFirst));
   const nameRight = Math.max(xRightTop, xRightBot) + 8;
 
-  const hTop =
+  const hTopRaw =
+    grid.headerFrame?.y0 ??
     grid.headerBandTop ??
     (grid.headerBandY && grid.headerBandY > 0 ? grid.headerBandY - 14 : yFirst - 48);
-  const hBot =
+  const hBotRaw =
+    grid.headerFrame?.y1 ??
     grid.headerBandBot ??
     (grid.headerBandY && grid.headerBandY > 0 ? grid.headerBandY + 14 : yFirst - 20);
+  // Pad so the Tagesköpfe crop shows Mo/Di ink, not a 1px rule line.
+  const bandH = Math.max(8, hBotRaw - hTopRaw);
+  const pad = Math.max(10, bandH * 0.45, pageHeight * 0.012);
+  const hTop = Math.max(0, hTopRaw - pad);
+  const hBot = Math.min(pageHeight, hBotRaw + pad);
   const yHLeft = hTop;
   const yHRight = hTop + slope * (pageWidth - nameMaxX);
   const headerTop = Math.min(yHLeft, yHRight);
@@ -60,7 +67,7 @@ export function estimateMonthMatrixRegionBoxes(
       x: clamp01(nameMaxX / pageWidth),
       y: clamp01(headerTop / pageHeight),
       width: clamp01(1 - nameMaxX / pageWidth),
-      height: clamp01(Math.max(0.015, (headerBottom - headerTop) / pageHeight)),
+      height: clamp01(Math.max(0.028, (headerBottom - headerTop) / pageHeight)),
     },
   };
 }

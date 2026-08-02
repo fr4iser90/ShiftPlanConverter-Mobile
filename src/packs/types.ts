@@ -68,6 +68,11 @@ export type PackOcrScopeConfig = {
    * Escape hatch: Settings → OCR, or uncertainty modal during auto.
    */
   showLayoutChips?: boolean;
+  /**
+   * Second OCR on a luminance-inverted image; merge short cell glyphs
+   * (white-on-dark U/F/…). Not a color→duty map — pack codes still apply.
+   */
+  invertLightGlyphs?: boolean;
 };
 
 /**

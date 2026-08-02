@@ -2,7 +2,7 @@ import {
   detectLayoutFromGray,
   detectLayoutFromImageUri,
 } from '../../src/sources/ocr/layouts/detectFromImage';
-import { grayFromRgba, measureImageGrid } from '../../src/sources/ocr/layouts/imageGrid';
+import { grayFromRgba, measureImageGrid, rotateGrayCw90, uprightRotateDegreesFromGray } from '../../src/sources/ocr/layouts/imageGrid';
 import { detectOcrLayout, mergeLayoutDetections } from '../../src/sources/ocr/detectLayout';
 import { OCR_TEXT_ONLY_FALLBACK } from '../../src/sources/ocr/layouts';
 
@@ -38,7 +38,50 @@ function syntheticMonthGridGray(): ReturnType<typeof grayFromRgba> {
   return grayFromRgba(w, h, rgba, 4);
 }
 
+/** Date×duty-like: many day rows, few duty columns (landscape). */
+function syntheticDateDutyGray(): ReturnType<typeof grayFromRgba> {
+  const w = 480;
+  const h = 320;
+  const rgba = new Uint8Array(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    rgba[i * 4] = 245;
+    rgba[i * 4 + 1] = 245;
+    rgba[i * 4 + 2] = 245;
+    rgba[i * 4 + 3] = 255;
+  }
+  const paint = (x0: number, y0: number, x1: number, y1: number) => {
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (x < 0 || y < 0 || x >= w || y >= h) continue;
+        const p = (y * w + x) * 4;
+        rgba[p] = rgba[p + 1] = rgba[p + 2] = 20;
+      }
+    }
+  };
+  // ~30 horizontal day rows + ~10 vertical duty cols
+  for (let r = 0; r < 30; r++) {
+    const y = 12 + r * 10;
+    paint(10, y, w - 10, y + 1);
+  }
+  for (let c = 0; c < 10; c++) {
+    const x = 50 + c * 40;
+    paint(x, 8, x + 1, h - 8);
+  }
+  return grayFromRgba(w, h, rgba, 4);
+}
+
 describe('image-first layout (pixels)', () => {
+  it('does not tip an upright date×duty lattice just to raise month-matrix score', () => {
+    const gray = syntheticDateDutyGray();
+    const base = measureImageGrid(gray);
+    expect(base.hLines).toBeGreaterThanOrEqual(6);
+    expect(base.vLines).toBeGreaterThanOrEqual(4);
+    // Wrong CW tip often invents a stronger fake month-matrix — must still stay 0.
+    const tipped = measureImageGrid(rotateGrayCw90(gray));
+    expect(tipped.monthMatrixScore).toBeGreaterThanOrEqual(base.monthMatrixScore - 0.05);
+    expect(uprightRotateDegreesFromGray(gray)).toBe(0);
+  });
+
   it('scores a synthetic ruled month grid as month-matrix', () => {
     const gray = syntheticMonthGridGray();
     const m = measureImageGrid(gray);

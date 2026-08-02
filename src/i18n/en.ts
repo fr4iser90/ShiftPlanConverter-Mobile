@@ -79,13 +79,13 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceCameraOcrGoCamera: 'Camera',
   sourceCameraOcrGoGallery: 'Gallery',
   sourceCameraOcrHint:
-    'Documents via file picker; photos via camera/gallery → OCR. PDF/CSV/ICS go to the parser.',
+    'Prefer PDF/CSV when you can — photo OCR is more error-prone. Camera/gallery for photos; files go to the parser.',
   sourceCameraOcrResult: 'OCR result',
   sourceCameraOcrClear: 'Clear OCR result',
   sourceCameraOcrCleared: 'OCR result cleared.',
   sourceCameraOcrLayout: 'OCR layout',
   sourceCameraOcrLayoutAutoOnly:
-    'Layout: Auto (detect from photo). If unsure, the app asks — override under Settings → OCR.',
+    'Photo OCR is more error-prone — better quality from PDF or CSV when available.',
   sourceCameraOcrLayoutStub: 'Layout “{layout}”: parser coming — text only.',
   ocrLayoutAuto: 'Auto',
   ocrLayoutAutoHint: 'Detect layout from the image, then OCR.',
@@ -157,14 +157,17 @@ export const en: { [K in keyof typeof de]: string } = {
     'Roster (month matrix) — {people} people (your row: {name})',
   sourceOcrMatrixScrollHint:
     '{people} people · {days} days — swipe sideways to see the full plan (like the photo).',
-  sourceOcrMatrixScrollHintMine:
-    '{days} days · only you ({name}) — photo below still shows the full plan.',
+  sourceOcrMatrixScrollHintMine: '{days} days · only you ({name})',
   sourceOcrMatrixNameCol: 'Name',
   sourceOcrMatrixWeakHint:
     'Table only partly recognized — check the photo / shoot closer and straighter.',
   sourceOcrMatrixFailedTitle: 'Table not recognized',
   sourceOcrMatrixFailedHint:
     'No name×day grid found. Photograph the plan straight and close (document scan), use layout “Month matrix”.',
+  sourceOcrMatrixFailedLayoutHint:
+    'Plan format mismatch (looks like date×duties, not a month matrix). Pick the matching layout or photograph the right plan.',
+  sourceOcrMatrixFailedQualityHint:
+    'Table too unreliable (names/cells). Photograph straight and close, or check the layout — no usable grid.',
   sourceOcrMatrixFailedNoBoxes:
     'OCR returned text but no usable word boxes ({chars} chars, {lines} boxes). Try another photo or document scan.',
   sourceOcrStatusGallery: 'Opening gallery…',
@@ -175,6 +178,7 @@ export const en: { [K in keyof typeof de]: string } = {
   sourceOcrStatusPreparing: 'Photo selected — normalizing for OCR…',
   sourceOcrStatusRecognizing: 'Reading image (OCR running)…',
   sourceOcrStatusDeskew: 'Straightening skewed photo…',
+  sourceOcrStatusInvertPass: 'Re-reading light text on dark cells…',
   sourceOcrStatusFindingNames: 'Looking for names on the plan…',
   sourceOcrStatusPickName: 'Tap your name…',
   sourceOcrStatusAutoName: 'Your name matched: {name}',
@@ -266,8 +270,13 @@ export const en: { [K in keyof typeof de]: string } = {
     'Usually the app detects the layout (Auto). Set this only when detection is wrong.',
   settingsOcrName: 'My name on the roster',
   settingsOcrNameHint:
-    'Save once here: “Last, First” as on the plan. OCR typos are auto-corrected to this name on the next scan and your row is marked.',
+    'Last and first name separately. OCR still matches wall labels with OA/Dr./Mr. in front.',
   settingsOcrNamePlaceholder: 'Last name, first name',
+  settingsOcrNameLast: 'Last name',
+  settingsOcrNameLastPlaceholder: 'Last name',
+  settingsOcrNameFirst: 'First name',
+  settingsOcrNameFirstPlaceholder: 'First name',
+  settingsOcrNameNeedLast: 'Please enter at least a last name.',
   settingsOcrNameSave: 'Save',
   settingsOcrNameClear: 'Clear',
   settingsOcrNameSaved: 'Name saved — next photos recognize and correct it automatically.',
@@ -287,7 +296,12 @@ export const en: { [K in keyof typeof de]: string } = {
   setupStepLogin: 'Login',
   setupStepWorkplace: 'Employer',
   setupStepLoga3: 'Portal',
+  setupStepRosterName: 'My name',
   setupStepGoogle: 'External calendars',
+  setupRosterNameTitle: 'Name on the roster',
+  setupRosterNameHint:
+    'Optional — helps OCR find your cells. Change later under Settings → Import → OCR.',
+  setupRosterNameOptional: 'Optional',
   setupGoogle: 'External calendars',
   setupGoogleHint:
     'Optional connect. Google works now — more sync targets later. ICS share always works without an account.',

@@ -4,6 +4,11 @@
  */
 import { t } from '../i18n';
 import { getOcrEngine } from '../convert/parsers/ocr';
+import { finalizeShortGlyphVacation } from './ocr/vacationFinalize';
+import {
+  assessMatrixUsability,
+  type MatrixUsabilityReason,
+} from './ocr/matrixUsability';
 import {
   getMappingForScope,
   getPackById,
@@ -23,6 +28,11 @@ import { getSnapshot } from '../state/store';
 import { captureOcrImage, type OcrCaptureMode } from './ocr/capture';
 import { deskewDegreesFromGray, deskewDegreesFromOcrLines, rotateImageDegrees } from './ocr/deskew';
 import { maybeDumpOcrGeometry } from './ocr/geometryDump';
+import {
+  applyInvertCellHitsToGrid,
+  ocrEmptyCellsViaInvert,
+} from './ocr/invertCellOcr';
+import { mergeInvertOcrLines } from './ocr/invertOcrPass';
 import {
   applyOcrLayoutPostprocess,
   DEFAULT_OCR_LAYOUT_ID,
@@ -169,21 +179,35 @@ function toCandidates(
     }));
 }
 
+function matrixFailedHint(
+  ocr: { text: string; lines: unknown[] } | undefined,
+  reason?: MatrixUsabilityReason | null
+): string {
+  if (ocr && !ocr.lines.length && ocr.text) {
+    return t('sourceOcrMatrixFailedNoBoxes', {
+      chars: ocr.text.length,
+      lines: ocr.lines.length,
+    });
+  }
+  if (reason === 'layout-mismatch') return t('sourceOcrMatrixFailedLayoutHint');
+  if (
+    reason === 'low-fill' ||
+    reason === 'junk-names' ||
+    reason === 'no-plausible-names' ||
+    reason === 'too-few-rows'
+  ) {
+    return t('sourceOcrMatrixFailedQualityHint');
+  }
+  return t('sourceOcrMatrixFailedHint');
+}
+
 function matrixFailedResult(
   layoutId: string,
   ocr?: { text: string; lines: unknown[] },
-  imageUri?: string | null
+  imageUri?: string | null,
+  reason?: MatrixUsabilityReason | null
 ): CameraOcrRunResult {
-  const lines = [
-    t('sourceOcrMatrixFailedTitle'),
-    '',
-    ocr && !ocr.lines.length && ocr.text
-      ? t('sourceOcrMatrixFailedNoBoxes', {
-          chars: ocr.text.length,
-          lines: ocr.lines.length,
-        })
-      : t('sourceOcrMatrixFailedHint'),
-  ];
+  const lines = [t('sourceOcrMatrixFailedTitle'), '', matrixFailedHint(ocr, reason)];
   const rawText = lines.join('\n');
   return {
     artifacts: [{ kind: 'text', text: applyOcrLayoutPostprocess(layoutId, rawText) }],
@@ -331,13 +355,25 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       }
     }
 
-    // Always persist local geometry dump (app cache) for adb pull / case reports.
-    // On-device only — never uploaded.
-    try {
-      await persistOcrGeometryDump(ocr);
-    } catch {
-      // dump is best-effort
+    // Pack-opt-in light-on-dark: frame-aware cell OCR runs after month-matrix lattice.
+    {
+      const snapInv = getSnapshot();
+      const ocrCfgInv = getOcrConfigForScope(
+        getPackById(snapInv.packId),
+        snapInv.groupId,
+        snapInv.areaId
+      );
+      if (ocrCfgInv.invertLightGlyphs !== true) {
+        // eslint-disable-next-line no-console
+        console.log('[ocr-invert] skip', {
+          pack: snapInv.packId,
+          flag: ocrCfgInv.invertLightGlyphs,
+        });
+      }
     }
+
+    // Final geometry dump is written after mapping (see end of this path).
+    // Do not overwrite cache with a pre-lattice grid mid-pipeline.
     if (!ocr.text && !ocr.lines.length) {
       // Image may still have locked a layout — keep it for the fail path.
       const layoutId =
@@ -493,7 +529,11 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       if (!(pageH > 0) || !(pageW > 0)) return undefined;
       try {
         const gray = await loadGrayImageForLayout(imageUri);
-        if (!gray) return undefined;
+        if (!gray) {
+          // eslint-disable-next-line no-console
+          console.log(`[cameraOcr] lattice gray=null uri=${String(imageUri || '').slice(0, 80)}`);
+          return undefined;
+        }
         // V-snap ROI restriction: table area only (right of name divider; between
         // header-like tokens and bottom content). One path only: if ROI is too
         // small/weak we just return empty lattice.
@@ -530,10 +570,37 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           y0: (y0p * gray.height) / pageH,
           y1: (y1p * gray.height) / pageH,
         };
-        const raw = detectRuledLattice(gray, { roi });
-        if (raw.hYs.length < 2) return undefined;
+        let raw = detectRuledLattice(gray, { roi });
+        // One explicit window expand (same idea as thrFrac relax in detectRuledLattice):
+        // a too-tight OCR-ink ROI can miss faint printed rules on phone probes.
+        if (raw.hYs.length < 3 || raw.vXs.length < 6) {
+          const full = detectRuledLattice(gray);
+          if (
+            full.hYs.length > raw.hYs.length ||
+            (full.hYs.length >= 3 && full.vXs.length > raw.vXs.length)
+          ) {
+            raw = full;
+          }
+        }
+        if (raw.hYs.length < 2) {
+          // eslint-disable-next-line no-console
+          console.log(
+            `[cameraOcr] lattice empty gray=${gray.width}x${gray.height} ` +
+              `roiH=${raw.hYs.length} roiV=${raw.vXs.length}`
+          );
+          return undefined;
+        }
+        // eslint-disable-next-line no-console
+        console.log(
+          `[cameraOcr] lattice ok gray=${gray.width}x${gray.height} ` +
+            `h=${raw.hYs.length} v=${raw.vXs.length}`
+        );
         return scaleLatticeToPage(raw, gray.width, gray.height, pageW, pageH);
-      } catch {
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `[cameraOcr] lattice failed: ${e instanceof Error ? e.message : String(e)}`
+        );
         return undefined;
       }
     }
@@ -577,6 +644,65 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
 
     let grid =
       buildStructuredGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
+
+    let invertCellHits: import('./ocr/invertCellOcr').InvertCellHit[] = [];
+
+    // Light-on-dark empty cells (pack flag): shape-match short glyphs (U,/).
+    {
+      const snapInv = getSnapshot();
+      const ocrCfgInv = getOcrConfigForScope(
+        getPackById(snapInv.packId),
+        snapInv.groupId,
+        snapInv.areaId
+      );
+      if (
+        ocrCfgInv.invertLightGlyphs === true &&
+        grid.ok &&
+        (grid.dayFrames?.length || 0) >= 3 &&
+        (grid.personFrames?.length || 0) >= 1
+      ) {
+        opts.onStatus?.({ line: t('sourceOcrStatusInvertPass') });
+        // eslint-disable-next-line no-console
+        console.log('[ocr-invert] cell pass start', {
+          days: grid.dayFrames?.length,
+          rows: grid.personFrames?.length,
+          empty: grid.rows.reduce(
+            (n, r) => n + r.cells.filter((c) => !String(c || '').trim()).length,
+            0
+          ),
+        });
+        try {
+          invertCellHits = await ocrEmptyCellsViaInvert(
+            uri,
+            grid,
+            ocr.pageWidth || 1,
+            ocr.pageHeight || 1,
+            recognizeImageText,
+            { maxCells: 200 }
+          );
+          // eslint-disable-next-line no-console
+          console.log('[ocr-invert] cell pass done', {
+            hits: invertCellHits.length,
+            sample: invertCellHits
+              .slice(0, 24)
+              .map((h) => `${h.rowIndex}:${h.dayIndex}=${h.text}`),
+          });
+          if (invertCellHits.length) {
+            workingLines = mergeInvertOcrLines(
+              workingLines,
+              invertCellHits.map((h) => h.line)
+            );
+            grid = applyInvertCellHitsToGrid(grid, invertCellHits);
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            '[ocr-invert] cell pass failed',
+            e instanceof Error ? e.message : String(e)
+          );
+        }
+      }
+    }
 
     // Region assist when matrix/names fail (month or week).
     async function maybeAssistRegion(
@@ -729,6 +855,72 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
       }
     }
 
+    // Fail closed on wrong layout / junk names before the name picker.
+    if (isMatrixLayout && grid.ok) {
+      const early = assessMatrixUsability(grid, {
+        layoutId,
+        lines: workingLines,
+        pageWidth: ocr.pageWidth,
+        pageHeight: ocr.pageHeight,
+        deferFillCheck: true,
+      });
+      if (!early.usable) {
+        // One-shot: pack has date×duty and cues say so, but we built month-matrix.
+        // Not a retry — correct layout once, then continue or fail.
+        const snapFix = getSnapshot();
+        const packFix = getPackById(snapFix.packId);
+        const ocrCfgFix = getOcrConfigForScope(
+          packFix,
+          snapFix.groupId,
+          snapFix.areaId
+        );
+        if (
+          early.reason === 'layout-mismatch' &&
+          layoutId !== 'date-duty' &&
+          !!ocrCfgFix.dateDuty?.columns?.length &&
+          allowedLayouts.includes('date-duty')
+        ) {
+          layoutId = 'date-duty';
+          opts.onStatus?.({ line: t('sourceOcrStatusBuildingDateDuty') });
+          grid = buildStructuredGrid(workingLines, ocr.pageWidth, ocr.pageHeight);
+          if (grid.ok) {
+            candidates = toCandidates(matrixRowsAsNameCandidates(grid));
+            const again = assessMatrixUsability(grid, {
+              layoutId,
+              lines: workingLines,
+              pageWidth: ocr.pageWidth,
+              pageHeight: ocr.pageHeight,
+              deferFillCheck: true,
+            });
+            if (again.usable) {
+              // continue with date-duty grid
+            } else {
+              opts.onStatus?.({ line: t('sourceOcrStatusDoneRaw') });
+              return {
+                ...matrixFailedResult(layoutId, ocr, sourceImageUri, again.reason),
+                requestedLayoutId,
+                layoutScore,
+              };
+            }
+          } else {
+            opts.onStatus?.({ line: t('sourceOcrStatusDoneRaw') });
+            return {
+              ...matrixFailedResult(layoutId, ocr, sourceImageUri, early.reason),
+              requestedLayoutId,
+              layoutScore,
+            };
+          }
+        } else {
+          opts.onStatus?.({ line: t('sourceOcrStatusDoneRaw') });
+          return {
+            ...matrixFailedResult(layoutId, ocr, sourceImageUri, early.reason),
+            requestedLayoutId,
+            layoutScore,
+          };
+        }
+      }
+    }
+
     const preferred = await loadOcrPreferredName();
     const aliases = await loadOcrNameAliases();
     // Apply saved spelling (Settings + prior OCR typo fixes) onto candidates.
@@ -832,6 +1024,23 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
           packMapping?.codeAliases
         );
       }
+      // Short-glyph vacation / free-day: one ordered finalize after refine.
+      if (invertCellHits.length) {
+        outGrid = finalizeShortGlyphVacation({
+          grid: outGrid,
+          glyphHits: invertCellHits,
+          lines: workingLines,
+          vacationCode: 'U',
+        });
+        if (useMapping) {
+          outGrid = ocrEngine.mapGrid(
+            outGrid,
+            presetMap,
+            packMapping?.colors,
+            packMapping?.codeAliases
+          );
+        }
+      }
       outGrid = {
         ...outGrid,
         rows: applyKnownSpellingsToGridRows(outGrid.rows, preferred, aliases),
@@ -875,7 +1084,50 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
             packMapping?.colors,
             packMapping?.codeAliases
           );
+          if (invertCellHits.length) {
+            outGrid = finalizeShortGlyphVacation({
+              grid: outGrid,
+              glyphHits: invertCellHits,
+              lines: workingLines,
+              vacationCode: 'U',
+            });
+            outGrid = ocrEngine.mapGrid(
+              outGrid,
+              presetMap,
+              packMapping?.colors,
+              packMapping?.codeAliases
+            );
+          }
         }
+      } else if (preferred && useMapping) {
+        // Preferred name known without picker: still intensify that row.
+        outGrid = ocrEngine.refinePersonRowFromOcr(
+          outGrid,
+          preferred,
+          workingLines,
+          presetMap,
+          packMapping?.colors,
+          packMapping?.codeAliases
+        );
+      }
+
+      // After refine/glyph finalize: refuse near-empty / junk tables (no review UI).
+      const late = assessMatrixUsability(outGrid, {
+        layoutId,
+        lines: workingLines,
+        pageWidth: ocr.pageWidth,
+        pageHeight: ocr.pageHeight,
+      });
+      if (!late.usable) {
+        opts.onStatus?.({ line: t('sourceOcrStatusDoneRaw') });
+        return {
+          ...matrixFailedResult(layoutId, ocr, sourceImageUri, late.reason),
+          requestedLayoutId,
+          layoutScore,
+        };
+      }
+
+      if (selected) {
         await saveOcrPreferredName(selected.label);
         const titleMine =
           layoutId === 'date-duty'
@@ -904,17 +1156,6 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
               : doneLine,
         });
       } else {
-        // Preferred name known without picker: still intensify that row.
-        if (preferred && useMapping) {
-          outGrid = ocrEngine.refinePersonRowFromOcr(
-            outGrid,
-            preferred,
-            workingLines,
-            presetMap,
-            packMapping?.colors,
-            packMapping?.codeAliases
-          );
-        }
         rawText = formatMonthMatrixTable(outGrid, {
           title:
             layoutId === 'date-duty'
@@ -958,6 +1199,16 @@ export async function runCameraOcr(opts: CameraOcrRunOpts = {}): Promise<CameraO
         regionSnapshots = null;
       }
     }
+    // Final dump includes live lattice + frames (early dump lacks V/H lattice).
+    try {
+      await persistOcrGeometryDump(ocr, {
+        lattice: lattice || null,
+        grid: outGrid.ok ? outGrid : null,
+      });
+    } catch {
+      // dump is best-effort
+    }
+
     return {
       artifacts: [{ kind: 'text', text: processed }],
       errors: [],

@@ -149,7 +149,7 @@ export function OcrNamePickerModal({
               if (!selectedId) return;
               const base = candidates.find((c) => c.id === selectedId);
               if (!base) return;
-              // Row pick = which line is yours. Mein Name (Settings) wins over OCR junk
+              // Row pick = which line is yours. Settings preferred name wins over OCR junk
               // unless the user pencil-edited to a new spelling.
               const label = resolveConfirmedRosterLabel({
                 preferred: preferredLabel,

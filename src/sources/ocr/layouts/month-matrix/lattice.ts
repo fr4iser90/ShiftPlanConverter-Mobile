@@ -4,6 +4,7 @@
  */
 import type { RuledLattice } from '../imageGrid';
 import { median } from './geometry';
+import { expectedYAtX } from './skew';
 import type { DayFrame, HeaderFrame, LatticeQuality, PersonFrame } from './types';
 
 export type { RuledLattice };
@@ -33,11 +34,74 @@ function gapStats(values: number[]): { medianGap: number; cv: number; regularity
  * Never invent a right edge at the photo margin — that turns a metal frame
  * into a fake last day column spanning half the image.
  */
+/**
+ * Longest run of body V-lines with day-like pitch. Skipping a single oversized
+ * gap used to strand the cursor on an early outlier V (e.g. name/week rule) and
+ * drop every later day rule — prefer the densest regular stretch instead.
+ * One missing intermediate V (~2× pitch) is filled with a midpoint.
+ */
+function longestRegularVRun(body: number[], medGap: number): number[] {
+  const maxGap = Math.max(medGap * 2.4, 48);
+  // ~2× pitch with some jitter (photo lattice often misses one day rule).
+  const fillGap = Math.max(medGap * 3.6, maxGap + medGap * 0.5);
+  let best: number[] = [];
+
+  for (let start = 0; start < body.length; start++) {
+    const run: number[] = [body[start]!];
+    for (let i = start + 1; i < body.length; i++) {
+      const prev = run[run.length - 1]!;
+      const x = body[i]!;
+      const gap = x - prev;
+      if (gap < 8) continue;
+      if (gap <= maxGap) {
+        run.push(x);
+        continue;
+      }
+      // Exactly one missing day rule between prev and x.
+      if (gap <= fillGap && gap >= medGap * 1.55) {
+        run.push((prev + x) / 2, x);
+        continue;
+      }
+      break;
+    }
+    if (run.length > best.length) best = run;
+  }
+
+  // Grow left: densest stretch may start after a single missing V (e.g. 521→655).
+  if (best.length >= 3) {
+    const first = best[0]!;
+    const idx = body.indexOf(first);
+    for (let i = idx - 1; i >= 0; i--) {
+      const x = body[i]!;
+      const gap = best[0]! - x;
+      if (gap < 8) continue;
+      if (gap <= maxGap) {
+        best = [x, ...best];
+        continue;
+      }
+      if (gap <= fillGap && gap >= medGap * 1.55) {
+        best = [x, (x + best[0]!) / 2, ...best];
+        continue;
+      }
+      break;
+    }
+  }
+  return best;
+}
+
+/**
+ * Day-column bounds from vertical rules to the right of the name column.
+ * Centers are midpoints of consecutive V-lines (true printed day cells).
+ *
+ * Never invent a right edge at the photo margin — that turns a metal frame
+ * into a fake last day column spanning half the image.
+ */
 export function dayColBoundsFromVerticals(
   vXs: number[],
   nameMaxX: number,
   pageWidth: number,
-  contentRight?: number
+  contentRight?: number,
+  guidePitch?: number
 ): LatticeColBound[] {
   const xs = [...vXs].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   const rightLimit =
@@ -48,25 +112,45 @@ export function dayColBoundsFromVerticals(
   const body = xs.filter((x) => x >= nameMaxX * 0.85 && x <= rightLimit);
   if (body.length < 3) return [];
 
-  // Ensure a left edge at the name divider when the first V is far right.
-  const left = body[0]! > nameMaxX + 8 ? [nameMaxX, ...body] : body;
-
-  // Provisional gaps → reject absurdly wide intervals (margin / frame).
-  const rawGaps = left.slice(1).map((x, i) => x - left[i]!).filter((g) => g > 8);
-  const medGap = median(rawGaps) || pageWidth / 30;
+  // Day pitch from consecutive body V gaps — ignore the widest outliers so a
+  // missing early column (or divider→body jump) does not inflate maxGap.
+  const bodyGaps = body.slice(1).map((x, i) => x - body[i]!).filter((g) => g > 8);
+  const sortedGaps = [...bodyGaps].sort((a, b) => a - b);
+  const coreGaps =
+    sortedGaps.length >= 5
+      ? sortedGaps.slice(0, Math.max(3, Math.ceil(sortedGaps.length * 0.75)))
+      : sortedGaps;
+  const medGap = median(coreGaps.length ? coreGaps : bodyGaps) || pageWidth / 30;
   const maxGap = Math.max(medGap * 2.4, 48);
 
-  const filtered: number[] = [left[0]!];
-  for (let i = 1; i < left.length; i++) {
-    const prev = filtered[filtered.length - 1]!;
-    const x = left[i]!;
-    const gap = x - prev;
-    if (gap < 8) continue;
-    if (gap > maxGap) {
-      // Skip this V — likely jumped to a photo-frame edge.
-      continue;
-    }
-    filtered.push(x);
+  let filtered = longestRegularVRun(body, medGap);
+  // Prepend name divider only when the first body V is a normal day-pitch away.
+  if (
+    filtered.length >= 3 &&
+    filtered[0]! > nameMaxX + 8 &&
+    filtered[0]! - nameMaxX <= maxGap
+  ) {
+    filtered = [nameMaxX, ...filtered];
+  }
+  // Peak detection often misses early/late day rules (empty cols vs mid-month ink).
+  // Bridge the name divider → first dense V at day pitch so the date strip starts
+  // at day 1 — only when there is a multi-day hole (not every short irregular set).
+  // Extend right only when OCR contentRight is known (avoid inventing columns out
+  // to the photo edge).
+  const leftHole = filtered.length >= 3 ? filtered[0]! - nameMaxX : 0;
+  if (filtered.length >= 3 && medGap >= 8 && leftHole > medGap * 2.5) {
+    // Sparse early V peaks under-estimate pitch; prefer OCR day-header pitch when
+    // bridging a multi-day hole so early columns match printed Mo/Di spacing.
+    const fillPitch =
+      guidePitch != null &&
+      guidePitch >= 12 &&
+      guidePitch <= Math.max(medGap * 2.2, pageWidth * 0.08)
+        ? guidePitch
+        : medGap;
+    filtered = extendDayVsAcrossDateStrip(filtered, nameMaxX, rightLimit, fillPitch, {
+      extendRight: contentRight != null && contentRight > nameMaxX,
+    });
+    filtered = coalesceDayVs(filtered, fillPitch);
   }
   if (filtered.length < 3) return [];
 
@@ -76,6 +160,81 @@ export function dayColBoundsFromVerticals(
     const x1 = filtered[i + 1]!;
     if (x1 - x0 < 8) continue;
     out.push({ x0, x1, cx: (x0 + x1) / 2 });
+  }
+  return out;
+}
+
+/**
+ * Fill missing day V-lines left of the densest run (back to the name divider)
+ * and right up to the OCR content edge, using the observed day pitch.
+ */
+function extendDayVsAcrossDateStrip(
+  run: number[],
+  nameMaxX: number,
+  rightLimit: number,
+  medGap: number,
+  opts?: { extendRight?: boolean }
+): number[] {
+  let xs = run.slice();
+  // Left: walk back from first V to the name divider at day pitch.
+  if (xs[0]! > nameMaxX + medGap * 0.7) {
+    const left: number[] = [];
+    let x = xs[0]!;
+    // Cap: a month has ≤31 day cells → ≤32 verticals from the name edge.
+    for (let n = 0; n < 32 && x - medGap >= nameMaxX - medGap * 0.15; n++) {
+      x -= medGap;
+      if (x < nameMaxX - 1) {
+        left.push(nameMaxX);
+        break;
+      }
+      left.push(x);
+    }
+    left.reverse();
+    if (!left.length || left[0]! > nameMaxX + 8) {
+      left.unshift(nameMaxX);
+    }
+    // Drop a synthetic that lands too close to the first real V.
+    while (left.length && xs[0]! - left[left.length - 1]! < medGap * 0.45) {
+      left.pop();
+    }
+    xs = [...left, ...xs];
+  } else if (xs[0]! > nameMaxX + 8) {
+    xs = [nameMaxX, ...xs];
+  }
+
+  // Right: walk forward while we stay inside the OCR content box.
+  if (opts?.extendRight) {
+    let last = xs[xs.length - 1]!;
+    for (let n = 0; n < 32; n++) {
+      const next = last + medGap;
+      if (next > rightLimit - 4) break;
+      if (rightLimit - next < medGap * 0.35) break;
+      xs.push(next);
+      last = next;
+    }
+  }
+  return xs;
+}
+
+/** Drop near-duplicate Vs; keep ~one rule per day pitch. */
+function coalesceDayVs(xs: number[], medGap: number): number[] {
+  if (xs.length < 2 || !(medGap > 0)) return xs;
+  const minSep = Math.max(8, medGap * 0.55);
+  const out: number[] = [xs[0]!];
+  for (let i = 1; i < xs.length; i++) {
+    const x = xs[i]!;
+    const prev = out[out.length - 1]!;
+    if (x - prev < minSep) continue;
+    out.push(x);
+  }
+  // If name divider → first V is a stub cell, re-seat the next V at one pitch.
+  if (out.length >= 3 && out[1]! - out[0]! < medGap * 0.7) {
+    const seated = out[0]! + medGap;
+    if (out[2]! - seated >= minSep) {
+      out[1] = seated;
+    } else {
+      out.splice(1, 1);
+    }
   }
   return out;
 }
@@ -136,7 +295,9 @@ export function dayFramesFromCenters(
 
 /**
  * Snap OCR-derived day centers onto lattice column centers (nearest V-gap).
- * Keeps header labels; replaces X with printed cell midpoints.
+ * Returns the **full** lattice date strip (not only OCR-matched columns) so
+ * missing early/mid days stay as empty printed cells. Header labels attach to
+ * the matched lattice index when OCR sees that day.
  */
 export function snapDayCentersToLattice(
   centers: number[],
@@ -144,16 +305,27 @@ export function snapDayCentersToLattice(
   vXs: number[],
   nameMaxX: number,
   pageWidth: number,
-  contentRight?: number
-): { centers: number[]; headers: string[]; bounds: LatticeColBound[] } {
-  const bounds = dayColBoundsFromVerticals(vXs, nameMaxX, pageWidth, contentRight);
+  contentRight?: number,
+  guidePitch?: number
+): { centers: number[]; headers: string[]; bounds: LatticeColBound[]; matched: number } {
+  const bounds = dayColBoundsFromVerticals(
+    vXs,
+    nameMaxX,
+    pageWidth,
+    contentRight,
+    guidePitch
+  );
   if (bounds.length < 3 || centers.length < 3) {
-    return { centers, headers, bounds: [] };
+    return { centers, headers, bounds: [], matched: 0 };
   }
 
   // Map each OCR center to nearest lattice col (unique, left-to-right).
   const used = new Set<number>();
-  const snapped: { cx: number; header: string; bi: number }[] = [];
+  const matchedHeaders = new Array(bounds.length).fill('');
+  let matched = 0;
+  const medGap =
+    median(bounds.slice(1).map((b, j) => b.cx - bounds[j]!.cx).filter((g) => g > 0)) ||
+    pageWidth / 30;
   for (let i = 0; i < centers.length; i++) {
     const c = centers[i]!;
     let best = -1;
@@ -168,22 +340,20 @@ export function snapDayCentersToLattice(
     }
     if (best < 0) continue;
     // Reject absurd jumps (OCR center far from any V-gap).
-    const medGap =
-      median(bounds.slice(1).map((b, j) => b.cx - bounds[j]!.cx).filter((g) => g > 0)) ||
-      pageWidth / 30;
     if (bestD > medGap * 1.35) continue;
     used.add(best);
-    snapped.push({ cx: bounds[best]!.cx, header: headers[i] || '', bi: best });
+    matched += 1;
+    matchedHeaders[best] = headers[i] || String(best + 1);
   }
 
-  if (snapped.length < 3) {
-    return { centers, headers, bounds };
+  if (matched < 3) {
+    return { centers, headers, bounds, matched };
   }
-  snapped.sort((a, b) => a.cx - b.cx);
   return {
-    centers: snapped.map((s) => s.cx),
-    headers: snapped.map((s) => s.header),
-    bounds: snapped.map((s) => bounds[s.bi]!),
+    centers: bounds.map((b) => b.cx),
+    headers: matchedHeaders.map((h, i) => h || String(i + 1)),
+    bounds,
+    matched,
   };
 }
 
@@ -192,9 +362,16 @@ export function scoreLatticeColumns(
   nameMaxX: number,
   pageWidth: number,
   expectedCols?: number,
-  contentRight?: number
+  contentRight?: number,
+  guidePitch?: number
 ): { quality: LatticeQuality; bounds: LatticeColBound[] } {
-  const bounds = dayColBoundsFromVerticals(vXs, nameMaxX, pageWidth, contentRight);
+  const bounds = dayColBoundsFromVerticals(
+    vXs,
+    nameMaxX,
+    pageWidth,
+    contentRight,
+    guidePitch
+  );
   let statsBounds = bounds.slice();
   if (statsBounds.length >= 4) {
     const widths = statsBounds.map((b) => b.x1 - b.x0).filter((w) => w > 0);
@@ -288,6 +465,12 @@ export function headerBandFromLattice(
     // Always cover Mo/Di ink; lattice alone often stops at the rule *above* dates.
     y0 = Math.min(y0, glyphTop!);
     y1 = Math.max(y1, glyphBot!);
+    // Prefer ink height when H-rules span title→first-person (fat yellow overlays).
+    const glyphH = glyphBot! - glyphTop!;
+    if (y1 - y0 > glyphH * 2.5) {
+      y0 = glyphTop!;
+      y1 = glyphBot!;
+    }
     // Do not eat the first person name.
     y1 = Math.min(y1, firstPersonY - 2);
     if (y1 <= y0 + 4) y1 = Math.min(firstPersonY - 2, glyphBot! + 4);
@@ -339,4 +522,50 @@ export function owningColIndexFromBounds(
     }
   }
   return best;
+}
+
+/**
+ * Half-gap day bounds from centers when V-lattice snap was not accepted.
+ * Still forms explicit cell X intervals for glyph-in-cell scoop.
+ */
+export function colBoundsFromCenters(
+  centers: number[],
+  pageWidth: number,
+  colGap?: number
+): LatticeColBound[] {
+  if (centers.length < 1) return [];
+  const fallback = (colGap && colGap > 0 ? colGap : 40) * 0.5;
+  return centers.map((cx, i) => {
+    const prev = centers[i - 1];
+    const next = centers[i + 1];
+    const gapL = prev != null ? (cx - prev) / 2 : null;
+    const gapR = next != null ? (next - cx) / 2 : null;
+    const halfL = gapL ?? gapR ?? fallback;
+    const halfR = gapR ?? gapL ?? fallback;
+    const x0 = Math.max(0, cx - halfL);
+    const x1 = Math.min(pageWidth * 0.995, cx + halfR);
+    return { x0, x1: Math.max(x0 + 6, x1), cx };
+  });
+}
+
+/**
+ * True when glyph center lies in the printed person×day cell (skew-aware Y).
+ * This is the single ownership rule when row yLo/yHi and column bounds exist.
+ */
+export function glyphInLatticeCell(
+  x: number,
+  y: number,
+  row: { yLo?: number; yHi?: number },
+  col: { x0: number; x1: number },
+  slope: number,
+  xRef: number
+): boolean {
+  if (row.yLo == null || row.yHi == null || !(row.yHi > row.yLo)) return false;
+  if (!(col.x1 > col.x0 + 1)) return false;
+  if (x < col.x0 || x >= col.x1) return false;
+  const yLo = expectedYAtX(row.yLo, xRef, x, slope);
+  const yHi = expectedYAtX(row.yHi, xRef, x, slope);
+  const top = Math.min(yLo, yHi);
+  const bot = Math.max(yLo, yHi);
+  return y >= top && y < bot;
 }

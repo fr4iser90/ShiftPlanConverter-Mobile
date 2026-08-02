@@ -31,7 +31,6 @@ const HEAD_H = 36;
 type Props = {
   grid: MonthMatrixGrid;
   matchedName?: string | null;
-  title?: string;
   displayMode?: OcrCellDisplayMode;
   presetMapping?: Record<string, MappingValue> | null;
   colors?: Record<string, string> | null;
@@ -60,7 +59,6 @@ function rosterDateForHeader(
 function OcrMonthMatrixScrollTableInner({
   grid,
   matchedName,
-  title,
   displayMode = 'codes',
   presetMapping = null,
   colors = null,
@@ -147,7 +145,6 @@ function OcrMonthMatrixScrollTableInner({
 
   return (
     <View style={styles.wrap}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
       {showPeopleToggle ? (
         <View style={styles.peopleSeg}>
           <Pressable
@@ -168,17 +165,6 @@ function OcrMonthMatrixScrollTableInner({
           </Pressable>
         </View>
       ) : null}
-      <Text style={styles.hint}>
-        {onlyMine && matchName && mineKeys.size
-          ? t('sourceOcrMatrixScrollHintMine', {
-              days: grid.headers.length,
-              name: matchName,
-            })
-          : t('sourceOcrMatrixScrollHint', {
-              people: rows.length,
-              days: grid.headers.length,
-            })}
-      </Text>
       <View style={styles.frame}>
         <ScrollView
           style={styles.vScroll}
@@ -292,16 +278,6 @@ export const OcrMonthMatrixScrollTable = memo(OcrMonthMatrixScrollTableInner);
 function makeStyles(theme: AppTheme) {
   return StyleSheet.create({
     wrap: { marginTop: 4, gap: 6 },
-    title: {
-      color: theme.color.ink,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    hint: {
-      color: theme.color.inkMuted,
-      fontSize: 12,
-      lineHeight: 16,
-    },
     peopleSeg: {
       flexDirection: 'row',
       gap: 6,

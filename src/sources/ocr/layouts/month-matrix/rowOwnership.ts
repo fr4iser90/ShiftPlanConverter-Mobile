@@ -106,6 +106,52 @@ function ruleBelow(ruledYs: number[], y: number): number | null {
 }
 
 /**
+ * Printed person-cell pitch from consecutive H-line gaps.
+ * Ignores duty sub-row micro-gaps and page-scale jumps. Used to cap band
+ * height when OCR missed names (name-gap median would otherwise inflate).
+ */
+export function estimateRuledPersonPitch(
+  ruledYs: number[],
+  nameMedGap: number
+): number | null {
+  const ys = [...ruledYs].filter((y) => Number.isFinite(y)).sort((a, b) => a - b);
+  if (ys.length < 4) return null;
+  const gaps: number[] = [];
+  for (let i = 1; i < ys.length; i++) {
+    const g = ys[i]! - ys[i - 1]!;
+    if (g >= 14 && g <= 120) gaps.push(g);
+  }
+  if (gaps.length < 3) return null;
+  gaps.sort((a, b) => a - b);
+
+  // Dense names: trust name pitch as prior (keeps multi-block person cells).
+  if (nameMedGap > 0 && nameMedGap <= 90) {
+    const near = gaps.filter((g) => g >= nameMedGap * 0.55 && g <= nameMedGap * 1.25);
+    if (near.length >= 2) {
+      return near[Math.floor((near.length - 1) / 2)]!;
+    }
+  }
+
+  // Sparse names: person pitch often appears as a 2-step span (duty micro
+  // between person borders). Include those, then keep the person-scale band.
+  const spanned: number[] = [...gaps];
+  for (let step = 2; step <= 3; step++) {
+    for (let i = step; i < ys.length; i++) {
+      const g = ys[i]! - ys[i - step]!;
+      if (g >= 24 && g <= 120) spanned.push(g);
+    }
+  }
+  spanned.sort((a, b) => a - b);
+  const hi = Math.min(72, Math.max(36, nameMedGap * 0.55));
+  const cand = spanned.filter((g) => g >= 24 && g <= hi);
+  if (cand.length < 3) return null;
+  const prelim = cand[Math.floor((cand.length - 1) / 2)]!;
+  const tight = cand.filter((g) => g >= prelim * 0.75 && g <= prelim * 1.3);
+  const use = tight.length >= 3 ? tight : cand;
+  return use[Math.floor((use.length - 1) / 2)]!;
+}
+
+/**
  * Keep horizontal rules that separate people: above first name, in each
  * name-to-name gap (outer border near the lower name), and below last name.
  *
@@ -247,9 +293,13 @@ export function assignPersonBandsFromRuledFrames(
     nameGaps.length > 0
       ? nameGaps.slice().sort((a, b) => a - b)[Math.floor(nameGaps.length / 2)]!
       : 48;
-  // One printed person cell ≈ name pitch; beyond ~1.7× we swallowed a neighbor
-  // or snapped to page-edge H-lines.
-  const maxBandH = Math.max(40, medGap * 1.7);
+  // Prefer dense H-line pitch when OCR missed names (sparse name gaps inflate medGap).
+  const ruledPitch = estimateRuledPersonPitch(ruledYs, medGap);
+  const usingRuledPitch = ruledPitch != null && ruledPitch < medGap * 0.85;
+  const pitch = usingRuledPitch ? ruledPitch! : medGap;
+  // Name-pitch: allow ~1.7× for multi-block duty cells. Ruled pitch (sparse
+  // names): tighter — otherwise one band scoops 2–3 printed people.
+  const maxBandH = Math.max(36, pitch * (usingRuledPitch ? 1.35 : 1.7));
 
   const frames: { yLo: number; yHi: number; source: 'ruled' | 'soft' }[] = [];
   for (let gi = 0; gi < groups.length; gi++) {
@@ -268,18 +318,15 @@ export function assignPersonBandsFromRuledFrames(
     let source: 'ruled' | 'soft' = 'ruled';
     const h = yHi - yLo;
     if (h > maxBandH) {
-      // Ruled interval swallowed a neighbor / page edge — fall back to
-      // neighbor midpoints (person pitch), not name-glyph hug.
+      // Ruled interval swallowed neighbors / missing names — hug printed pitch
+      // around the name, then clip to neighbor midpoints (never expand past them).
       const prev = groups[gi - 1];
       const next = groups[gi + 1];
-      yLo = Math.max(
-        pageTop,
-        prev ? (prev.yCenter + g.yCenter) / 2 : g.yCenter - medGap * 0.5
-      );
-      yHi = Math.min(
-        pageBot,
-        next ? (g.yCenter + next.yCenter) / 2 : g.yCenter + medGap * 0.5
-      );
+      const half = pitch * 0.5;
+      yLo = Math.max(pageTop, g.yCenter - half);
+      yHi = Math.min(pageBot, g.yCenter + half);
+      if (prev) yLo = Math.max(yLo, (prev.yCenter + g.yCenter) / 2);
+      if (next) yHi = Math.min(yHi, (g.yCenter + next.yCenter) / 2);
       if (!(yHi > yLo + 4)) return null;
       source = 'soft';
     }

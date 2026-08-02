@@ -8,6 +8,7 @@ import {
   enforceCalendarColumnLabels,
   normalizeHeader,
 } from '../../src/sources/ocr/layouts/month-matrix';
+import { inferNameMaxX } from '../../src/sources/ocr/layouts/month-matrix/dayHeaders';
 import type { OcrLine } from '../../src/sources/ocr/recognize';
 
 function L(text: string, x: number, y: number, w = 40, h = 14): OcrLine {
@@ -238,5 +239,27 @@ describe('month matrix grid', () => {
     expect(grid.headers[0]).toBe('Sa1');
     expect(grid.headers).toContain('Mi12');
     expect(grid.headers.some((h) => /^Sa11$/i.test(h))).toBe(false);
+  });
+
+  it('uses surname right edge as name divider even when first day header is mid-month', () => {
+    // Wide page, narrow name column (~105px) — previously rejected by 10% floor.
+    const pw = 1573;
+    const sparse: OcrLine[] = [
+      L('Distler,', 28, 400, 47),
+      L('Beyer,', 47, 450, 40),
+      L('Böhmo,', 39, 500, 52),
+      L('Bellmann,', 53, 550, 57),
+      // First OCR day headers start mid-month (days 1–2 missing).
+      L('Do', 260, 240, 20),
+      L('3', 284, 240, 12),
+      L('Fr', 305, 240, 18),
+      L('4', 325, 240, 12),
+      L('10', 593, 240, 18),
+      L('Mo', 756, 240, 20),
+      L('14', 773, 240, 18),
+    ];
+    const nx = inferNameMaxX(sparse, pw);
+    expect(nx).toBeLessThan(170);
+    expect(nx).toBeGreaterThan(130);
   });
 });

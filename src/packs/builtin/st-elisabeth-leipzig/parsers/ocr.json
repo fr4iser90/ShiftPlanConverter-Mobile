@@ -3,5 +3,6 @@
   "preferredLayout": "auto",
   "showLayoutChips": false,
   "layouts": ["month-matrix", "week-strip"],
-  "usePackMapping": true
+  "usePackMapping": true,
+  "invertLightGlyphs": true
 }

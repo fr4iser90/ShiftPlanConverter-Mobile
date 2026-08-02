@@ -109,10 +109,8 @@ export async function loadGrayImageForLayout(uri: string): Promise<GrayImage | n
     const fs = require('fs') as typeof import('fs');
     if (typeof fs.existsSync === 'function' && fs.existsSync(fsPath)) {
       const bytes = new Uint8Array(fs.readFileSync(fsPath));
-      // PNG — skip (device path always re-encodes to JPEG via manipulator).
-      if (bytes[0] === 0x89 && bytes[1] === 0x50) {
-        // fall through to manipulator path when present
-      } else if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+      // JPEG can decode here. PNG (and mislabeled PNG-as-.jpg) need manipulator.
+      if (bytes[0] === 0xff && bytes[1] === 0xd8) {
         return downscaleGray(decodeJpegToGray(bytes), LAYOUT_PROBE_MAX_WIDTH);
       }
     }
@@ -130,23 +128,54 @@ export async function loadGrayImageForLayout(uri: string): Promise<GrayImage | n
       { compress: 0.75, format: manip.SaveFormat.JPEG }
     );
     probeUri = normalizeLocalImageUri(resized.uri);
-  } catch {
-    // keep original
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[ocr-gray] manipulator failed: ${e instanceof Error ? e.message : String(e)}`
+    );
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const FileSystem = require('expo-file-system') as {
-      readAsStringAsync: (
-        u: string,
-        opts: { encoding: string }
-      ) => Promise<string>;
-      EncodingType?: { Base64: string };
-    };
-    const encoding = FileSystem.EncodingType?.Base64 || 'base64';
-    const b64 = await FileSystem.readAsStringAsync(probeUri, { encoding });
-    return downscaleGray(decodeJpegToGray(b64ToBytes(b64)), LAYOUT_PROBE_MAX_WIDTH);
-  } catch {
+    // Prefer legacy FileSystem (same as geometry dump) — new API is async-handle based.
+    let b64: string | null = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const FileSystemLegacy = require('expo-file-system/legacy') as {
+        readAsStringAsync: (
+          u: string,
+          opts: { encoding: string }
+        ) => Promise<string>;
+        EncodingType?: { Base64: string };
+      };
+      const encoding = FileSystemLegacy.EncodingType?.Base64 || 'base64';
+      b64 = await FileSystemLegacy.readAsStringAsync(probeUri, { encoding });
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const FileSystem = require('expo-file-system') as {
+        readAsStringAsync: (
+          u: string,
+          opts: { encoding: string }
+        ) => Promise<string>;
+        EncodingType?: { Base64: string };
+      };
+      const encoding = FileSystem.EncodingType?.Base64 || 'base64';
+      b64 = await FileSystem.readAsStringAsync(probeUri, { encoding });
+    }
+    if (!b64) return null;
+    const bytes = b64ToBytes(b64);
+    if (!(bytes[0] === 0xff && bytes[1] === 0xd8)) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[ocr-gray] not jpeg after probe magic=${bytes[0]?.toString(16)} ${bytes[1]?.toString(16)}`
+      );
+      return null;
+    }
+    return downscaleGray(decodeJpegToGray(bytes), LAYOUT_PROBE_MAX_WIDTH);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[ocr-gray] read/decode failed: ${e instanceof Error ? e.message : String(e)}`
+    );
     return null;
   }
 }
