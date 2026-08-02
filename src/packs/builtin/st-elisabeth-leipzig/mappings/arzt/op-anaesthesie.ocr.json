@@ -79,24 +79,39 @@
         "id": "praemedikation",
         "short": "PD",
         "label": "Prämedikation",
-        "match": ["praemed", "pramed"],
+        "match": ["praemedikation", "praemed", "pramedikation", "pramed"],
         "times": [
           { "when": "weekday-mon-thu", "start": "07:30", "end": "16:00" },
           { "when": "friday", "start": "09:00", "end": "17:30" }
         ]
       },
       {
-        "id": "zwischendienst-2",
-        "short": "ZD2",
-        "label": "Zwischendienst 2",
-        "match": ["zwischendienst 2", "zwischen 2", "zd 2"],
-        "times": [{ "when": "any", "start": "09:30", "end": "18:00" }]
-      },
-      {
         "id": "zwischendienst-1",
         "short": "ZD1",
         "label": "Zwischendienst 1",
-        "match": ["zwischendienst", "zd 1", "zd"],
+        "match": [
+          "zwischendienst 1",
+          "zwischen 1",
+          "zd 1",
+          "zd1",
+          "1zwischendienst",
+          "1 zwischendienst"
+        ],
+        "times": [{ "when": "any", "start": "09:30", "end": "18:00" }]
+      },
+      {
+        "id": "zwischendienst-2",
+        "short": "ZD2",
+        "label": "Zwischendienst 2",
+        "match": [
+          "zwischendienst 2",
+          "zwischen 2",
+          "zd 2",
+          "zd2",
+          "2zwischendienst",
+          "2 zwischendienst",
+          "2"
+        ],
         "times": [{ "when": "any", "start": "09:30", "end": "18:00" }]
       },
       {
@@ -107,10 +122,20 @@
         "times": [{ "when": "any", "start": "11:30", "end": "20:00" }]
       },
       {
-        "id": "schmerz",
-        "short": "SD",
-        "label": "Schmerz / Dienst",
-        "match": ["schmerz1", "schmerz2", "schmerz 1", "schmerz 2"],
+        "id": "schmerz-1",
+        "short": "SD1",
+        "label": "Schmerz 1",
+        "match": ["schmerz1", "schmerz 1"],
+        "times": [
+          { "when": "weekday", "start": "07:30", "end": "16:00" },
+          { "when": "weekend-or-holiday", "start": "07:30", "end": "16:00" }
+        ]
+      },
+      {
+        "id": "schmerz-2",
+        "short": "SD2",
+        "label": "Schmerz 2",
+        "match": ["schmerz2", "schmerz 2"],
         "times": [
           { "when": "weekday", "start": "07:30", "end": "16:00" },
           { "when": "weekend-or-holiday", "start": "07:30", "end": "16:00" }

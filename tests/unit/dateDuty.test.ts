@@ -45,6 +45,76 @@ describe('date-duty pack vocabulary', () => {
     expect(classifyDutyHeader('Unknown Col', packDateDuty.columns)).toBeNull();
   });
 
+  it('keeps Prämedikation / Schmerz1+2 / ZD2 as distinct header columns', () => {
+    const pageW = 1800;
+    const pageH = 1250;
+    const lines: OcrLine[] = [
+      L('Abteilung Anästhesie', 40, 20, 200),
+      L('Hausdienst', 200, 200, 90),
+      L('HD', 330, 200, 24),
+      L('Nacht', 360, 200, 50),
+      L('Rufdienst', 520, 200, 80),
+      L('RD', 650, 200, 24),
+      L('Nacht', 680, 200, 50),
+      L('Prämedikation', 820, 200, 120),
+      L('1Zwischendienst', 1100, 200, 130),
+      L('2', 1260, 200, 16),
+      L('Langdienst', 1290, 200, 90),
+      L('Schmerz1', 1470, 200, 80),
+      L('Schmerz2', 1620, 200, 80),
+    ];
+    for (let d = 1; d <= 20; d++) {
+      lines.push(L(`${String(d).padStart(2, '0')}.09.`, 40, 250 + d * 35, 80));
+      lines.push(L(NAME_A, 220, 254 + d * 35, 90));
+    }
+    // Neighboring tokens that used to glue onto Prämedikation
+    lines.push(L('Zwischendienst', 960, 200, 120));
+    const built = buildDateDutyFromLines(lines, pageW, {
+      dateDuty: {
+        boardMarkers: ['Abteilung'],
+        columns: [
+          { id: 'hausdienst-nacht', short: 'HDN', match: ['hd', 'nacht'], matchAll: true },
+          { id: 'rufdienst-nacht', short: 'RDN', match: ['rd', 'nacht'], matchAll: true },
+          { id: 'hausdienst', short: 'HD', match: ['hausdienst'] },
+          { id: 'rufdienst', short: 'RD', match: ['rufdienst'] },
+          {
+            id: 'praemedikation',
+            short: 'PD',
+            match: ['praemedikation', 'praemed', 'pramed'],
+          },
+          {
+            id: 'zwischendienst-1',
+            short: 'ZD1',
+            match: ['1zwischendienst', 'zwischendienst 1', 'zd 1'],
+          },
+          {
+            id: 'zwischendienst-2',
+            short: 'ZD2',
+            match: ['zwischendienst 2', 'zd 2', '2'],
+          },
+          { id: 'langdienst', short: 'LD', match: ['langdienst'] },
+          { id: 'schmerz-1', short: 'SD1', match: ['schmerz1', 'schmerz 1'] },
+          { id: 'schmerz-2', short: 'SD2', match: ['schmerz2', 'schmerz 2'] },
+        ],
+      },
+      pageHeight: pageH,
+    });
+    const byId = Object.fromEntries(built.duties.map((d) => [d.id, d]));
+    expect(byId['praemedikation']).toBeTruthy();
+    expect(byId['praemedikation']!.xCenter).toBeLessThan(950);
+    expect(byId['praemedikation']!.xCenter).toBeGreaterThan(800);
+    expect(byId['zwischendienst-1']).toBeTruthy();
+    expect(byId['zwischendienst-2']).toBeTruthy();
+    expect(byId['schmerz-1']).toBeTruthy();
+    expect(byId['schmerz-2']).toBeTruthy();
+    expect(byId['schmerz-2']!.xCenter).toBeGreaterThan(byId['schmerz-1']!.xCenter);
+    // Lone "2" must not steal Schmerz2
+    expect(classifyDutyHeader('Schmerz2', [
+      { id: 'zwischendienst-2', short: 'ZD2', match: ['2', 'zd 2'] },
+      { id: 'schmerz-2', short: 'SD2', match: ['schmerz2'] },
+    ])?.id).toBe('schmerz-2');
+  });
+
   it('auto-detect prefers date-duty when pack columns + date rows present', () => {
     const lines: OcrLine[] = [
       L('Abteilung Plan', 40, 10, 200),

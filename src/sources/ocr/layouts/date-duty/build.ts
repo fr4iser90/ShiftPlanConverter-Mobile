@@ -231,14 +231,47 @@ function normKey(s: string): string {
     .trim();
 }
 
+/** Digit-only needles must be exact / trailing tokens — not "2" inside "schmerz2". */
+function needleHits(normalizedHeader: string, needle: string): boolean {
+  if (!needle) return false;
+  if (/^\d+$/.test(needle)) {
+    return (
+      normalizedHeader === needle ||
+      new RegExp(`(?:^|\\s)${escapeRe(needle)}$`).test(normalizedHeader)
+    );
+  }
+  return normalizedHeader.includes(needle);
+}
+
 function columnMatch(normalizedHeader: string, col: PackDateDutyColumn): boolean {
   const needles = (col.match || []).map(normKey).filter(Boolean);
   if (!needles.length || !normalizedHeader) return false;
-  if (col.matchAll) return needles.every((n) => normalizedHeader.includes(n));
-  return needles.some((n) => normalizedHeader.includes(n));
+  if (col.matchAll) return needles.every((n) => needleHits(normalizedHeader, n));
+  return needles.some((n) => needleHits(normalizedHeader, n));
 }
 
-/** Map header OCR text → pack column id (first match in pack order). */
+/**
+ * How tightly a header phrase matches a pack column (0..1).
+ * Prefers short OCR titles over mega-glued header strips.
+ */
+function headerMatchQuality(normalizedHeader: string, col: PackDateDutyColumn): number {
+  const needles = (col.match || []).map(normKey).filter(Boolean);
+  if (!needles.length || !normalizedHeader) return 0;
+  if (col.matchAll) {
+    if (!needles.every((n) => needleHits(normalizedHeader, n))) return 0;
+    const cov =
+      needles.reduce((a, n) => a + n.length, 0) / Math.max(1, normalizedHeader.length);
+    return Math.min(1, cov);
+  }
+  let best = 0;
+  for (const n of needles) {
+    if (!needleHits(normalizedHeader, n)) continue;
+    best = Math.max(best, n.length / Math.max(1, normalizedHeader.length));
+  }
+  return best;
+}
+
+/** Map header OCR text → pack column (best coverage, not pack-order first hit). */
 export function classifyDutyHeader(
   raw: string,
   columns: PackDateDutyColumn[] | null | undefined
@@ -246,10 +279,16 @@ export function classifyDutyHeader(
   if (!columns?.length) return null;
   const s = normKey(raw);
   if (!s || s.length > 48) return null;
+  let best: PackDateDutyColumn | null = null;
+  let bestQ = 0;
   for (const col of columns) {
-    if (columnMatch(s, col)) return col;
+    const q = headerMatchQuality(s, col);
+    if (q > bestQ) {
+      bestQ = q;
+      best = col;
+    }
   }
-  return null;
+  return bestQ > 0 ? best : null;
 }
 
 export function cleanPersonCell(
@@ -422,18 +461,37 @@ export function buildDateDutyFromLines(
   // Tight gap: duty titles are spaced; a wide gap would glue "Hausdienst"+"HD Nacht".
   const headerPhrases = [
     ...headerToks,
-    ...mergeRowPhrases(headerToks, Math.max(12, pageWidth * 0.012), 14),
+    ...mergeRowPhrases(
+      headerToks,
+      Math.min(20, Math.max(10, pageWidth * 0.01)),
+      14
+    ),
   ];
   const dutyMap = new Map<
     string,
-    { id: string; label: string; short: string; xCenter: number; y0: number; y1: number }
+    {
+      id: string;
+      label: string;
+      short: string;
+      xCenter: number;
+      y0: number;
+      y1: number;
+      quality: number;
+    }
   >();
   for (const phrase of headerPhrases) {
     const col = classifyDutyHeader(phrase.text, columns);
     if (!col) continue;
     const short = String(col.short || col.id).trim() || col.id;
+    const quality = headerMatchQuality(normKey(phrase.text), col);
     const prev = dutyMap.get(col.id);
-    if (!prev || phrase.text.length > prev.label.length) {
+    // Prefer tight titles ("Prämedikation") over glued strips that still match.
+    const better =
+      !prev ||
+      quality > prev.quality + 0.02 ||
+      (Math.abs(quality - prev.quality) <= 0.02 &&
+        phrase.text.length < prev.label.length);
+    if (better) {
       dutyMap.set(col.id, {
         id: col.id,
         label: phrase.text,
@@ -441,6 +499,7 @@ export function buildDateDutyFromLines(
         xCenter: phrase.xc,
         y0: phrase.y0,
         y1: phrase.y1,
+        quality,
       });
     }
   }
