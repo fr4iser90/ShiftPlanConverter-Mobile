@@ -4,6 +4,8 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests/unit', '<rootDir>/src'],
   testMatch: ['**/tests/unit/**/*.test.ts'],
+  // Scratch probes (`*.local.test.ts`) stay out of CI / `npm test`.
+  testPathIgnorePatterns: ['\\.local\\.test\\.ts$'],
   setupFiles: ['<rootDir>/tests/unit/setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',

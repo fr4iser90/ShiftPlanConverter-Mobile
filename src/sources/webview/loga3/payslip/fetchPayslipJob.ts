@@ -292,6 +292,9 @@ async function capturePdf(ctx: Ctx, label: string): Promise<{ base64: string; si
 export async function runPayslipFetchJob(
   opts: PayslipFetchOptions
 ): Promise<PayslipFetchResult> {
+  const { hydrateLoGa3WaitPatience } = await import('../shared/waitPatiencePrefs');
+  await hydrateLoGa3WaitPatience();
+
   const sleep = opts.delay || ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const ctx: Ctx = { ...opts, sleep, jobT0: Date.now() };
   const imported: PayslipDocument[] = [];

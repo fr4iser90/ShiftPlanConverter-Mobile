@@ -4,6 +4,14 @@ Deutsch. Englische Fassung: [CHANGELOG.en.md](./CHANGELOG.en.md)
 
 Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## 0.1.8 — 2026-08-13
+
+### Hinzugefügt
+- Einstellungen → Import → **LOGA3-Wartezeit** (Normal / Sehr langsam ×2) für langsames Firmen-WLAN
+
+### Geändert
+- LOGA3-Abruf: längere Wartebudgets (Shell, Picker, PDF, Bridge) als neue Baseline
+
 ## 0.1.7 — 2026-08-02
 
 ### Hinzugefügt

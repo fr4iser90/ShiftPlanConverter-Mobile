@@ -20,6 +20,7 @@ export default function SettingsStackLayout() {
       <Stack.Screen name="security" options={{ title: t('settingsHubSecurity') }} />
       <Stack.Screen name="fetch" options={{ title: t('settingsHubFetch') }} />
       <Stack.Screen name="import-window" options={{ title: t('settingsImportWindow') }} />
+      <Stack.Screen name="loga-wait" options={{ title: t('settingsLogaWait') }} />
       <Stack.Screen name="export" options={{ title: t('settingsHubExport') }} />
       <Stack.Screen name="event-format" options={{ title: t('settingsHubEventFormat') }} />
       <Stack.Screen name="google" options={{ title: t('settingsHubGoogle') }} />

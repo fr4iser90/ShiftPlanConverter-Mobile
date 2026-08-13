@@ -17,6 +17,7 @@ import {
   probeEncryptedStorage,
 } from '@/src/state/store';
 import { hydrateLoga3Env } from '@/src/sources/webview/loga3/shared/env';
+import { hydrateLoGa3WaitPatience } from '@/src/sources/webview/loga3/shared/waitPatiencePrefs';
 import { applySmokeSetupFromUrl, isSmokeSetupUrl } from '@/src/setup/smokeSeed';
 import { applyOcrSmokeFromUrl, isOcrSmokeUrl } from '@/src/setup/ocrSmokeIntent';
 import {
@@ -52,6 +53,7 @@ export default function RootLayout() {
     (async () => {
       await hydrateStore();
       await hydrateLoga3Env();
+      await hydrateLoGa3WaitPatience();
       if (isPayloadLocked()) {
         const probe = await probeEncryptedStorage();
         const detail = [

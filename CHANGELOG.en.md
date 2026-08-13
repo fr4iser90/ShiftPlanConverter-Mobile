@@ -4,6 +4,14 @@ English. German version: [CHANGELOG.md](./CHANGELOG.md)
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 0.1.8 — 2026-08-13
+
+### Added
+- Settings → Import → **LOGA3 wait time** (Normal / Very slow ×2) for slow work Wi‑Fi
+
+### Changed
+- LOGA3 fetch: longer wait budgets (shell, picker, PDF, bridge) as the new baseline
+
 ## 0.1.7 — 2026-08-02
 
 ### Added

@@ -94,7 +94,7 @@ Attack surface: on-device storage, WebView (third-party LOGA3 origin), Google Si
 | Check | Status |
 |-------|--------|
 | No debug smoke URLs / fixtures forced in production builds | [x] `__DEV__` gate |
-| ProGuard / minify does not break Secure Store / Google Sign-In | [ ] |
+| ProGuard / minify does not break Secure Store / Google Sign-In | [ ] config on (`expo-build-properties` + `proguard-rules.pro`); smoke pending |
 | Dependency audit (`npm audit`) reviewed; criticals addressed or accepted | [x] 2026-07-25: 0 critical; brace-expansion/jest + uuid/xcode accepted residual |
 | Dedicated release signing key (not debug.keystore) | [ ] ops — see [play-store-launch.md](./play-store-launch.md) |
 | Third-party / peer security review before public store listing | [ ] hand [peer-review-packet.md](./peer-review-packet.md) |

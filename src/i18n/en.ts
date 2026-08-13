@@ -286,6 +286,13 @@ export const en: { [K in keyof typeof de]: string } = {
   settingsOcrWhere:
     'Import → Photo (OCR): photo + table for comparison. Calendar only after you import.',
   settingsImportWindow: 'Month window',
+  settingsLogaWait: 'LOGA3 wait time',
+  settingsLogaWaitHint:
+    'How long the app waits for slow portal pages during fetch. Work Wi‑Fi: usually Normal (already generous); train/hotspot: Very slow.',
+  settingsLogaWaitNormal: 'Normal',
+  settingsLogaWaitVerySlow: 'Very slow',
+  settingsLogaWaitNormalMeta: 'Normal (×1)',
+  settingsLogaWaitVerySlowMeta: 'Very slow (×2)',
   urlMissing: 'LOGA3 address missing — set it under Setup.',
   setupTenant: 'LOGA3 address',
   setupTenantHint: 'Your portal address, e.g. https://your-tenant…/loga3/# — stored on this device only.',
@@ -377,7 +384,7 @@ export const en: { [K in keyof typeof de]: string } = {
   settingsHubSecurity: 'Security',
   settingsHubSecurityMeta: 'Biometrics & encryption',
   settingsHubFetch: 'Import',
-  settingsHubFetchMeta: 'Month window, roster name',
+  settingsHubFetchMeta: 'Month window, wait time, roster name',
   settingsHubExport: 'Export',
   settingsHubExportMeta: 'Calendar targets & event format',
   settingsHubEventFormat: 'Calendar events',

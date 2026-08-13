@@ -141,6 +141,18 @@ describe('applyPackMapping', () => {
     expect(out.rows[0].cells).toEqual(['⚠️ 06:00-14:12', 'F']);
   });
 
+  it('does not wipe OCR cells when pack codes are empty', () => {
+    const grid: MonthMatrixGrid = {
+      ok: true,
+      headers: ['Sa1', 'Mo3'],
+      rows: [{ name: 'PersonA, Alpha', yCenter: 10, cells: ['U', 'F'] }],
+    };
+    const out = applyPackMappingToGrid(grid, {}, null);
+    expect(out.rows[0].cells).toEqual(['U', 'F']);
+    const refined = refinePersonRowFromOcr(grid, 'PersonA, Alpha', [], {}, null);
+    expect(refined.rows[0].cells).toEqual(['U', 'F']);
+  });
+
   it('maps every cell in a grid without touching names', () => {
     const grid: MonthMatrixGrid = {
       ok: true,

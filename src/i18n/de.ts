@@ -286,6 +286,13 @@ export const de = {
   settingsOcrWhere:
     'Import → Foto (Bilderkennung): Foto + Tabelle zum Vergleichen. Kalender erst nach Übernahme.',
   settingsImportWindow: 'Monatsfenster',
+  settingsLogaWait: 'LOGA3-Wartezeit',
+  settingsLogaWaitHint:
+    'Wie lange die App beim Portal-Abruf auf langsame Seiten wartet. Bei Firmen-WLAN meist „Normal“ (bereits großzügig); Zug-/Hotspot: „Sehr langsam“.',
+  settingsLogaWaitNormal: 'Normal',
+  settingsLogaWaitVerySlow: 'Sehr langsam',
+  settingsLogaWaitNormalMeta: 'Normal (×1)',
+  settingsLogaWaitVerySlowMeta: 'Sehr langsam (×2)',
   urlMissing: 'LOGA3-Adresse fehlt — bitte unter Einrichtung eintragen.',
   setupTenant: 'LOGA3-Adresse',
   setupTenantHint: 'Adresse deines Portals, z.B. https://dein-mandant…/loga3/# — nur auf diesem Gerät.',
@@ -377,7 +384,7 @@ export const de = {
   settingsHubSecurity: 'Sicherheit',
   settingsHubSecurityMeta: 'Biometrie & Verschlüsselung',
   settingsHubFetch: 'Import',
-  settingsHubFetchMeta: 'Monatsfenster, Dienstplan-Name',
+  settingsHubFetchMeta: 'Monatsfenster, Wartezeit, Dienstplan-Name',
   settingsHubExport: 'Export',
   settingsHubExportMeta: 'Kalender-Ziele & Ereignisformat',
   settingsHubEventFormat: 'Kalender-Ereignisse',

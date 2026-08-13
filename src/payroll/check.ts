@@ -82,7 +82,11 @@ export function runPayrollCheck(opts: {
   const monthEntries = entriesInMonth(opts.entries, serviceMonth, opts.workplaceId);
 
   if (!monthEntries.length) {
-    diagnostics.push(`missing-shifts:${serviceMonth}`);
+    diagnostics.push(
+      `Keine importierten Dienste für den Dienstmonat ${serviceMonth}. ` +
+        `Bitte zuerst den Dienstplan/die Zeitabrechnung für diesen Monat konvertieren — ` +
+        `sonst bleibt Soll für Bereitschaft und Zuschläge bei 0.`
+    );
   }
 
   const { hours: hourSums, matched, unmatched, urlaubDays } = sumHoursForEntries(

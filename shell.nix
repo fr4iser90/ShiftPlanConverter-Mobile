@@ -3,6 +3,7 @@
   #
   #   nix-shell
   #   shiftplan-help
+  #   record-demo NAME       # Demo-Video (scrcpy, USB-Handy)
   #   shiftplan-emu          # Emulator starten
   #   shiftplan-android      # App auf Emulator bauen & installieren
   #
@@ -87,6 +88,7 @@ let
       ANDROID_SDK_ROOT / ANDROID_HOME  → Nix Android SDK
       JAVA_HOME                        → JDK 17
       Node                             → Node 22
+      scrcpy                           → Demo-Aufnahme (record-demo)
 
     Typischer Ablauf:
       1) nix-shell
@@ -94,6 +96,13 @@ let
       3) adb wait-for-device
       4) shiftplan-android  # npm install + expo run:android
          oder: npx expo start   dann im Metro „a“
+
+    Demo-Video (USB-Handy, du bedienst):
+      record-demo 1              # → artifacts/demo-rec/demo1-pflege-loga3.mp4
+      record-demo 2              # → demo2-arzt-pdf.mp4
+      record-demo mein-clip      # → mein-clip.mp4
+      Ctrl+C                     # Stop & speichern
+      record-demo-auto 1|2|both  # automatisiert (braucht .env DEMO_*/LOGA3_*)
 
     Smoke ohne Live-LOGA3:
       Fetch-Tab → „Fixture konvertieren“ → Preview → Export → ICS
@@ -111,6 +120,32 @@ let
       • Legacy-AVD-Home: ~/.loga3-android/… (Pfad unverändert, bestehende Emulatoren)
       • iOS: nicht via dieser Shell — Mac/Xcode oder eas build
     EOF
+  '';
+
+  recordDemo = pkgs.writeShellScriptBin "record-demo" ''
+    set -euo pipefail
+    ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    cd "$ROOT"
+    if ! command -v adb >/dev/null || ! command -v scrcpy >/dev/null; then
+      echo "FAIL: adb/scrcpy fehlt — bist du in der Projekt-nix-shell?" >&2
+      exit 1
+    fi
+    exec bash "$ROOT/scripts/dev/demo-record-manual.sh" "''${1:-manual}"
+  '';
+
+  recordDemoAuto = pkgs.writeShellScriptBin "record-demo-auto" ''
+    set -euo pipefail
+    ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    cd "$ROOT"
+    if ! command -v adb >/dev/null || ! command -v scrcpy >/dev/null; then
+      echo "FAIL: adb/scrcpy fehlt — bist du in der Projekt-nix-shell?" >&2
+      exit 1
+    fi
+    if [ ! -f "$ROOT/scripts/dev/demo-record.py" ]; then
+      echo "FAIL: scripts/dev/demo-record.py fehlt" >&2
+      exit 1
+    fi
+    exec python3 "$ROOT/scripts/dev/demo-record.py" "''${1:-both}"
   '';
 
   runAndroid = pkgs.writeShellScriptBin "shiftplan-android" ''
@@ -207,6 +242,9 @@ pkgs.mkShell {
     runAndroid
     runEmu
     runEmuFg
+    recordDemo
+    recordDemoAuto
+    pkgs.scrcpy
     pkgs.git
     pkgs.which
     pkgs.unzip
@@ -249,7 +287,7 @@ pkgs.mkShell {
     echo "┌──────────────────────────────────────────────┐"
     echo "│  ShiftPlan Converter nix-shell                      │"
     echo "│  Node $(${nodejs}/bin/node -v) · JDK 17"
-    echo "│  tip: shiftplan-help | shiftplan-emu | shiftplan-android │"
+    echo "│  tip: shiftplan-help | record-demo NAME | shiftplan-emu │"
     echo "└──────────────────────────────────────────────┘"
     echo ""
   '';

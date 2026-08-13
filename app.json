@@ -2,7 +2,7 @@
   "expo": {
     "name": "ShiftPlan Converter",
     "slug": "shiftplan-converter",
-    "version": "0.1.7",
+    "version": "0.1.8",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "shiftplan",
@@ -83,6 +83,15 @@
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#0f766e"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
         }
       ]
     ],

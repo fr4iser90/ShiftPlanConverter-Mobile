@@ -1,6 +1,6 @@
 # Roadmap — offene Punkte
 
-Stand: 2026-07-27. Fertige Phasen (Scaffold, Live-Fetch für getestetes Pack, ICS/Google, Widgets, Rename) stehen in README + CHANGELOG — nicht hier.
+Stand: 2026-08-13. Fertige Phasen (Scaffold, Live-Fetch für getestetes Pack, ICS/Google, Widgets, Rename) stehen in README + CHANGELOG — nicht hier.
 
 ## Packs → JSON-only
 
@@ -67,6 +67,14 @@ Ziel: Kamera-OCR nicht als Blackbox, sondern mit klaren Layouts, Live-Feedback u
 | **5c.6 Lattice frames** | done | Professionelle H×V-Zellenrahmen + Homography-Rectification mit Qualitätsgates — [`ocr-lattice-frames-plan.md`](ocr-lattice-frames-plan.md) |
 
 Leitplanken (wie sonst): **ein Pfad** — bei Unklarheit fragen, nicht Layout A → fail → Layout B still probieren.
+
+## Convert / Mapping (offen)
+
+| Thema | Warum |
+|-------|--------|
+| **Ist-Zeiten überschreiben geplantes Kürzel** | Späterer LOGA-/PDF-Fetch liefert oft verkürzte Ist-Zeiten (früher gehen). Mapping allein über Zeitfenster → z. B. planmäßig **F**, nach Fetch **FK102**. Nutzer erwarten das geplante Dienstkürzel; Ist gehört in Zeiten/Beschreibung. |
+| **Ansatz** | Geplantes Kürzel aus **Monatsmatrix** (oder früherem Fetch mit Soll) behalten bzw. dagegen halten; **Zeitprotokoll** nur für Ist-Start/Ende (und AZK). Bei Konflikt: Kürzel = Matrix, Zeiten = Ist, optional Warnung. Alternativ: erster bekannter Code für denselben Tag/Start nicht überschreiben. |
+| **Verwandt** | FK9/F3 bei kollidierenden gleichen Zeitfenstern im Pack-Mapping — gegenprüfen; separates Mapping-Risiko. |
 
 ## Ops / Store (weiter offen)
 

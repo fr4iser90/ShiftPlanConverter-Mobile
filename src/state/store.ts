@@ -813,6 +813,9 @@ export async function wipeAllLocalData(): Promise<void> {
   const { clearOcrPreferredName } = await import('./ocrPreferredName');
   const { clearOcrNameAliases } = await import('./ocrNameAliases');
   const { clearOcrLayoutId } = await import('./ocrLayout');
+  const { clearWaitPatience } = await import(
+    '../sources/webview/loga3/shared/waitPatiencePrefs'
+  );
 
   const ids = cache.workplaces.map((w) => w.id);
 
@@ -828,6 +831,7 @@ export async function wipeAllLocalData(): Promise<void> {
     clearOcrPreferredName(),
     clearOcrNameAliases(),
     clearOcrLayoutId(),
+    clearWaitPatience(),
     AsyncStorage.multiRemove([
       KEYS.entries,
       KEYS.rawText,

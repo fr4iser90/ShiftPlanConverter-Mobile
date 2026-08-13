@@ -399,6 +399,9 @@ async function capturePdf(
  * Multi-month LOGA3 fetch — precondition → one action → postcondition.
  */
 export async function runFetchJob(opts: FetchJobOptions): Promise<FetchJobResult> {
+  const { hydrateLoGa3WaitPatience } = await import('../shared/waitPatiencePrefs');
+  await hydrateLoGa3WaitPatience();
+
   const { username, password, months, year, bridge } = opts;
   const sleep = opts.delay || ((ms: number) => bridge.delay(ms));
   const gatePaths: string[] = [];

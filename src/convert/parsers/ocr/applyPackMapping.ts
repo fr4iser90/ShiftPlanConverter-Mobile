@@ -370,15 +370,22 @@ function digsLookLikeEnd(digs: string, end: string): boolean {
   if (!digs || !end || end.length < 4) return false;
   if (digs.includes(end) || digs.endsWith(end) || end.endsWith(digs)) return true;
   if (digs === end.slice(1) || digs === end.slice(2)) return true;
-  // Exact 4-digit token: allow one-digit OCR typo / single confusion swap.
+  // Exact 4-digit token: allow OCR digit-confusion swaps (e.g. 5560 ≈ 1550).
   if (digs.length === 4) {
     if (hamming4(digs, end) <= 1) return true;
-    for (const v of ocrDigitVariants(end, 1)) {
+    for (const v of ocrDigitVariants(end, 2)) {
       if (v !== end && digs === v) return true;
     }
+    return false;
   }
-  // Longer soup: only the literal pack end — variant `includes` invents duties
-  // from garbage like "37435" → end "1435" via swap "7435".
+  // Full start+end soup (≥8): trailing HHMM may be OCR-mangled. Check the tail
+  // only — never variant-`includes` on the whole soup (invents hits from "37435").
+  if (digs.length >= 8) {
+    const tail = digs.slice(-4);
+    for (const v of ocrDigitVariants(end, 2)) {
+      if (tail === v) return true;
+    }
+  }
   return false;
 }
 
@@ -1080,6 +1087,8 @@ export function applyPackMappingToGrid(
   // Preset mapping is LOGA/time→code (ID1, B5A, …) — different vocabulary; sanitize would clear cells.
   if (grid.overlayLayout === 'date-duty') return grid;
   const codes = collectPackCodes(presetMapping, colors, codeAliases);
+  // No pack codes yet (setup / empty store) — keep OCR glyphs for usability gates.
+  if (!codes.size) return grid;
   const rows = grid.rows.map((row) => ({
     ...row,
     cells: row.cells.map((c) => {
@@ -1734,6 +1743,8 @@ export function refinePersonRowFromOcr(
 
   const row = grid.rows[rowIdx];
   const codes = collectPackCodes(presetMapping, colors, codeAliases);
+  // Empty pack: refine would sanitize every cell to '' and trip late fill gates.
+  if (!codes.size) return grid;
   const fps = listPackFingerprints(presetMapping);
   const vacSet = new Set(letterOnlyPackCodes(codes, fps));
   const nameMaxX = grid.nameMaxX ?? 0;
@@ -1957,6 +1968,7 @@ export function refineAllPersonRowsFromOcr(
 ): MonthMatrixGrid {
   if (grid.overlayLayout === 'date-duty') return grid;
   const codes = collectPackCodes(presetMapping, colors, codeAliases);
+  if (!codes.size) return grid;
   const fps = listPackFingerprints(presetMapping);
   const vac = primaryVacationCode(codes, fps);
   const vacCodes = letterOnlyPackCodes(codes, fps);
